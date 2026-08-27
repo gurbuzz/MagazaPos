@@ -72,32 +72,32 @@ export const LabelPrinterModal: React.FC = () => {
   }
 
   return (
-    <div className="h-[calc(100vh-4rem)] bg-slate-100 p-6 overflow-y-auto">
-      <div className="max-w-4xl mx-auto space-y-6">
+    <div className="h-[calc(100vh-3.5rem)] bg-slate-100 p-5 overflow-y-auto font-sans">
+      <div className="max-w-4xl mx-auto space-y-5">
         {/* Header */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 flex justify-between items-center shadow-sm">
+        <div className="bg-white border border-slate-200 rounded-lg p-5 flex justify-between items-center shadow-sm">
           <div>
-            <h1 className="text-xl font-black text-slate-900 flex items-center space-x-2">
-              <Printer className="w-6 h-6 text-indigo-600" />
+            <h1 className="text-lg font-bold text-slate-900 flex items-center space-x-2">
+              <Printer className="w-5 h-5 text-blue-700" />
               <span>Toplu Barkod & Termal Raf Etiketi Basımı</span>
             </h1>
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="text-xs text-slate-500 mt-0.5">
               Tarayıcı diyaloğu olmadan arka planda doğrudan termal yazıcıya (ZPL/RAW) baskı gönderin.
             </p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {/* Controls Form */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-5 shadow-sm">
-            <h2 className="font-extrabold text-slate-900 text-sm flex items-center space-x-2 border-b border-slate-200 pb-3">
-              <Sliders className="w-4 h-4 text-indigo-600" />
+          <div className="bg-white border border-slate-200 rounded-lg p-5 space-y-4 shadow-sm">
+            <h2 className="font-bold text-slate-900 text-xs flex items-center space-x-2 border-b border-slate-200 pb-2.5">
+              <Sliders className="w-4 h-4 text-blue-700" />
               <span>Etiket Parametreleri</span>
             </h2>
 
             {/* Select Product Variant */}
             <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1">Basılacak Ürün / Varyant</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Basılacak Ürün / Varyant</label>
               <select
                 onChange={(e) => {
                   const [pId, vId] = e.target.value.split(':')
@@ -105,7 +105,7 @@ export const LabelPrinterModal: React.FC = () => {
                   const v = p?.variants?.find((variant: any) => variant.id === vId)
                   if (v) setSelectedVariant({ ...v, product: p })
                 }}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-slate-900 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2 text-slate-900 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-blue-600"
               >
                 {products.map((p) =>
                   p.variants?.map((v: any) => (
@@ -119,14 +119,14 @@ export const LabelPrinterModal: React.FC = () => {
 
             {/* Label Template Selection */}
             <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1">Etiket Şablonu</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Etiket Şablonu</label>
               <div className="grid grid-cols-3 gap-2 text-xs">
                 <button
                   type="button"
                   onClick={() => setLabelTemplate('BARCODE_MINI')}
-                  className={`p-2.5 rounded-xl border text-center font-bold transition ${
+                  className={`p-2 rounded border text-center font-semibold transition ${
                     labelTemplate === 'BARCODE_MINI'
-                      ? 'bg-indigo-50 border-indigo-500 text-indigo-700 shadow-sm'
+                      ? 'bg-blue-50 border-blue-500 text-blue-700 shadow-2xs'
                       : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
                   }`}
                 >
@@ -135,9 +135,9 @@ export const LabelPrinterModal: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setLabelTemplate('SHELF_TAG')}
-                  className={`p-2.5 rounded-xl border text-center font-bold transition ${
+                  className={`p-2 rounded border text-center font-semibold transition ${
                     labelTemplate === 'SHELF_TAG'
-                      ? 'bg-indigo-50 border-indigo-500 text-indigo-700 shadow-sm'
+                      ? 'bg-blue-50 border-blue-500 text-blue-700 shadow-2xs'
                       : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
                   }`}
                 >
@@ -146,9 +146,9 @@ export const LabelPrinterModal: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setLabelTemplate('TEXTILE_TAG')}
-                  className={`p-2.5 rounded-xl border text-center font-bold transition ${
+                  className={`p-2 rounded border text-center font-semibold transition ${
                     labelTemplate === 'TEXTILE_TAG'
-                      ? 'bg-indigo-50 border-indigo-500 text-indigo-700 shadow-sm'
+                      ? 'bg-blue-50 border-blue-500 text-blue-700 shadow-2xs'
                       : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
                   }`}
                 >
@@ -159,12 +159,12 @@ export const LabelPrinterModal: React.FC = () => {
 
             {/* Copy Quantity */}
             <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1">Baskı Adedi (Kopya)</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Baskı Adedi (Kopya)</label>
               <input
                 type="number"
                 value={printQuantity}
                 onChange={(e) => setPrintQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 text-slate-900 font-extrabold text-base"
+                className="w-full bg-slate-50 border border-slate-300 rounded px-3 py-1.5 text-slate-900 font-bold text-sm"
               />
             </div>
 
@@ -172,14 +172,14 @@ export const LabelPrinterModal: React.FC = () => {
             <button
               disabled={isPrinting || !selectedVariant}
               onClick={handlePrintDispatch}
-              className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold rounded-xl shadow-lg shadow-indigo-600/25 transition flex items-center justify-center space-x-2 text-sm disabled:opacity-50"
+              className="w-full py-2.5 bg-blue-700 hover:bg-blue-800 text-white font-semibold rounded shadow-sm transition flex items-center justify-center space-x-2 text-xs disabled:opacity-50"
             >
-              <Printer className="w-5 h-5" />
+              <Printer className="w-4 h-4" />
               <span>{isPrinting ? 'Yazdırılıyor...' : 'Termal Yazıcıya Gönder (Silent Print)'}</span>
             </button>
 
             {message && (
-              <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl text-xs flex items-center space-x-2 font-bold">
+              <div className="p-2.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded text-xs flex items-center space-x-2 font-semibold">
                 <CheckCircle className="w-4 h-4 flex-shrink-0" />
                 <span>{message}</span>
               </div>
@@ -187,29 +187,29 @@ export const LabelPrinterModal: React.FC = () => {
           </div>
 
           {/* Live Label Preview */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4 shadow-sm flex flex-col items-center justify-center">
-            <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">
+          <div className="bg-white border border-slate-200 rounded-lg p-5 space-y-4 shadow-sm flex flex-col items-center justify-center">
+            <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">
               Canlı Etiket Önizleme
             </span>
 
             {selectedVariant ? (
-              <div className="w-64 bg-slate-50 text-slate-900 rounded-xl p-4 shadow-md border border-slate-300 font-sans text-center space-y-2 select-none">
-                <div className="font-extrabold text-xs truncate">{selectedVariant.product?.name || 'Ürün Adı'}</div>
+              <div className="w-60 bg-slate-50 text-slate-900 rounded p-3.5 shadow-2xs border border-slate-300 font-sans text-center space-y-1.5 select-none">
+                <div className="font-bold text-xs truncate">{selectedVariant.product?.name || 'Ürün Adı'}</div>
                 <div className="text-[10px] text-slate-600 font-medium">
                   Renk: {selectedVariant.attributes?.color} | Beden: {selectedVariant.attributes?.size}
                 </div>
 
                 {/* Simulated Barcode */}
-                <div className="py-2 border-y border-dashed border-slate-400">
-                  <div className="font-mono text-xl font-black tracking-widest leading-none text-slate-800">
+                <div className="py-1.5 border-y border-dashed border-slate-400">
+                  <div className="font-mono text-lg font-bold tracking-widest leading-none text-slate-800">
                     ||| | |||| || |
                   </div>
-                  <div className="font-mono text-[10px] font-bold text-slate-700 mt-1">
+                  <div className="font-mono text-[10px] font-semibold text-slate-700 mt-0.5">
                     {selectedVariant.barcode}
                   </div>
                 </div>
 
-                <div className="text-lg font-black text-slate-900">
+                <div className="text-base font-bold text-slate-900">
                   {selectedVariant.salePrice.toFixed(2)} ₺
                 </div>
               </div>

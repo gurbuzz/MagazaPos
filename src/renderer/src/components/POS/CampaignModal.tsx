@@ -59,39 +59,39 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({ isOpen, onClose })
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-      <div className="bg-white border border-slate-200 rounded-3xl max-w-xl w-full overflow-hidden shadow-2xl space-y-0">
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 select-none font-sans">
+      <div className="bg-white border border-slate-200 rounded-lg max-w-xl w-full overflow-hidden shadow-xl space-y-0">
         {/* Header */}
-        <div className="px-6 py-5 border-b border-slate-200 flex items-center justify-between bg-slate-50/50">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600">
-              <Sparkles className="w-5 h-5" />
+        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+          <div className="flex items-center space-x-2.5">
+            <div className="w-8 h-8 rounded bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600">
+              <Sparkles className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-black text-slate-900 text-base">Kampanya & İndirim Yönetimi</h3>
-              <p className="text-xs text-slate-500 font-medium">Sepet şablon indirimi ve promosyonları tanımlayın</p>
+              <h3 className="font-bold text-slate-900 text-sm">Kampanya & İndirim Yönetimi</h3>
+              <p className="text-[11px] text-slate-500 font-medium">Sepet şablon indirimi ve promosyonları tanımlayın</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition"
+            className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded transition"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Content Body */}
-        <div className="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
+        <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
           {/* Active Campaigns Grid */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center space-x-1.5">
-                <Tag className="w-3.5 h-3.5 text-indigo-600" />
+              <h4 className="text-xs font-bold text-slate-700 uppercase tracking-tight flex items-center space-x-1.5">
+                <Tag className="w-3.5 h-3.5 text-blue-700" />
                 <span>Tanımlı Kampanyalar ({campaigns.length})</span>
               </h4>
               <button
                 onClick={() => setIsFormOpen(!isFormOpen)}
-                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center space-x-1.5 shadow-sm"
+                className="px-2.5 py-1.5 bg-blue-700 hover:bg-blue-800 text-white rounded text-xs font-semibold transition flex items-center space-x-1 shadow-2xs"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Yeni Kampanya Ekle</span>
@@ -100,49 +100,49 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({ isOpen, onClose })
 
             {/* New Campaign Creation Form */}
             {isFormOpen && (
-              <form onSubmit={handleCreate} className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-4 animate-in slide-in-from-top-2 duration-200">
-                <h5 className="text-xs font-extrabold text-slate-800">Yeni Kampanya Şablonu Tanımla</h5>
+              <form onSubmit={handleCreate} className="bg-slate-50 border border-slate-200 rounded-lg p-3.5 space-y-3">
+                <h5 className="text-xs font-bold text-slate-800">Yeni Kampanya Şablonu Tanımla</h5>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">Kampanya Adı</label>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">Kampanya Adı</label>
                     <input
                       type="text"
                       placeholder="Örn: Sezon Sonu İndirimi"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded text-xs text-slate-900 font-medium focus:ring-1 focus:ring-blue-600 focus:outline-none"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">İndirim Türü</label>
-                    <div className="flex rounded-xl overflow-hidden border border-slate-300 p-0.5 bg-white">
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">İndirim Türü</label>
+                    <div className="flex rounded border border-slate-300 p-0.5 bg-white">
                       <button
                         type="button"
                         onClick={() => setType('PERCENTAGE')}
-                        className={`flex-1 py-1.5 text-xs font-bold rounded-lg flex items-center justify-center space-x-1 transition ${
-                          type === 'PERCENTAGE' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+                        className={`flex-1 py-1 text-xs font-semibold rounded flex items-center justify-center space-x-1 transition ${
+                          type === 'PERCENTAGE' ? 'bg-blue-700 text-white' : 'text-slate-600 hover:bg-slate-100'
                         }`}
                       >
-                        <Percent className="w-3.5 h-3.5" />
+                        <Percent className="w-3 h-3" />
                         <span>Yüzde (%)</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => setType('FIXED')}
-                        className={`flex-1 py-1.5 text-xs font-bold rounded-lg flex items-center justify-center space-x-1 transition ${
-                          type === 'FIXED' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+                        className={`flex-1 py-1 text-xs font-semibold rounded flex items-center justify-center space-x-1 transition ${
+                          type === 'FIXED' ? 'bg-blue-700 text-white' : 'text-slate-600 hover:bg-slate-100'
                         }`}
                       >
-                        <DollarSign className="w-3.5 h-3.5" />
+                        <DollarSign className="w-3 h-3" />
                         <span>Sabit Tutar (₺)</span>
                       </button>
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
                       {type === 'PERCENTAGE' ? 'İndirim Oranı (%)' : 'İndirim Tutarı (₺)'}
                     </label>
                     <input
@@ -151,30 +151,30 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({ isOpen, onClose })
                       placeholder={type === 'PERCENTAGE' ? '15' : '75'}
                       value={value}
                       onChange={(e) => setValue(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded text-xs text-slate-900 font-semibold focus:ring-1 focus:ring-blue-600 focus:outline-none"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">Rozet Rengi</label>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">Rozet Rengi</label>
                     <div className="flex items-center space-x-2 pt-1">
                       {(['indigo', 'emerald', 'amber', 'rose', 'purple'] as const).map((c) => (
                         <button
                           key={c}
                           type="button"
                           onClick={() => setBadgeColor(c)}
-                          className={`w-6 h-6 rounded-full border-2 transition ${
+                          className={`w-5 h-5 rounded-full border-2 transition ${
                             badgeColor === c ? 'border-slate-900 scale-110' : 'border-transparent'
                           } ${
                             c === 'indigo'
-                              ? 'bg-indigo-500'
+                              ? 'bg-blue-600'
                               : c === 'emerald'
-                              ? 'bg-emerald-500'
+                              ? 'bg-emerald-600'
                               : c === 'amber'
                               ? 'bg-amber-500'
                               : c === 'rose'
-                              ? 'bg-rose-500'
-                              : 'bg-purple-500'
+                              ? 'bg-rose-600'
+                              : 'bg-purple-600'
                           }`}
                         />
                       ))}
@@ -182,17 +182,17 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({ isOpen, onClose })
                   </div>
                 </div>
 
-                <div className="flex justify-end space-x-2 pt-2">
+                <div className="flex justify-end space-x-2 pt-1">
                   <button
                     type="button"
                     onClick={() => setIsFormOpen(false)}
-                    className="px-3 py-1.5 bg-slate-200 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-300"
+                    className="px-3 py-1 bg-slate-200 text-slate-700 text-xs font-semibold rounded hover:bg-slate-300"
                   >
                     İptal
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-xl hover:bg-indigo-700 shadow-md"
+                    className="px-3.5 py-1 bg-blue-700 text-white text-xs font-semibold rounded hover:bg-blue-800 shadow-2xs"
                   >
                     Kaydet
                   </button>
@@ -215,15 +215,15 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({ isOpen, onClose })
                 return (
                   <div
                     key={camp.id}
-                    className={`border rounded-2xl p-3.5 flex items-center justify-between transition shadow-sm ${
+                    className={`border rounded-lg p-3 flex items-center justify-between transition shadow-2xs ${
                       isActive
-                        ? 'border-indigo-600 bg-indigo-50/40 ring-2 ring-indigo-600/20'
+                        ? 'border-blue-500 bg-blue-50/50'
                         : 'border-slate-200 bg-white hover:border-slate-300'
                     }`}
                   >
                     <div className="flex items-center space-x-3">
                       <div
-                        className={`px-2.5 py-1 rounded-xl text-xs font-extrabold border ${getColorClasses(
+                        className={`px-2 py-0.5 rounded text-xs font-bold border ${getColorClasses(
                           camp.badgeColor,
                           isActive
                         )}`}
@@ -232,9 +232,9 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({ isOpen, onClose })
                       </div>
                       <div>
                         <div className="flex items-center space-x-2">
-                          <h5 className="font-extrabold text-slate-900 text-xs">{camp.name}</h5>
+                          <h5 className="font-bold text-slate-900 text-xs">{camp.name}</h5>
                           {isActive && (
-                            <span className="px-2 py-0.5 bg-indigo-600 text-white text-[10px] font-bold rounded-full flex items-center space-x-1">
+                            <span className="px-2 py-0.5 bg-blue-700 text-white text-[10px] font-semibold rounded flex items-center space-x-1">
                               <Check className="w-3 h-3" />
                               <span>Sepette Aktif</span>
                             </span>
@@ -242,7 +242,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({ isOpen, onClose })
                         </div>
                         <p className="text-[11px] text-slate-500 font-medium">
                           {subtotal > 0 ? (
-                            <span>Mevcut Sepet İndirimi: <strong className="text-emerald-600">-{previewDiscount.toFixed(2)} ₺</strong></span>
+                            <span>Mevcut Sepet İndirimi: <strong className="text-emerald-700 font-bold">-{previewDiscount.toFixed(2)} ₺</strong></span>
                           ) : (
                             <span>{camp.type === 'PERCENTAGE' ? 'Tüm sepet tutarına uygulanır' : 'Sabit tutar indirimi'}</span>
                           )}
@@ -250,7 +250,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({ isOpen, onClose })
                       </div>
                     </div>
 
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-1.5">
                       <button
                         onClick={() => {
                           if (isActive) {
@@ -259,10 +259,10 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({ isOpen, onClose })
                             applyCampaign(camp)
                           }
                         }}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center space-x-1 ${
+                        className={`px-2.5 py-1 rounded text-xs font-semibold transition flex items-center space-x-1 ${
                           isActive
                             ? 'bg-slate-200 text-slate-700 hover:bg-slate-300'
-                            : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm'
+                            : 'bg-blue-700 text-white hover:bg-blue-800 shadow-2xs'
                         }`}
                       >
                         <span>{isActive ? 'Kaldır' : 'Sepete Uygula'}</span>
@@ -270,10 +270,10 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({ isOpen, onClose })
 
                       <button
                         onClick={() => deleteCampaign(camp.id)}
-                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition"
+                        className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition"
                         title="Kampanyayı Sil"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
@@ -284,10 +284,10 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({ isOpen, onClose })
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-slate-200 bg-slate-50/50 flex justify-end">
+        <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex justify-end">
           <button
             onClick={onClose}
-            className="px-5 py-2 bg-slate-900 text-white text-xs font-extrabold rounded-xl hover:bg-slate-800 transition shadow-md"
+            className="px-4 py-1.5 bg-slate-900 text-white text-xs font-semibold rounded hover:bg-slate-800 transition shadow-2xs"
           >
             Tamam / Kapat
           </button>

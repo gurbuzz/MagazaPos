@@ -21,100 +21,100 @@ export const Header: React.FC = () => {
   }, [setLocalIp])
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between select-none shadow-sm z-10">
+    <header className="h-14 bg-slate-900 border-b border-slate-800 px-5 flex items-center justify-between select-none shadow-md z-20">
       {/* Brand & Store Name */}
-      <div className="flex items-center space-x-4">
-        <div className="flex items-center space-x-3 bg-indigo-50 border border-indigo-100 px-3 py-1.5 rounded-xl">
-          <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-black text-sm shadow-sm">
+      <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2.5 bg-slate-800/80 border border-slate-700/60 px-3 py-1 rounded-md">
+          <div className="w-6 h-6 rounded bg-blue-600 flex items-center justify-center text-white font-bold text-xs">
             POS
           </div>
-          <div>
-            <h1 className="font-extrabold text-slate-900 text-sm tracking-wide leading-none">{storeName}</h1>
-            <span className="text-[10px] text-indigo-600 font-bold uppercase tracking-wider">Aktif: {cashierName}</span>
+          <div className="flex flex-col">
+            <h1 className="font-bold text-slate-100 text-xs tracking-tight leading-tight">{storeName}</h1>
+            <span className="text-[10px] text-slate-400 font-medium">Kasa: <span className="text-blue-400 font-semibold">{cashierName}</span></span>
           </div>
         </div>
       </div>
 
       {/* Tabs Navigation */}
-      <nav className="flex items-center space-x-2">
+      <nav className="flex items-center space-x-1 bg-slate-950/60 p-1 rounded-md border border-slate-800">
         <button
           onClick={() => setActiveTab('pos')}
-          className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
+          className={`flex items-center space-x-2 px-3.5 py-1.5 rounded text-xs font-semibold transition ${
             activeTab === 'pos'
-              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
           }`}
         >
-          <ShoppingBag className="w-4 h-4" />
+          <ShoppingBag className="w-3.5 h-3.5" />
           <span>Kasa (POS)</span>
         </button>
 
         <button
           onClick={() => setActiveTab('stock')}
-          className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
+          className={`flex items-center space-x-2 px-3.5 py-1.5 rounded text-xs font-semibold transition ${
             activeTab === 'stock'
-              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
           }`}
         >
-          <Package className="w-4 h-4" />
+          <Package className="w-3.5 h-3.5" />
           <span>Stok & Varyant</span>
         </button>
 
         <button
           onClick={() => setActiveTab('labels')}
-          className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
+          className={`flex items-center space-x-2 px-3.5 py-1.5 rounded text-xs font-semibold transition ${
             activeTab === 'labels'
-              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
           }`}
         >
-          <Printer className="w-4 h-4" />
+          <Printer className="w-3.5 h-3.5" />
           <span>Etiket Basımı</span>
         </button>
 
         <button
           onClick={() => setActiveTab('sales')}
-          className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
+          className={`flex items-center space-x-2 px-3.5 py-1.5 rounded text-xs font-semibold transition ${
             activeTab === 'sales'
-              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
           }`}
         >
-          <Receipt className="w-4 h-4" />
+          <Receipt className="w-3.5 h-3.5" />
           <span>Ciro & Satış Raporları</span>
         </button>
       </nav>
 
       {/* Campaign & Settings Controls */}
-      <div className="flex items-center space-x-2.5 text-xs">
+      <div className="flex items-center space-x-2 text-xs">
         <button
           onClick={() => setIsCampaignModalOpen(true)}
-          className="flex items-center space-x-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 rounded-xl text-xs font-extrabold transition shadow-sm"
+          className="flex items-center space-x-1.5 px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 rounded text-xs font-semibold transition"
           title="Kampanya ve İndirim Yönetimi"
         >
-          <Sparkles className="w-4 h-4 text-amber-600" />
+          <Sparkles className="w-3.5 h-3.5 text-amber-400" />
           <span>Kampanyalar</span>
         </button>
 
-        <div className="h-6 w-px bg-slate-200" />
+        <div className="h-5 w-px bg-slate-800" />
 
         {/* Quick Lock Button */}
         <button
           onClick={lockApp}
-          className="p-2 bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 rounded-xl border border-slate-200 transition"
+          className="p-1.5 bg-slate-800 hover:bg-rose-900/40 text-slate-300 hover:text-rose-300 rounded border border-slate-700 transition"
           title="Kayıtı Kilitle (PIN Girişi İster)"
         >
           <Lock className="w-4 h-4" />
         </button>
 
-        {/* System Settings Gear Icon Button (Replaces old cashier text) */}
+        {/* System Settings Gear Icon Button */}
         <button
           onClick={() => setIsSettingsModalOpen(true)}
-          className="p-2 bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-600 rounded-xl border border-slate-200 transition"
+          className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded border border-slate-700 transition"
           title="Sistem ve Kasa Ayarları"
         >
-          <Settings className="w-5 h-5" />
+          <Settings className="w-4 h-4" />
         </button>
 
         <CampaignModal
