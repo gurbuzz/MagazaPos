@@ -37,7 +37,7 @@ function createWindow() {
 }
 
 // IPC Handler: Silent Thermal Label/Receipt Printing
-ipcMain.handle('print-silent', async (_, htmlContent: string) => {
+ipcMain.handle('print-silent', async (_, htmlContent: string, printerName?: string) => {
   let printWindow: BrowserWindow | null = new BrowserWindow({
     show: false,
     webPreferences: { nodeIntegration: false }
@@ -47,11 +47,17 @@ ipcMain.handle('print-silent', async (_, htmlContent: string) => {
 
   return new Promise((resolve) => {
     printWindow?.webContents.on('did-finish-load', () => {
+      const printOptions: any = {
+        silent: true,
+        printBackground: true,
+      }
+
+      if (printerName) {
+        printOptions.deviceName = printerName
+      }
+
       printWindow?.webContents.print(
-        {
-          silent: true,
-          printBackground: true,
-        },
+        printOptions,
         (success, failureReason) => {
           if (!success) console.error('Print failed:', failureReason)
           printWindow?.close()

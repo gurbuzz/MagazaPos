@@ -105,27 +105,31 @@ productRouter.post('/', async (req, res) => {
   }
 })
 
-// PUT /api/variants/:id/stock - Update variant stock quantity
+// PUT /api/variants/:id/stock - Update variant stock quantity atomically
 productRouter.put('/variants/:id/stock', async (req, res) => {
   try {
     const { id } = req.params
     const { quantity, note } = req.body
+    const newQuantity = parseInt(quantity)
 
-    const updated = await prisma.productVariant.update({
-      where: { id },
-      data: {
-        stockQuantity: parseInt(quantity)
-      }
-    })
+    const updated = await prisma.$transaction(async (tx) => {
+      const variant = await tx.productVariant.update({
+        where: { id },
+        data: {
+          stockQuantity: newQuantity
+        }
+      })
 
-    // Record stock movement log
-    await prisma.stockMovement.create({
-      data: {
-        variantId: id,
-        type: 'ADJUSTMENT',
-        quantity: parseInt(quantity),
-        note: note || 'Mobil/Manuel Stok Güncelleme'
-      }
+      await tx.stockMovement.create({
+        data: {
+          variantId: id,
+          type: 'ADJUSTMENT',
+          quantity: newQuantity,
+          note: note || 'Mobil/Manuel Stok Güncelleme'
+        }
+      })
+
+      return variant
     })
 
     res.json(formatVariant(updated))

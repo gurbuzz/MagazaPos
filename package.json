@@ -23,7 +23,19 @@
       "dist/**/*",
       "dist-electron/**/*",
       "prisma/**/*",
-      ".env"
+      ".env",
+      "node_modules/@prisma/client/**/*",
+      "node_modules/.prisma/**/*"
+    ],
+    "asarUnpack": [
+      "**/node_modules/.prisma/client/*.node",
+      "**/node_modules/@prisma/client/*.node"
+    ],
+    "extraResources": [
+      {
+        "from": "prisma/dev.db",
+        "to": "prisma/dev.db"
+      }
     ],
     "win": {
       "target": ["nsis", "portable"],

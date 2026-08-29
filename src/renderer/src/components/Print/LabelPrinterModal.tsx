@@ -9,6 +9,9 @@ export const LabelPrinterModal: React.FC = () => {
   const [isPrinting, setIsPrinting] = useState<boolean>(false)
   const [message, setMessage] = useState<string>('')
 
+  const [printers, setPrinters] = useState<any[]>([])
+  const [selectedPrinter, setSelectedPrinter] = useState<string>('')
+
   useEffect(() => {
     fetch('/api/products')
       .then((res) => res.json())
@@ -19,6 +22,14 @@ export const LabelPrinterModal: React.FC = () => {
         }
       })
       .catch(() => {})
+
+    if (window.electron?.getPrinters) {
+      window.electron.getPrinters().then((printerList) => {
+        setPrinters(printerList || [])
+        const defaultPrinter = printerList.find((p: any) => p.isDefault)?.name || printerList[0]?.name || ''
+        setSelectedPrinter(defaultPrinter)
+      })
+    }
   }, [])
 
   const handlePrintDispatch = async () => {
@@ -50,7 +61,7 @@ export const LabelPrinterModal: React.FC = () => {
       `
 
       if (window.electron?.printSilent) {
-        await window.electron.printSilent(labelHtml)
+        await window.electron.printSilent(labelHtml, selectedPrinter || undefined)
       } else {
         await fetch('/api/print/label', {
           method: 'POST',
@@ -59,6 +70,7 @@ export const LabelPrinterModal: React.FC = () => {
             variant: selectedVariant,
             quantity: printQuantity,
             labelType: labelTemplate,
+            printerName: selectedPrinter,
           }),
         })
       }
@@ -94,6 +106,24 @@ export const LabelPrinterModal: React.FC = () => {
               <Sliders className="w-4 h-4 text-blue-700" />
               <span>Etiket Parametreleri</span>
             </h2>
+
+            {/* Target Printer Selection */}
+            {printers.length > 0 && (
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Hedef Termal Yazıcı</label>
+                <select
+                  value={selectedPrinter}
+                  onChange={(e) => setSelectedPrinter(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2 text-slate-900 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-blue-600"
+                >
+                  {printers.map((p) => (
+                    <option key={p.name} value={p.name}>
+                      {p.name} {p.isDefault ? '(Varsayılan Windows Yazıcısı)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* Select Product Variant */}
             <div>

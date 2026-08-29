@@ -21,10 +21,20 @@ function formatSale(s: any) {
   return { ...s, paymentType: pay, items }
 }
 
-// GET /api/sales - Sales history
+// GET /api/sales - Sales history with optional date-time range filters
 salesRouter.get('/', async (req, res) => {
   try {
+    const { startDate, endDate, limit } = req.query
+    const where: any = {}
+
+    if (startDate || endDate) {
+      where.createdAt = {}
+      if (startDate) where.createdAt.gte = new Date(startDate as string)
+      if (endDate) where.createdAt.lte = new Date(endDate as string)
+    }
+
     const sales = await prisma.sale.findMany({
+      where,
       include: {
         items: {
           include: {
@@ -35,7 +45,7 @@ salesRouter.get('/', async (req, res) => {
         }
       },
       orderBy: { createdAt: 'desc' },
-      take: 50
+      take: limit ? parseInt(limit as string) : 200
     })
     res.json(sales.map(formatSale))
   } catch (error: any) {

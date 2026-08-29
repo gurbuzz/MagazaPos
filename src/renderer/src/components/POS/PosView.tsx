@@ -60,6 +60,69 @@ export const PosView: React.FC = () => {
     }
   }, [isLocked])
 
+  // Global Barcode Scanner Capture (USB HID Scanner)
+  useEffect(() => {
+    let barcodeBuffer = ''
+    let lastKeyTime = Date.now()
+
+    const handleGlobalKeyDown = async (e: KeyboardEvent) => {
+      if (isLocked || isCheckoutOpen || isCampaignModalOpen) return
+
+      const activeElement = document.activeElement
+      const isBarcodeFieldFocused = activeElement === barcodeInputRef.current
+      const isOtherInputFocused =
+        activeElement?.tagName === 'INPUT' ||
+        activeElement?.tagName === 'TEXTAREA' ||
+        activeElement?.tagName === 'SELECT'
+
+      const currentTime = Date.now()
+      const timeDiff = currentTime - lastKeyTime
+      lastKeyTime = currentTime
+
+      // Reset buffer if inter-character delay > 120ms
+      if (timeDiff > 120) {
+        barcodeBuffer = ''
+      }
+
+      // Handle Enter (Barcode Scanner Suffix)
+      if (e.key === 'Enter') {
+        const code = barcodeBuffer.trim()
+        // If scanned globally while focus was NOT on the main barcode input field
+        if (!isBarcodeFieldFocused && code.length >= 3) {
+          e.preventDefault()
+          try {
+            const res = await fetch(`/api/products/variants/barcode/${encodeURIComponent(code)}`)
+            if (res.ok) {
+              const variant = await res.json()
+              addToCart(variant)
+              setBarcodeInput('')
+            } else {
+              alert(`Barkod sistemde bulunamadı: ${code}`)
+            }
+          } catch (err) {
+            console.error('Global barkod okuma hatası:', err)
+          } finally {
+            barcodeBuffer = ''
+          }
+          return
+        }
+        barcodeBuffer = ''
+        return
+      }
+
+      // Capture single printable character
+      if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        // Collect if focus is not in another text input, OR if rapid scanning detected (<40ms per char)
+        if (!isOtherInputFocused || isBarcodeFieldFocused || timeDiff < 40) {
+          barcodeBuffer += e.key
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleGlobalKeyDown)
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown)
+  }, [isLocked, isCheckoutOpen, isCampaignModalOpen, addToCart])
+
   useEffect(() => {
     const focusInterval = setInterval(() => {
       if (!isLocked && !isCheckoutOpen && !isCampaignModalOpen) {
