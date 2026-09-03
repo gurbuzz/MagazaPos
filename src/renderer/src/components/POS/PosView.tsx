@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Search, Barcode, Trash2, Plus, Minus, Tag, CreditCard, ShoppingCart, RefreshCw, Sparkles, X, Settings2 } from 'lucide-react'
+import { Search, Barcode, Trash2, Plus, Minus, Tag, CreditCard, ShoppingCart, RefreshCw, Sparkles, X, Settings2, User, UserCheck } from 'lucide-react'
 import { usePosStore } from '../../store/usePosStore'
 import { CheckoutModal } from './CheckoutModal'
 import { CampaignModal } from './CampaignModal'
+import { CustomerSelectModal } from '../Customer/CustomerSelectModal'
 
 export const PosView: React.FC = () => {
   const {
@@ -11,6 +12,8 @@ export const PosView: React.FC = () => {
     removeFromCart,
     updateQuantity,
     discountAmount,
+    customTotal,
+    setCustomTotal,
     applyDiscount,
     campaigns,
     activeCampaign,
@@ -18,6 +21,8 @@ export const PosView: React.FC = () => {
     getSubtotal,
     getTotal,
     isLocked,
+    selectedCustomer,
+    clearSelectedCustomer,
   } = usePosStore()
 
   const [products, setProducts] = useState<any[]>([])
@@ -27,9 +32,13 @@ export const PosView: React.FC = () => {
   const [barcodeInput, setBarcodeInput] = useState<string>('')
   const [isCheckoutOpen, setIsCheckoutOpen] = useState<boolean>(false)
   const [isCampaignModalOpen, setIsCampaignModalOpen] = useState<boolean>(false)
+  const [isCustomerModalOpen, setIsCustomerModalOpen] = useState<boolean>(false)
   const [isLoading, setIsLoading] = useState<boolean>(false)
+  const [isEditingTotal, setIsEditingTotal] = useState<boolean>(false)
+  const [tempTotalInput, setTempTotalInput] = useState<string>('')
 
   const barcodeInputRef = useRef<HTMLInputElement>(null)
+  const totalInputRef = useRef<HTMLInputElement>(null)
 
   const fetchProducts = async () => {
     setIsLoading(true)
@@ -51,6 +60,27 @@ export const PosView: React.FC = () => {
 
   useEffect(() => {
     fetchProducts()
+
+    const handleDataUpdate = () => {
+      fetchProducts()
+    }
+
+    // Listen for instant internal data update events
+    window.addEventListener('pos-data-updated', handleDataUpdate)
+
+    // Refetch when window regains focus
+    window.addEventListener('focus', handleDataUpdate)
+
+    // Silent background poll every 10 seconds for mobile/external updates
+    const syncInterval = setInterval(() => {
+      fetchProducts()
+    }, 10000)
+
+    return () => {
+      window.removeEventListener('pos-data-updated', handleDataUpdate)
+      window.removeEventListener('focus', handleDataUpdate)
+      clearInterval(syncInterval)
+    }
   }, [])
 
   useEffect(() => {
@@ -165,6 +195,24 @@ export const PosView: React.FC = () => {
       prod.code.toLowerCase().includes(searchTerm.toLowerCase())
     return matchesCategory && matchesSearch
   })
+
+  const handleStartEditTotal = () => {
+    const currentTotal = getTotal()
+    setTempTotalInput(currentTotal.toFixed(2))
+    setIsEditingTotal(true)
+    setTimeout(() => {
+      totalInputRef.current?.select()
+    }, 50)
+  }
+
+  const handleCustomTotalSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault()
+    const parsed = parseFloat(tempTotalInput)
+    if (!isNaN(parsed) && parsed >= 0) {
+      setCustomTotal(parsed)
+    }
+    setIsEditingTotal(false)
+  }
 
   const subtotal = getSubtotal()
   const total = getTotal()
@@ -293,6 +341,35 @@ export const PosView: React.FC = () => {
           <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-[11px] font-semibold border border-blue-100">
             {cartItems.reduce((acc, i) => acc + i.quantity, 0)} Kalem
           </span>
+        </div>
+
+        {/* Customer Selection Banner */}
+        <div className="px-3.5 py-2 border-b border-slate-200 bg-slate-100/70 flex items-center justify-between text-xs">
+          {selectedCustomer ? (
+            <div className="flex items-center space-x-2 overflow-hidden mr-2">
+              <UserCheck className="w-4 h-4 text-blue-600 shrink-0" />
+              <div className="truncate">
+                <span className="font-bold text-slate-900 truncate">
+                  {selectedCustomer.firstName} {selectedCustomer.lastName}
+                </span>
+                <span className="text-[10px] text-slate-500 font-mono block truncate">
+                  {selectedCustomer.phone}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center space-x-1.5 text-slate-500 font-medium">
+              <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <span>Müşteri: Anonim Satış</span>
+            </div>
+          )}
+
+          <button
+            onClick={() => setIsCustomerModalOpen(true)}
+            className="px-2.5 py-1 bg-white hover:bg-blue-50 text-blue-700 border border-blue-200 rounded text-[11px] font-semibold transition shrink-0 shadow-2xs"
+          >
+            {selectedCustomer ? 'Değiştir' : 'Müşteri Seç'}
+          </button>
         </div>
 
         {/* Cart Items List */}
@@ -429,9 +506,37 @@ export const PosView: React.FC = () => {
                 <span>-{discountAmount.toFixed(2)} ₺</span>
               </div>
             )}
-            <div className="flex justify-between text-sm font-bold text-slate-900 pt-1.5 border-t border-slate-200">
+            <div className="flex items-center justify-between text-sm font-bold text-slate-900 pt-1.5 border-t border-slate-200">
               <span>GENEL TOPLAM</span>
-              <span className="text-emerald-700 text-lg font-bold">{total.toFixed(2)} ₺</span>
+
+              {isEditingTotal ? (
+                <form onSubmit={handleCustomTotalSubmit} className="flex items-center space-x-1">
+                  <input
+                    ref={totalInputRef}
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={tempTotalInput}
+                    onChange={(e) => setTempTotalInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') setIsEditingTotal(false)
+                    }}
+                    onBlur={handleCustomTotalSubmit}
+                    className="w-24 px-2 py-0.5 border-2 border-emerald-500 rounded text-right font-bold text-base text-emerald-700 focus:outline-none bg-emerald-50 shadow-inner"
+                    autoFocus
+                  />
+                  <span className="text-emerald-700 text-base font-bold">₺</span>
+                </form>
+              ) : (
+                <div
+                  onDoubleClick={handleStartEditTotal}
+                  className="cursor-pointer hover:bg-emerald-50 hover:scale-[1.02] px-2 py-0.5 rounded transition-all select-none"
+                >
+                  <span className="text-emerald-700 text-lg font-bold">
+                    {total.toFixed(2)} ₺
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -457,6 +562,11 @@ export const PosView: React.FC = () => {
       <CampaignModal
         isOpen={isCampaignModalOpen}
         onClose={() => setIsCampaignModalOpen(false)}
+      />
+
+      <CustomerSelectModal
+        isOpen={isCustomerModalOpen}
+        onClose={() => setIsCustomerModalOpen(false)}
       />
     </div>
   )

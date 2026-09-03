@@ -36,6 +36,7 @@ salesRouter.get('/', async (req, res) => {
     const sales = await prisma.sale.findMany({
       where,
       include: {
+        customer: true,
         items: {
           include: {
             variant: {
@@ -56,7 +57,7 @@ salesRouter.get('/', async (req, res) => {
 // POST /api/sales - Create & Checkout POS Sale
 salesRouter.post('/', async (req, res) => {
   try {
-    const { items, totalAmount, discountAmount, paymentType, cashierName } = req.body
+    const { items, totalAmount, discountAmount, paymentType, cashierName, customerId } = req.body
 
     if (!items || items.length === 0) {
       res.status(400).json({ error: 'Sepette ürün bulunmamaktadır.' })
@@ -71,6 +72,7 @@ salesRouter.post('/', async (req, res) => {
       const sale = await tx.sale.create({
         data: {
           receiptNo,
+          customerId: customerId || null,
           totalAmount: parseFloat(totalAmount),
           discountAmount: parseFloat(discountAmount || 0),
           paymentType: typeof paymentType === 'string' ? paymentType : JSON.stringify(paymentType || { cash: totalAmount }),
@@ -84,7 +86,16 @@ salesRouter.post('/', async (req, res) => {
             }))
           }
         },
-        include: { items: true }
+        include: {
+          customer: true,
+          items: {
+            include: {
+              variant: {
+                include: { product: true }
+              }
+            }
+          }
+        }
       })
 
       // 2. Update stock quantities & record movements
@@ -118,3 +129,129 @@ salesRouter.post('/', async (req, res) => {
     return
   }
 })
+
+// POST /api/sales/:id/return - Return items from a sale (Registered Customers ONLY)
+salesRouter.post('/:id/return', async (req, res) => {
+  try {
+    const { id } = req.params
+    const { items, reason } = req.body // items: Array<{ saleItemId: string, returnQuantity: number }>
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      res.status(400).json({ error: 'İade edilecek ürün seçilmedi.' })
+      return
+    }
+
+    const sale: any = await prisma.sale.findUnique({
+      where: { id },
+      include: {
+        customer: true,
+        items: {
+          include: {
+            variant: { include: { product: true } }
+          }
+        }
+      }
+    })
+
+    if (!sale) {
+      res.status(404).json({ error: 'Satış kaydı bulunamadı.' })
+      return
+    }
+
+    // STRICT RULE: Return is ONLY allowed for registered customers!
+    if (!sale.customerId || !sale.customer) {
+      res.status(400).json({
+        error: 'İade işlemi yasal takip nedeniyle yalnızca kayıtlı müşterilerin alışverişleri için gerçekleştirilebilir. Kayıtsız (anonim) alışverişler iade edilemez.'
+      })
+      return
+    }
+
+    // Validate return items
+    for (const returnItem of items) {
+      const existingItem = sale.items?.find((i: any) => i.id === returnItem.saleItemId)
+      if (!existingItem) {
+        res.status(400).json({ error: `Fişte ${returnItem.saleItemId} ID'li ürün bulunamadı.` })
+        return
+      }
+      const qtyToReturn = parseInt(returnItem.returnQuantity)
+      if (isNaN(qtyToReturn) || qtyToReturn <= 0) {
+        res.status(400).json({ error: 'İade miktarı pozitif bir sayı olmalıdır.' })
+        return
+      }
+      const availableToReturn = existingItem.quantity - (existingItem.returnedQuantity || 0)
+      if (qtyToReturn > availableToReturn) {
+        res.status(400).json({
+          error: `"${existingItem.variant?.product?.name || 'Ürün'}" için iade edilebilir maksimum adet ${availableToReturn} adettir.`
+        })
+        return
+      }
+    }
+
+    // Process return in atomic transaction
+    const updatedSale = await prisma.$transaction(async (tx) => {
+      const customerName = `${sale.customer?.firstName} ${sale.customer?.lastName}`
+
+      for (const returnItem of items) {
+        const qtyToReturn = parseInt(returnItem.returnQuantity)
+        const existingItem = sale.items?.find((i: any) => i.id === returnItem.saleItemId)!
+
+        // 1. Increment returnedQuantity on SaleItem
+        await (tx.saleItem as any).update({
+          where: { id: returnItem.saleItemId },
+          data: {
+            returnedQuantity: {
+              increment: qtyToReturn
+            }
+          }
+        })
+
+        // 2. Increment stockQuantity on ProductVariant (Stock re-entry!)
+        await tx.productVariant.update({
+          where: { id: existingItem.variantId },
+          data: {
+            stockQuantity: {
+              increment: qtyToReturn
+            }
+          }
+        })
+
+        // 3. Log stock movement
+        await tx.stockMovement.create({
+          data: {
+            variantId: existingItem.variantId,
+            type: 'RETURN',
+            quantity: qtyToReturn,
+            note: `İade Fişi: ${sale.receiptNo} (${qtyToReturn} ad) - Müşteri: ${customerName}${reason ? ` - Nedeni: ${reason}` : ''}`
+          }
+        })
+      }
+
+      // Check if all items in sale are fully returned
+      const freshSaleItems: any[] = await tx.saleItem.findMany({ where: { saleId: id } })
+      const allFullyReturned = freshSaleItems.every((item: any) => (item.returnedQuantity || 0) >= item.quantity)
+      const newStatus = allFullyReturned ? 'RETURNED' : 'PARTIAL_RETURN'
+
+      const finalSale = await (tx.sale as any).update({
+        where: { id },
+        data: { status: newStatus },
+        include: {
+          customer: true,
+          items: {
+            include: {
+              variant: { include: { product: true } }
+            }
+          }
+        }
+      })
+
+      return finalSale
+    })
+
+    res.json(formatSale(updatedSale))
+    return
+  } catch (error: any) {
+    res.status(500).json({ error: error.message })
+    return
+  }
+})
+

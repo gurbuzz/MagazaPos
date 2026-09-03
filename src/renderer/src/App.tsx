@@ -1,6 +1,7 @@
 import React from 'react'
 import { Header } from './components/Header'
 import { PosView } from './components/POS/PosView'
+import { CustomerView } from './components/Customer/CustomerView'
 import { StockView } from './components/Stock/StockView'
 import { LabelPrinterModal } from './components/Print/LabelPrinterModal'
 import { SalesHistoryView } from './components/Sales/SalesHistoryView'
@@ -15,6 +16,7 @@ export const App: React.FC = () => {
       <Header />
       <main className="flex-1 overflow-hidden">
         {activeTab === 'pos' && <PosView />}
+        {activeTab === 'customers' && <CustomerView />}
         {activeTab === 'stock' && <StockView />}
         {activeTab === 'labels' && <LabelPrinterModal />}
         {activeTab === 'sales' && <SalesHistoryView />}

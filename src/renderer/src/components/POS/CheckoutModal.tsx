@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { X, CreditCard, Banknote, CheckCircle, Printer } from 'lucide-react'
 import { usePosStore } from '../../store/usePosStore'
+import { notifyDataChanged } from '../../utils/events'
 
 interface CheckoutModalProps {
   isOpen: boolean
@@ -9,7 +10,7 @@ interface CheckoutModalProps {
 }
 
 export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, onSuccess }) => {
-  const { cartItems, discountAmount, getTotal, getSubtotal, cashierName, clearCart } = usePosStore()
+  const { cartItems, discountAmount, getTotal, getSubtotal, cashierName, clearCart, selectedCustomer } = usePosStore()
 
   const [paymentMode, setPaymentMode] = useState<'CASH' | 'CARD' | 'SPLIT'>('CASH')
   const [cashAmount, setCashAmount] = useState<number>(0)
@@ -44,6 +45,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
         totalAmount: total,
         discountAmount,
         cashierName,
+        customerId: selectedCustomer ? selectedCustomer.id : null,
         paymentType:
           paymentMode === 'CASH'
             ? { cash: total, card: 0 }
@@ -68,6 +70,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
       const saleData = await res.json()
       setCompletedSale(saleData)
       setIsProcessing(false)
+      notifyDataChanged()
     } catch (err: any) {
       alert(`Tahsilat sırasında hata oluştu: ${err.message}`)
       setIsProcessing(false)
@@ -79,10 +82,12 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
     setCompletedSale(null)
     onSuccess()
     onClose()
+    notifyDataChanged()
   }
 
   const handlePrintReceipt = () => {
     if (!completedSale) return
+    const custInfo = completedSale.customer || selectedCustomer
     const receiptHtml = `
       <html>
         <head>
@@ -97,6 +102,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
           <div class="header">
             <h3>MAĞAZA POS</h3>
             <p>Fiş No: ${completedSale.receiptNo}</p>
+            ${custInfo ? `<p>Müşteri: ${custInfo.firstName} ${custInfo.lastName}</p>` : ''}
             <p>Tarih: ${new Date().toLocaleString('tr-TR')}</p>
           </div>
           <div style="margin-top: 10px;">

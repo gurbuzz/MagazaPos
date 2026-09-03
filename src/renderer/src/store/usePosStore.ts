@@ -21,9 +21,21 @@ export interface Campaign {
   badgeColor?: 'indigo' | 'emerald' | 'amber' | 'rose' | 'purple'
 }
 
+export interface Customer {
+  id: string
+  firstName: string
+  lastName: string
+  phone: string
+  city: string
+  district: string
+  notes?: string | null
+  createdAt?: string
+  _count?: { sales: number }
+}
+
 interface PosState {
-  activeTab: 'pos' | 'stock' | 'sales' | 'labels'
-  setActiveTab: (tab: 'pos' | 'stock' | 'sales' | 'labels') => void
+  activeTab: 'pos' | 'stock' | 'sales' | 'labels' | 'customers'
+  setActiveTab: (tab: 'pos' | 'stock' | 'sales' | 'labels' | 'customers') => void
 
   // Lock Screen & System Settings
   isLocked: boolean
@@ -56,7 +68,12 @@ interface PosState {
   }) => void
 
   cartItems: CartItem[]
+  selectedCustomer: Customer | null
+  setSelectedCustomer: (customer: Customer | null) => void
+  clearSelectedCustomer: () => void
+
   discountAmount: number
+  customTotal: number | null
   activeCampaign: Campaign | null
   localIp: string
   setLocalIp: (ip: string) => void
@@ -71,6 +88,7 @@ interface PosState {
   updateQuantity: (variantId: string, quantity: number) => void
 
   applyDiscount: (amount: number) => void
+  setCustomTotal: (amount: number | null) => void
   applyCampaign: (campaign: Campaign | null) => void
   clearCart: () => void
 
@@ -144,7 +162,12 @@ export const usePosStore = create<PosState>((set, get) => ({
   },
 
   cartItems: [],
+  selectedCustomer: null,
+  setSelectedCustomer: (customer) => set({ selectedCustomer: customer }),
+  clearSelectedCustomer: () => set({ selectedCustomer: null }),
+
   discountAmount: 0,
+  customTotal: null,
   activeCampaign: null,
   localIp: '127.0.0.1',
   setLocalIp: (ip) => set({ localIp: ip }),
@@ -192,7 +215,7 @@ export const usePosStore = create<PosState>((set, get) => ({
       newItems = [...cartItems, newItem]
     }
 
-    set({ cartItems: newItems })
+    set({ cartItems: newItems, customTotal: null })
 
     const { activeCampaign } = get()
     if (activeCampaign) {
@@ -202,7 +225,7 @@ export const usePosStore = create<PosState>((set, get) => ({
 
   removeFromCart: (variantId) => {
     const newItems = get().cartItems.filter((item) => item.variantId !== variantId)
-    set({ cartItems: newItems })
+    set({ cartItems: newItems, customTotal: null })
 
     const { activeCampaign } = get()
     if (activeCampaign) {
@@ -221,7 +244,7 @@ export const usePosStore = create<PosState>((set, get) => ({
         ? { ...item, quantity, totalPrice: quantity * item.unitPrice }
         : item
     )
-    set({ cartItems: newItems })
+    set({ cartItems: newItems, customTotal: null })
 
     const { activeCampaign } = get()
     if (activeCampaign) {
@@ -229,11 +252,26 @@ export const usePosStore = create<PosState>((set, get) => ({
     }
   },
 
-  applyDiscount: (amount) => set({ discountAmount: Math.max(0, amount), activeCampaign: null }),
+  applyDiscount: (amount) => set({ discountAmount: Math.max(0, amount), activeCampaign: null, customTotal: null }),
+
+  setCustomTotal: (amount) => {
+    if (amount === null) {
+      set({ customTotal: null })
+      return
+    }
+    const subtotal = get().getSubtotal()
+    const val = Math.max(0, amount)
+    const discount = subtotal > val ? subtotal - val : 0
+    set({
+      customTotal: val,
+      discountAmount: discount,
+      activeCampaign: null,
+    })
+  },
 
   applyCampaign: (campaign) => {
     if (!campaign) {
-      set({ discountAmount: 0, activeCampaign: null })
+      set({ discountAmount: 0, activeCampaign: null, customTotal: null })
       return
     }
 
@@ -249,17 +287,22 @@ export const usePosStore = create<PosState>((set, get) => ({
     set({
       discountAmount: Math.min(subtotal, Math.max(0, discount)),
       activeCampaign: campaign,
+      customTotal: null,
     })
   },
 
-  clearCart: () => set({ cartItems: [], discountAmount: 0, activeCampaign: null }),
+  clearCart: () => set({ cartItems: [], discountAmount: 0, activeCampaign: null, customTotal: null, selectedCustomer: null }),
 
   getSubtotal: () => {
     return get().cartItems.reduce((sum, item) => sum + item.totalPrice, 0)
   },
 
   getTotal: () => {
+    const { customTotal, discountAmount } = get()
+    if (customTotal !== null) {
+      return customTotal
+    }
     const subtotal = get().getSubtotal()
-    return Math.max(0, subtotal - get().discountAmount)
+    return Math.max(0, subtotal - discountAmount)
   },
 }))

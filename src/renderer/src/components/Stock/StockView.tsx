@@ -1,22 +1,40 @@
-import React, { useState, useEffect } from 'react'
-import { Plus, Search, Layers, Edit3, PackageCheck } from 'lucide-react'
+import React, { useState, useEffect, useRef } from 'react'
+import { Plus, Search, Layers, Edit3, PackageCheck, Tag, Barcode, Sparkles, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { CategoryModal } from './CategoryModal'
+import { notifyDataChanged } from '../../utils/events'
 
 export const StockView: React.FC = () => {
   const [products, setProducts] = useState<any[]>([])
+  const [categories, setCategories] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedProduct, setSelectedProduct] = useState<any | null>(null)
   const [editingVariant, setEditingVariant] = useState<any | null>(null)
   const [newStockVal, setNewStockVal] = useState<string>('')
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false)
 
   // Form states for new product
   const [newCode, setNewCode] = useState('')
   const [newName, setNewName] = useState('')
   const [newBrand, setNewBrand] = useState('')
+  const [newCategoryId, setNewCategoryId] = useState('')
   const [newBasePrice, setNewBasePrice] = useState('')
   const [newColor, setNewColor] = useState('Siyah')
   const [newSize, setNewSize] = useState('M')
   const [newBarcode, setNewBarcode] = useState('')
+
+  const barcodeInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (isAddModalOpen) {
+      setTimeout(() => barcodeInputRef.current?.focus(), 150)
+    }
+  }, [isAddModalOpen])
+
+  const generateBarcode = () => {
+    const randomDigits = Math.floor(1000000000 + Math.random() * 9000000000)
+    setNewBarcode(`869${randomDigits}`)
+  }
 
   const fetchProducts = async () => {
     try {
@@ -36,9 +54,47 @@ export const StockView: React.FC = () => {
     }
   }
 
+  const fetchCategories = async () => {
+    try {
+      const res = await fetch('/api/products/categories')
+      const data = await res.json()
+      if (Array.isArray(data)) {
+        setCategories(data)
+      }
+    } catch (err) {
+      console.error('Error loading categories:', err)
+    }
+  }
+
   useEffect(() => {
     fetchProducts()
+    fetchCategories()
+
+    const handleDataUpdate = () => {
+      fetchProducts()
+      fetchCategories()
+    }
+
+    window.addEventListener('pos-data-updated', handleDataUpdate)
+    window.addEventListener('focus', handleDataUpdate)
+
+    const syncInterval = setInterval(() => {
+      fetchProducts()
+      fetchCategories()
+    }, 10000)
+
+    return () => {
+      window.removeEventListener('pos-data-updated', handleDataUpdate)
+      window.removeEventListener('focus', handleDataUpdate)
+      clearInterval(syncInterval)
+    }
   }, [])
+
+  useEffect(() => {
+    if (isAddModalOpen || isCategoryModalOpen) {
+      fetchCategories()
+    }
+  }, [isAddModalOpen, isCategoryModalOpen])
 
   const handleUpdateStock = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -57,6 +113,7 @@ export const StockView: React.FC = () => {
       if (res.ok) {
         setEditingVariant(null)
         fetchProducts()
+        notifyDataChanged()
       } else {
         alert('Stok güncelleme hatası')
       }
@@ -65,6 +122,14 @@ export const StockView: React.FC = () => {
     }
   }
 
+  // Duplicate barcode check for real-time validation
+  const trimmedBarcode = newBarcode.trim()
+  const duplicateProduct = trimmedBarcode
+    ? products.find((prod) =>
+        prod.variants?.some((v: any) => v.barcode === trimmedBarcode)
+      )
+    : null
+
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newCode || !newName || !newBarcode) {
@@ -72,15 +137,21 @@ export const StockView: React.FC = () => {
       return
     }
 
+    if (duplicateProduct) {
+      alert(`⚠️ Uyarı: Barkod numarası (${trimmedBarcode}) zaten "${duplicateProduct.name}" (${duplicateProduct.code}) üzerinde kayıtlıdır! Lütfen farklı bir barkod kullanın.`)
+      return
+    }
+
     const payload = {
       code: newCode,
       name: newName,
       brand: newBrand || 'Marka',
+      categoryId: newCategoryId || null,
       basePrice: parseFloat(newBasePrice || '100'),
       variants: [
         {
           sku: `${newCode}-${newColor}-${newSize}`,
-          barcode: newBarcode,
+          barcode: trimmedBarcode,
           attributes: { color: newColor, size: newSize },
           costPrice: parseFloat(newBasePrice || '100') * 0.5,
           salePrice: parseFloat(newBasePrice || '100'),
@@ -101,7 +172,10 @@ export const StockView: React.FC = () => {
         setNewCode('')
         setNewName('')
         setNewBarcode('')
+        setNewCategoryId('')
         fetchProducts()
+        fetchCategories()
+        notifyDataChanged()
       } else {
         const err = await res.json()
         alert(`Hata: ${err.error}`)
@@ -125,15 +199,25 @@ export const StockView: React.FC = () => {
           <div className="flex items-center justify-between">
             <h2 className="font-bold text-slate-900 text-xs flex items-center space-x-1.5">
               <Layers className="w-4 h-4 text-blue-700" />
-              <span>Ürün Listesi ({filteredProducts.length})</span>
+              <span>Ürünler ({filteredProducts.length})</span>
             </h2>
-            <button
-              onClick={() => setIsAddModalOpen(true)}
-              className="px-2.5 py-1.5 bg-blue-700 hover:bg-blue-800 text-white rounded text-xs font-semibold flex items-center space-x-1 transition shadow-sm"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Yeni Ürün</span>
-            </button>
+            <div className="flex items-center space-x-1.5">
+              <button
+                onClick={() => setIsCategoryModalOpen(true)}
+                className="px-2 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded text-xs font-semibold flex items-center space-x-1 transition"
+                title="Kategorileri Yönet"
+              >
+                <Tag className="w-3.5 h-3.5 text-blue-700" />
+                <span>Kategoriler</span>
+              </button>
+              <button
+                onClick={() => setIsAddModalOpen(true)}
+                className="px-2.5 py-1.5 bg-blue-700 hover:bg-blue-800 text-white rounded text-xs font-semibold flex items-center space-x-1 transition shadow-sm"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Yeni Ürün</span>
+              </button>
+            </div>
           </div>
 
           <div className="relative">
@@ -191,54 +275,49 @@ export const StockView: React.FC = () => {
         </div>
       </div>
 
-      {/* Right List: Variant Detail Matrix */}
-      <div className="flex-1 flex flex-col bg-slate-100 p-5 overflow-y-auto">
+      {/* Right Column: Variant & Stock Details */}
+      <div className="flex-1 flex flex-col bg-white overflow-y-auto">
         {selectedProduct ? (
-          <div className="space-y-4 max-w-5xl">
-            {/* Header info */}
-            <div className="bg-white border border-slate-200 rounded-lg p-4 flex justify-between items-center shadow-sm">
+          <div className="p-6 space-y-6">
+            <div className="border-b border-slate-200 pb-4 flex justify-between items-start">
               <div>
-                <span className="text-xs text-blue-700 font-semibold uppercase tracking-tight">{selectedProduct.category?.name || 'Giyim'}</span>
+                <span className="text-xs font-semibold text-blue-700 uppercase tracking-wider">
+                  {selectedProduct.category?.name || 'Kategorisiz'}
+                </span>
                 <h1 className="text-xl font-bold text-slate-900 mt-0.5">{selectedProduct.name}</h1>
-                <p className="text-xs text-slate-500 font-mono mt-0.5">
-                  Ürün Kodu: {selectedProduct.code} | Marka: {selectedProduct.brand || '-'}
-                </p>
+                <p className="text-xs text-slate-500 font-mono mt-1">Ürün Kodu: {selectedProduct.code}</p>
               </div>
-              <div className="text-right">
-                <span className="text-xs text-slate-500 font-medium block">Taban Satış Fiyatı</span>
+              <div className="bg-slate-50 border border-slate-200 rounded p-3 text-right">
+                <span className="text-[11px] text-slate-500 font-semibold block uppercase">Taban Satış Fiyatı</span>
                 <span className="text-xl font-bold text-emerald-700">{selectedProduct.basePrice.toFixed(2)} ₺</span>
               </div>
             </div>
 
-            {/* Variant Table */}
-            <div className="bg-white border border-slate-200 rounded-lg overflow-hidden shadow-sm">
-              <div className="px-5 py-3 border-b border-slate-200 flex justify-between items-center bg-slate-50">
-                <h3 className="font-bold text-slate-900 text-xs flex items-center space-x-2">
-                  <PackageCheck className="w-4 h-4 text-emerald-600" />
-                  <span>Renk / Beden Stok Matrisi ({selectedProduct.variants?.length || 0} SKU)</span>
-                </h3>
-              </div>
+            <div>
+              <h3 className="font-bold text-slate-800 text-xs uppercase tracking-tight mb-3 flex items-center space-x-1.5">
+                <PackageCheck className="w-4 h-4 text-blue-700" />
+                <span>Ürün Varyantları & Stok Seviyeleri</span>
+              </h3>
 
-              <div className="overflow-x-auto">
+              <div className="border border-slate-200 rounded-lg overflow-hidden">
                 <table className="w-full text-left text-xs text-slate-700">
                   <thead className="bg-slate-50 text-slate-600 font-semibold uppercase tracking-wider border-b border-slate-200 text-[11px]">
                     <tr>
-                      <th className="px-5 py-2.5">Renk</th>
-                      <th className="px-5 py-2.5">Beden</th>
-                      <th className="px-5 py-2.5">SKU</th>
-                      <th className="px-5 py-2.5">Barkod</th>
-                      <th className="px-5 py-2.5">Satış Fiyatı</th>
-                      <th className="px-5 py-2.5">Mevcut Stok</th>
-                      <th className="px-5 py-2.5 text-right">İşlem</th>
+                      <th className="px-5 py-3">Varyant (Renk / Beden)</th>
+                      <th className="px-5 py-3">SKU</th>
+                      <th className="px-5 py-3">Barkod</th>
+                      <th className="px-5 py-3">Satış Fiyatı</th>
+                      <th className="px-5 py-3">Mevcut Stok</th>
+                      <th className="px-5 py-3 text-right">İşlem</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {selectedProduct.variants?.map((v: any) => {
-                      const attrs = v.attributes || {}
                       return (
                         <tr key={v.id} className="hover:bg-slate-50 transition">
-                          <td className="px-5 py-3 font-semibold text-slate-900">{attrs.color || '-'}</td>
-                          <td className="px-5 py-3 font-bold text-blue-700">{attrs.size || '-'}</td>
+                          <td className="px-5 py-3 font-semibold text-slate-900">
+                            {v.attributes?.color} / {v.attributes?.size}
+                          </td>
                           <td className="px-5 py-3 font-mono text-slate-500">{v.sku}</td>
                           <td className="px-5 py-3 font-mono text-slate-700 font-medium">{v.barcode}</td>
                           <td className="px-5 py-3 font-bold text-emerald-700">{v.salePrice.toFixed(2)} ₺</td>
@@ -353,6 +432,21 @@ export const StockView: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Kategori</label>
+                  <select
+                    value={newCategoryId}
+                    onChange={(e) => setNewCategoryId(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 focus:ring-1 focus:ring-blue-600 font-medium"
+                  >
+                    <option value="">-- Kategori Seçin --</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
                   <label className="block text-slate-700 font-semibold mb-1">Marka</label>
                   <input
                     type="text"
@@ -361,18 +455,19 @@ export const StockView: React.FC = () => {
                     className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 focus:ring-1 focus:ring-blue-600"
                   />
                 </div>
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Taban Fiyat (TL)</label>
-                  <input
-                    type="number"
-                    value={newBasePrice}
-                    onChange={(e) => setNewBasePrice(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-semibold focus:ring-1 focus:ring-blue-600"
-                  />
-                </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-200">
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">Taban Fiyat (TL)</label>
+                <input
+                  type="number"
+                  value={newBasePrice}
+                  onChange={(e) => setNewBasePrice(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-semibold focus:ring-1 focus:ring-blue-600"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200">
                 <div>
                   <label className="block text-slate-700 font-semibold mb-1">Varyant Renk</label>
                   <input
@@ -391,16 +486,68 @@ export const StockView: React.FC = () => {
                     className="w-full bg-slate-50 border border-slate-300 rounded p-1.5 text-slate-900 focus:ring-1 focus:ring-blue-600"
                   />
                 </div>
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Barkod No</label>
+              </div>
+
+              {/* Barcode Section with Scanner & Manual support and Real-time Duplicate Check */}
+              <div className="pt-2 border-t border-slate-200">
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-slate-700 font-bold flex items-center space-x-1">
+                    <Barcode className="w-3.5 h-3.5 text-blue-700" />
+                    <span>Barkod Numarası</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={generateBarcode}
+                    className="text-[11px] font-semibold text-blue-700 hover:text-blue-800 hover:underline flex items-center space-x-1"
+                    title="Otomatik 13 haneli EAN barkod üret"
+                  >
+                    <Sparkles className="w-3 h-3 text-amber-500" />
+                    <span>Otomatik Üret</span>
+                  </button>
+                </div>
+
+                <div className="relative">
                   <input
+                    ref={barcodeInputRef}
                     type="text"
+                    placeholder="Barkod okutun veya elle yazın..."
                     value={newBarcode}
                     onChange={(e) => setNewBarcode(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-300 rounded p-1.5 text-slate-900 font-semibold focus:ring-1 focus:ring-blue-600"
+                    className={`w-full bg-slate-50 border rounded p-2 text-slate-900 font-mono font-bold text-xs focus:ring-1 focus:outline-none ${
+                      duplicateProduct
+                        ? 'border-rose-500 bg-rose-50/50 text-rose-900 focus:ring-rose-500'
+                        : trimmedBarcode
+                        ? 'border-emerald-500 bg-emerald-50/30 text-slate-900 focus:ring-emerald-500'
+                        : 'border-slate-300 focus:ring-blue-600'
+                    }`}
                     required
                   />
+                  {trimmedBarcode && (
+                    <div className="absolute right-2.5 top-2">
+                      {duplicateProduct ? (
+                        <AlertCircle className="w-4 h-4 text-rose-600" />
+                      ) : (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      )}
+                    </div>
+                  )}
                 </div>
+
+                {/* Duplicate or Validation Feedback */}
+                {duplicateProduct && (
+                  <div className="mt-1.5 p-2 bg-rose-50 border border-rose-200 rounded text-[11px] text-rose-700 font-semibold flex items-center space-x-1.5">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
+                    <span>
+                      Bu barkod ({trimmedBarcode}) zaten <strong>"{duplicateProduct.name}"</strong> ({duplicateProduct.code}) üzerinde kayıtlı!
+                    </span>
+                  </div>
+                )}
+                {!duplicateProduct && trimmedBarcode && (
+                  <div className="mt-1 text-[10px] text-emerald-700 font-semibold flex items-center space-x-1">
+                    <CheckCircle2 className="w-3 h-3" />
+                    <span>Barkod kullanılabilir. (Manuel veya Barkod Okuyucu ile girildi)</span>
+                  </div>
+                )}
               </div>
 
               <div className="flex justify-end space-x-2 pt-3">
@@ -413,7 +560,8 @@ export const StockView: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-3.5 py-1.5 bg-blue-700 hover:bg-blue-800 text-white rounded text-xs font-semibold shadow-sm"
+                  disabled={!!duplicateProduct}
+                  className="px-3.5 py-1.5 bg-blue-700 hover:bg-blue-800 text-white rounded text-xs font-semibold shadow-sm disabled:opacity-50"
                 >
                   Ürünü Oluştur
                 </button>
@@ -422,6 +570,20 @@ export const StockView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Category Management Modal */}
+      <CategoryModal
+        isOpen={isCategoryModalOpen}
+        onClose={() => {
+          setIsCategoryModalOpen(false)
+          fetchCategories()
+        }}
+        categories={categories}
+        onRefresh={async () => {
+          await fetchCategories()
+          await fetchProducts()
+        }}
+      />
     </div>
   )
 }

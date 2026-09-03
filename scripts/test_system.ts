@@ -1,4 +1,7 @@
-const BASE_URL = 'http://localhost:3000'
+export {}
+
+const PORT = process.env.PORT || 3782
+const BASE_URL = `http://localhost:${PORT}`
 
 async function runTests() {
   console.log('====================================================')

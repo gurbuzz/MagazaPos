@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { ShoppingBag, Package, Printer, Receipt, Wifi, Sparkles, Settings, Lock } from 'lucide-react'
+import { ShoppingBag, Package, Printer, Receipt, Users, Wifi, Sparkles, Settings, Lock } from 'lucide-react'
 import { usePosStore } from '../store/usePosStore'
 import { CampaignModal } from './POS/CampaignModal'
 import { SystemSettingsModal } from './Security/SystemSettingsModal'
@@ -47,6 +47,18 @@ export const Header: React.FC = () => {
         >
           <ShoppingBag className="w-3.5 h-3.5" />
           <span>Kasa (POS)</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('customers')}
+          className={`flex items-center space-x-2 px-3.5 py-1.5 rounded text-xs font-semibold transition ${
+            activeTab === 'customers'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+          }`}
+        >
+          <Users className="w-3.5 h-3.5" />
+          <span>Müşteriler</span>
         </button>
 
         <button

@@ -4,6 +4,7 @@ import path from 'path'
 import { getLocalIpAddress, getAllLocalIpAddresses } from './utils/network'
 import { productRouter } from './routes/products'
 import { salesRouter } from './routes/sales'
+import { customersRouter } from './routes/customers'
 import { mobileRouter } from './routes/mobile'
 import { printRouter } from './routes/print'
 import { systemRouter } from './routes/system'
@@ -48,6 +49,7 @@ app.get('/mobile', (req, res) => {
 // Register API Routes
 app.use('/api/products', productRouter)
 app.use('/api/sales', salesRouter)
+app.use('/api/customers', customersRouter)
 app.use('/api/mobile', mobileRouter)
 app.use('/api/print', printRouter)
 app.use('/api/system', systemRouter)
