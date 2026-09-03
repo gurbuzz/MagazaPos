@@ -37,7 +37,7 @@ export const SalesHistoryView: React.FC = () => {
 
       const res = await fetch(url)
       const data = await res.json()
-      setSales(data || [])
+      setSales(Array.isArray(data) ? data : [])
     } catch (err) {
       console.error('Error fetching sales history:', err)
     } finally {

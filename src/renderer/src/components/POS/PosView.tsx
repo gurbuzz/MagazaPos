@@ -40,8 +40,8 @@ export const PosView: React.FC = () => {
       ])
       const prodData = await resProd.json()
       const catData = await resCat.json()
-      setProducts(prodData || [])
-      setCategories(catData || [])
+      setProducts(Array.isArray(prodData) ? prodData : [])
+      setCategories(Array.isArray(catData) ? catData : [])
     } catch (err) {
       console.error('Error fetching POS data:', err)
     } finally {

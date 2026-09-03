@@ -9,7 +9,7 @@ import { printRouter } from './routes/print'
 import { systemRouter } from './routes/system'
 
 const app = express()
-const PORT = process.env.PORT || 3000
+const PORT = process.env.PORT || 3782
 
 app.use(cors())
 app.use(express.json())

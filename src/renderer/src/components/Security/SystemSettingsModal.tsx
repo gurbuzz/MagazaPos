@@ -463,12 +463,12 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
                 </p>
                 <div className="p-2.5 bg-white border border-emerald-300 rounded flex items-center justify-between">
                   <code className="font-mono text-emerald-900 font-bold text-xs select-all">
-                    http://{formCustomIp || '192.168.1.84'}:3000/mobile
+                    http://{formCustomIp || '192.168.1.84'}:3782/mobile
                   </code>
                   <button
                     type="button"
                     onClick={() => {
-                      navigator.clipboard.writeText(`http://${formCustomIp || '192.168.1.84'}:3000/mobile`)
+                      navigator.clipboard.writeText(`http://${formCustomIp || '192.168.1.84'}:3782/mobile`)
                       alert('Mobil depo adresi kopyalandı!')
                     }}
                     className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-xs font-semibold transition shadow-2xs"

@@ -3,6 +3,7 @@ import path from 'path'
 import { startServer } from '../server'
 import { getLocalIpAddress } from '../server/utils/network'
 
+// MağazaPOS Main Electron Process & Express Server Entry
 let mainWindow: BrowserWindow | null = null
 
 function createWindow() {

@@ -22,9 +22,14 @@ export const StockView: React.FC = () => {
     try {
       const res = await fetch('/api/products')
       const data = await res.json()
-      setProducts(data || [])
-      if (data.length > 0 && !selectedProduct) {
-        setSelectedProduct(data[0])
+      if (Array.isArray(data)) {
+        setProducts(data)
+        if (data.length > 0 && !selectedProduct) {
+          setSelectedProduct(data[0])
+        }
+      } else {
+        console.error('Expected array, got:', data)
+        setProducts([])
       }
     } catch (err) {
       console.error('Error loading stock products:', err)
