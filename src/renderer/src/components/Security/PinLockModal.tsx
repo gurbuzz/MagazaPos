@@ -166,13 +166,6 @@ export const PinLockModal: React.FC = () => {
             <Delete className="w-4 h-4" />
           </button>
         </div>
-
-        {/* Default PIN Notice */}
-        <div className="pt-2 border-t border-slate-100">
-          <span className="text-[10px] text-slate-400 font-semibold">
-            💡 Varsayılan Giriş PIN Şifresi: <code className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 text-slate-700 font-mono">1234</code>
-          </span>
-        </div>
       </div>
     </div>
   )

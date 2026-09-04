@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { prisma } from '../db'
+import { requireAdminPinAuth } from '../utils/security'
 
 export const productRouter = Router()
 
@@ -175,8 +176,8 @@ productRouter.post('/', async (req, res) => {
   }
 })
 
-// PUT /api/variants/:id/stock - Update variant stock quantity atomically
-productRouter.put('/variants/:id/stock', async (req, res) => {
+// PUT /api/variants/:id/stock - Update variant stock quantity atomically (Yönetici PIN Gerekli)
+productRouter.put('/variants/:id/stock', requireAdminPinAuth, async (req, res) => {
   try {
     const { id } = req.params
     const { quantity, note } = req.body
@@ -280,7 +281,6 @@ productRouter.put('/variants/:id/barcode', async (req, res) => {
       data: { barcode: trimmedBarcode },
       include: { product: { include: { category: true } } }
     })
-
     res.json(formatVariant(updated))
   } catch (error: any) {
     if (error.code === 'P2002') {
@@ -290,3 +290,109 @@ productRouter.put('/variants/:id/barcode', async (req, res) => {
     res.status(500).json({ error: error.message })
   }
 })
+
+// PUT /api/products/:id - Update main product details (Yönetici PIN Gerekli)
+productRouter.put('/:id', requireAdminPinAuth, async (req, res) => {
+  try {
+    const { id } = req.params
+    const { name, code, brand, categoryId, basePrice } = req.body
+
+    const updated = await prisma.product.update({
+      where: { id },
+      data: {
+        ...(name && { name }),
+        ...(code && { code }),
+        ...(brand !== undefined && { brand }),
+        ...(categoryId !== undefined && { categoryId: categoryId || null }),
+        ...(basePrice !== undefined && { basePrice: parseFloat(basePrice) }),
+      },
+      include: {
+        category: true,
+        variants: true,
+      },
+    })
+
+    res.json(formatProduct(updated))
+  } catch (error: any) {
+    if (error.code === 'P2002') {
+      res.status(400).json({ error: 'Bu ürün kodu başka bir üründe kullanılmaktadır!' })
+      return
+    }
+    res.status(400).json({ error: error.message })
+  }
+})
+
+// PUT /api/variants/:id - Update full variant details: price, barcode, color, size, stock (Yönetici PIN Gerekli)
+productRouter.put('/variants/:id', requireAdminPinAuth, async (req, res) => {
+  try {
+    const { id } = req.params
+    const { salePrice, costPrice, barcode, color, size, stockQuantity, note } = req.body
+
+    if (barcode && barcode.trim()) {
+      const trimmedBarcode = barcode.trim()
+      const existing = await prisma.productVariant.findUnique({
+        where: { barcode: trimmedBarcode },
+        include: { product: true },
+      })
+      if (existing && existing.id !== id) {
+        res.status(400).json({
+          error: `Bu barkod (${trimmedBarcode}) zaten "${existing.product?.name || 'Başka Ürün'}" (${existing.sku}) üzerinde kayıtlı!`,
+        })
+        return
+      }
+    }
+
+    const currentVariant = await prisma.productVariant.findUnique({ where: { id } })
+    if (!currentVariant) {
+      res.status(404).json({ error: 'Varyant bulunamadı' })
+      return
+    }
+
+    let existingAttrs: any = {}
+    if (typeof currentVariant.attributes === 'string') {
+      try { existingAttrs = JSON.parse(currentVariant.attributes) } catch (e) {}
+    } else if (currentVariant.attributes) {
+      existingAttrs = currentVariant.attributes
+    }
+
+    const newColor = color !== undefined ? color : (existingAttrs.color || '')
+    const newSize = size !== undefined ? size : (existingAttrs.size || '')
+    const newAttrs = { ...existingAttrs, color: newColor, size: newSize }
+
+    const newStock = stockQuantity !== undefined ? parseInt(stockQuantity) : currentVariant.stockQuantity
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const v = await tx.productVariant.update({
+        where: { id },
+        data: {
+          ...(salePrice !== undefined && { salePrice: parseFloat(salePrice) }),
+          ...(costPrice !== undefined && { costPrice: parseFloat(costPrice) }),
+          ...(barcode !== undefined && { barcode: barcode.trim() }),
+          attributes: JSON.stringify(newAttrs),
+          ...(stockQuantity !== undefined && { stockQuantity: newStock }),
+        },
+        include: {
+          product: { include: { category: true } },
+        },
+      })
+
+      if (stockQuantity !== undefined && newStock !== currentVariant.stockQuantity) {
+        await tx.stockMovement.create({
+          data: {
+            variantId: id,
+            type: 'ADJUSTMENT',
+            quantity: newStock,
+            note: note || `Stok ve Varyant Düzeltme (${currentVariant.stockQuantity} -> ${newStock})`,
+          },
+        })
+      }
+
+      return v
+    })
+
+    res.json(formatVariant(updated))
+  } catch (error: any) {
+    res.status(400).json({ error: error.message })
+  }
+})
+

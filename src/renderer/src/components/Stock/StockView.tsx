@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Plus, Search, Layers, Edit3, PackageCheck, Tag, Barcode, Sparkles, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { Plus, Search, Layers, Edit3, PackageCheck, Tag, Barcode, Sparkles, AlertCircle, CheckCircle2, ShieldAlert } from 'lucide-react'
 import { CategoryModal } from './CategoryModal'
+import { AdminPinModal } from '../Security/AdminPinModal'
 import { notifyDataChanged } from '../../utils/events'
 
 export const StockView: React.FC = () => {
@@ -8,17 +9,44 @@ export const StockView: React.FC = () => {
   const [categories, setCategories] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedProduct, setSelectedProduct] = useState<any | null>(null)
+  
+  // Variant Edit states
   const [editingVariant, setEditingVariant] = useState<any | null>(null)
-  const [newStockVal, setNewStockVal] = useState<string>('')
+  const [editColor, setEditColor] = useState('')
+  const [editSize, setEditSize] = useState('')
+  const [editSalePrice, setEditSalePrice] = useState('')
+  const [editCostPrice, setEditCostPrice] = useState('')
+  const [editBarcode, setEditBarcode] = useState('')
+  const [editStockVal, setEditStockVal] = useState('')
+
+  // Product Edit states
+  const [editingProduct, setEditingProduct] = useState<any | null>(null)
+  const [editProdName, setEditProdName] = useState('')
+  const [editProdCode, setEditProdCode] = useState('')
+  const [editProdBrand, setEditProdBrand] = useState('')
+  const [editProdCategoryId, setEditProdCategoryId] = useState('')
+  const [editProdBasePrice, setEditProdBasePrice] = useState('')
+
+  // Quick Inbound Stock State
+  const [addStockVariant, setAddStockVariant] = useState<any | null>(null)
+  const [addQtyVal, setAddQtyVal] = useState<string>('')
+
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false)
 
-  // Form states for new product
+  // Admin PIN gate for corrections/edits
+  const [isAdminPinOpen, setIsAdminPinOpen] = useState(false)
+  const [pendingVariantEdit, setPendingVariantEdit] = useState<any | null>(null)
+  const [pendingProductEdit, setPendingProductEdit] = useState<any | null>(null)
+  const [adminVerifiedForSession, setAdminVerifiedForSession] = useState(false)
+
+  // Form states for new product creation
   const [newCode, setNewCode] = useState('')
   const [newName, setNewName] = useState('')
   const [newBrand, setNewBrand] = useState('')
   const [newCategoryId, setNewCategoryId] = useState('')
   const [newBasePrice, setNewBasePrice] = useState('')
+  const [newStockQuantity, setNewStockQuantity] = useState('0')
   const [newColor, setNewColor] = useState('Siyah')
   const [newSize, setNewSize] = useState('M')
   const [newBarcode, setNewBarcode] = useState('')
@@ -42,9 +70,11 @@ export const StockView: React.FC = () => {
       const data = await res.json()
       if (Array.isArray(data)) {
         setProducts(data)
-        if (data.length > 0 && !selectedProduct) {
-          setSelectedProduct(data[0])
-        }
+        setSelectedProduct((prev: any) => {
+          if (!prev) return data[0] || null
+          const updated = data.find((p: any) => p.id === prev.id)
+          return updated || data[0] || null
+        })
       } else {
         console.error('Expected array, got:', data)
         setProducts([])
@@ -96,17 +126,45 @@ export const StockView: React.FC = () => {
     }
   }, [isAddModalOpen, isCategoryModalOpen])
 
-  const handleUpdateStock = async (e: React.FormEvent) => {
+  // --- EDIT VARIANT HANDLERS ---
+  const openVariantEditModal = (variant: any) => {
+    setEditingVariant(variant)
+    setEditColor(variant.attributes?.color || '')
+    setEditSize(variant.attributes?.size || '')
+    setEditSalePrice(variant.salePrice?.toString() || '0')
+    setEditCostPrice(variant.costPrice?.toString() || '0')
+    setEditBarcode(variant.barcode || '')
+    setEditStockVal(variant.stockQuantity?.toString() || '0')
+  }
+
+  const handleStockEditClick = (variant: any) => {
+    if (adminVerifiedForSession) {
+      openVariantEditModal(variant)
+    } else {
+      setPendingVariantEdit(variant)
+      setIsAdminPinOpen(true)
+    }
+  }
+
+  const handleUpdateVariant = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!editingVariant) return
 
     try {
-      const res = await fetch(`/api/variants/${editingVariant.id}/stock`, {
+      const res = await fetch(`/api/products/variants/${editingVariant.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Pin': localStorage.getItem('pos_admin_pin_session') || '',
+        },
         body: JSON.stringify({
-          quantity: parseInt(newStockVal || '0'),
-          note: 'Manuel stok güncelleme',
+          color: editColor,
+          size: editSize,
+          salePrice: parseFloat(editSalePrice || '0'),
+          costPrice: parseFloat(editCostPrice || '0'),
+          barcode: editBarcode,
+          stockQuantity: parseInt(editStockVal || '0', 10),
+          note: 'Varyant detay ve stok düzeltme',
         }),
       })
 
@@ -115,10 +173,121 @@ export const StockView: React.FC = () => {
         fetchProducts()
         notifyDataChanged()
       } else {
-        alert('Stok güncelleme hatası')
+        const errData = await res.json()
+        if (errData.code === 'UNAUTHORIZED_ADMIN_PIN') {
+          alert('Yönetici PIN doğrulama hatası. Lütfen tekrar deneyin.')
+          setAdminVerifiedForSession(false)
+        } else {
+          alert('Güncelleme hatası: ' + (errData.error || 'Bilinmeyen hata'))
+        }
       }
     } catch (err) {
       alert('Hata oluştu')
+    }
+  }
+
+  // --- EDIT MAIN PRODUCT HANDLERS ---
+  const openProductEditModal = (product: any) => {
+    setEditingProduct(product)
+    setEditProdName(product.name || '')
+    setEditProdCode(product.code || '')
+    setEditProdBrand(product.brand || '')
+    setEditProdCategoryId(product.categoryId || '')
+    setEditProdBasePrice(product.basePrice?.toString() || '0')
+  }
+
+  const handleProductEditClick = (product: any) => {
+    if (adminVerifiedForSession) {
+      openProductEditModal(product)
+    } else {
+      setPendingProductEdit(product)
+      setIsAdminPinOpen(true)
+    }
+  }
+
+  const handleUpdateProduct = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingProduct) return
+
+    try {
+      const res = await fetch(`/api/products/${editingProduct.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Pin': localStorage.getItem('pos_admin_pin_session') || '',
+        },
+        body: JSON.stringify({
+          name: editProdName,
+          code: editProdCode,
+          brand: editProdBrand,
+          categoryId: editProdCategoryId || null,
+          basePrice: parseFloat(editProdBasePrice || '0'),
+        }),
+      })
+
+      if (res.ok) {
+        setEditingProduct(null)
+        fetchProducts()
+        notifyDataChanged()
+      } else {
+        const errData = await res.json()
+        if (errData.code === 'UNAUTHORIZED_ADMIN_PIN') {
+          alert('Yönetici PIN doğrulama hatası. Lütfen tekrar deneyin.')
+          setAdminVerifiedForSession(false)
+        } else {
+          alert('Ürün güncelleme hatası: ' + (errData.error || 'Bilinmeyen hata'))
+        }
+      }
+    } catch (err) {
+      alert('Hata oluştu')
+    }
+  }
+
+  // --- QUICK ADD STOCK (MAL KABUL - NO PIN) ---
+  const handleAddStockSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!addStockVariant || !addQtyVal) return
+    const qty = parseInt(addQtyVal)
+    if (isNaN(qty) || qty <= 0) {
+      alert('Lütfen geçerli bir adet girin!')
+      return
+    }
+
+    try {
+      const res = await fetch(`/api/variants/${addStockVariant.id}/add-stock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          addedQuantity: qty,
+          note: 'Mal kabul stok girişi',
+        }),
+      })
+
+      if (res.ok) {
+        setAddStockVariant(null)
+        setAddQtyVal('')
+        fetchProducts()
+        notifyDataChanged()
+      } else {
+        const errData = await res.json()
+        alert('Stok ekleme hatası: ' + (errData.error || 'Bilinmeyen hata'))
+      }
+    } catch {
+      alert('Hata oluştu')
+    }
+  }
+
+  // Admin PIN verified callback
+  const handleAdminVerifiedForStock = () => {
+    setIsAdminPinOpen(false)
+    setAdminVerifiedForSession(true)
+    if (pendingVariantEdit) {
+      openVariantEditModal(pendingVariantEdit)
+      setPendingVariantEdit(null)
+    }
+    if (pendingProductEdit) {
+      openProductEditModal(pendingProductEdit)
+      setPendingProductEdit(null)
     }
   }
 
@@ -155,7 +324,7 @@ export const StockView: React.FC = () => {
           attributes: { color: newColor, size: newSize },
           costPrice: parseFloat(newBasePrice || '100') * 0.5,
           salePrice: parseFloat(newBasePrice || '100'),
-          stockQuantity: 10,
+          stockQuantity: parseInt(newStockQuantity || '0', 10),
         },
       ],
     }
@@ -173,6 +342,7 @@ export const StockView: React.FC = () => {
         setNewName('')
         setNewBarcode('')
         setNewCategoryId('')
+        setNewStockQuantity('0')
         fetchProducts()
         fetchCategories()
         notifyDataChanged()
@@ -281,11 +451,24 @@ export const StockView: React.FC = () => {
           <div className="p-6 space-y-6">
             <div className="border-b border-slate-200 pb-4 flex justify-between items-start">
               <div>
-                <span className="text-xs font-semibold text-blue-700 uppercase tracking-wider">
-                  {selectedProduct.category?.name || 'Kategorisiz'}
-                </span>
+                <div className="flex items-center space-x-2">
+                  <span className="text-xs font-semibold text-blue-700 uppercase tracking-wider">
+                    {selectedProduct.category?.name || 'Kategorisiz'}
+                  </span>
+                  <button
+                    onClick={() => handleProductEditClick(selectedProduct)}
+                    className="px-2 py-0.5 bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 border border-slate-300 hover:border-indigo-300 rounded text-[11px] font-semibold flex items-center space-x-1 transition"
+                    title="Ana Ürün Adı, Kodu ve Fiyatını Düzenle"
+                  >
+                    <Edit3 className="w-3 h-3 text-indigo-600" />
+                    <span>Ürünü Düzenle</span>
+                    <ShieldAlert className="w-2.5 h-2.5 text-indigo-400 opacity-60" />
+                  </button>
+                </div>
                 <h1 className="text-xl font-bold text-slate-900 mt-0.5">{selectedProduct.name}</h1>
-                <p className="text-xs text-slate-500 font-mono mt-1">Ürün Kodu: {selectedProduct.code}</p>
+                <p className="text-xs text-slate-500 font-mono mt-1">
+                  Ürün Kodu: {selectedProduct.code} {selectedProduct.brand ? `| Marka: ${selectedProduct.brand}` : ''}
+                </p>
               </div>
               <div className="bg-slate-50 border border-slate-200 rounded p-3 text-right">
                 <span className="text-[11px] text-slate-500 font-semibold block uppercase">Taban Satış Fiyatı</span>
@@ -335,16 +518,28 @@ export const StockView: React.FC = () => {
                             </span>
                           </td>
                           <td className="px-5 py-3 text-right">
-                            <button
-                              onClick={() => {
-                                setEditingVariant(v)
-                                setNewStockVal(v.stockQuantity.toString())
-                              }}
-                              className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded transition text-xs font-semibold flex items-center space-x-1 ml-auto"
-                            >
-                              <Edit3 className="w-3.5 h-3.5 text-blue-600" />
-                              <span>Stok Düzelt</span>
-                            </button>
+                            <div className="flex items-center justify-end space-x-1.5">
+                              <button
+                                onClick={() => {
+                                  setAddStockVariant(v)
+                                  setAddQtyVal('')
+                                }}
+                                className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 rounded transition text-xs font-semibold flex items-center space-x-1"
+                                title="Şifresiz Mal Kabul Stok Girişi"
+                              >
+                                <Plus className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>+ Stok Ekle</span>
+                              </button>
+                              <button
+                                onClick={() => handleStockEditClick(v)}
+                                className="px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 border border-slate-300 hover:border-indigo-300 rounded transition text-xs font-semibold flex items-center space-x-1"
+                                title="Yönetici PIN ile Tüm Varyant ve Stok Bilgilerini Düzelt"
+                              >
+                                <Edit3 className="w-3.5 h-3.5 text-indigo-600" />
+                                <span>Düzelt</span>
+                                <ShieldAlert className="w-3 h-3 text-indigo-400 opacity-60" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       )
@@ -361,27 +556,94 @@ export const StockView: React.FC = () => {
         )}
       </div>
 
-      {/* Stock Adjustment Modal */}
+      {/* Variant Full Edit Modal (Price, Barcode, Color/Size, Stock) */}
       {editingVariant && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-lg p-5 w-full max-w-sm shadow-xl space-y-4">
-            <h3 className="font-bold text-slate-900 text-sm">Stok Güncelle</h3>
-            <p className="text-xs text-slate-500 font-mono">
-              {editingVariant.sku} ({editingVariant.attributes?.color} / {editingVariant.attributes?.size})
-            </p>
+          <div className="bg-white border border-slate-200 rounded-lg p-5 w-full max-w-md shadow-xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <div className="flex items-center space-x-2">
+                <ShieldAlert className="w-5 h-5 text-indigo-600" />
+                <h3 className="font-bold text-slate-900 text-sm">Varyant & Stok Düzelt (Yönetici)</h3>
+              </div>
+              <button
+                onClick={() => setEditingVariant(null)}
+                className="text-slate-400 hover:text-slate-600 font-bold text-sm"
+              >
+                ✕
+              </button>
+            </div>
 
-            <form onSubmit={handleUpdateStock} className="space-y-4">
+            <form onSubmit={handleUpdateVariant} className="space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Varyant Renk</label>
+                  <input
+                    type="text"
+                    value={editColor}
+                    onChange={(e) => setEditColor(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-medium focus:ring-1 focus:ring-indigo-600"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Beden</label>
+                  <input
+                    type="text"
+                    value={editSize}
+                    onChange={(e) => setEditSize(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-medium focus:ring-1 focus:ring-indigo-600"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Satış Fiyatı (₺)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={editSalePrice}
+                    onChange={(e) => setEditSalePrice(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-bold text-emerald-700 focus:ring-1 focus:ring-indigo-600"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Alış Fiyatı (Maliyet ₺)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={editCostPrice}
+                    onChange={(e) => setEditCostPrice(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-semibold focus:ring-1 focus:ring-indigo-600"
+                  />
+                </div>
+              </div>
+
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Yeni Stok Adedi</label>
+                <label className="block text-slate-700 font-semibold mb-1">Barkod Numarası</label>
                 <input
-                  type="number"
-                  value={newStockVal}
-                  onChange={(e) => setNewStockVal(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2 text-slate-900 font-bold text-base focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  type="text"
+                  value={editBarcode}
+                  onChange={(e) => setEditBarcode(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-mono font-bold focus:ring-1 focus:ring-indigo-600"
+                  required
                 />
               </div>
 
-              <div className="flex justify-end space-x-2">
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">Mevcut Stok Adedi</label>
+                <input
+                  type="number"
+                  value={editStockVal}
+                  onChange={(e) => setEditStockVal(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-bold text-base focus:ring-1 focus:ring-indigo-600"
+                  required
+                />
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-2 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setEditingVariant(null)}
@@ -391,9 +653,158 @@ export const StockView: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-3.5 py-1.5 bg-blue-700 hover:bg-blue-800 text-white rounded text-xs font-semibold shadow-sm"
+                  className="px-3.5 py-1.5 bg-indigo-700 hover:bg-indigo-800 text-white rounded text-xs font-semibold shadow-sm"
+                >
+                  Değişiklikleri Kaydet
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Main Product Edit Modal */}
+      {editingProduct && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-lg p-5 w-full max-w-md shadow-xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <div className="flex items-center space-x-2">
+                <ShieldAlert className="w-5 h-5 text-indigo-600" />
+                <h3 className="font-bold text-slate-900 text-sm">Ana Ürün Bilgilerini Düzenle</h3>
+              </div>
+              <button
+                onClick={() => setEditingProduct(null)}
+                className="text-slate-400 hover:text-slate-600 font-bold text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateProduct} className="space-y-3 text-xs">
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">Ürün Kodu</label>
+                <input
+                  type="text"
+                  value={editProdCode}
+                  onChange={(e) => setEditProdCode(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-medium focus:ring-1 focus:ring-indigo-600"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">Ürün Adı</label>
+                <input
+                  type="text"
+                  value={editProdName}
+                  onChange={(e) => setEditProdName(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-medium focus:ring-1 focus:ring-indigo-600"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Kategori</label>
+                  <select
+                    value={editProdCategoryId}
+                    onChange={(e) => setEditProdCategoryId(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-medium focus:ring-1 focus:ring-indigo-600"
+                  >
+                    <option value="">-- Kategori Seçin --</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Marka</label>
+                  <input
+                    type="text"
+                    value={editProdBrand}
+                    onChange={(e) => setEditProdBrand(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-medium focus:ring-1 focus:ring-indigo-600"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">Taban Satış Fiyatı (TL)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={editProdBasePrice}
+                  onChange={(e) => setEditProdBasePrice(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-bold text-emerald-700 text-base focus:ring-1 focus:ring-indigo-600"
+                  required
+                />
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setEditingProduct(null)}
+                  className="px-3.5 py-1.5 bg-slate-100 text-slate-700 rounded text-xs font-semibold hover:bg-slate-200 border border-slate-200"
+                >
+                  İptal
+                </button>
+                <button
+                  type="submit"
+                  className="px-3.5 py-1.5 bg-indigo-700 hover:bg-indigo-800 text-white rounded text-xs font-semibold shadow-sm"
                 >
                   Kaydet
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Add Stock Modal (Mal Kabul - No PIN) */}
+      {addStockVariant && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-lg p-5 w-full max-w-sm shadow-xl space-y-4">
+            <div className="flex items-center space-x-2">
+              <Plus className="w-5 h-5 text-emerald-600" />
+              <h3 className="font-bold text-slate-900 text-sm">Hızlı Stok Ekle (Mal Kabul)</h3>
+            </div>
+            <p className="text-xs text-slate-500 font-mono">
+              {addStockVariant.sku} ({addStockVariant.attributes?.color} / {addStockVariant.attributes?.size})
+            </p>
+            <p className="text-xs text-slate-600">
+              Mevcut Stok: <strong className="text-slate-900">{addStockVariant.stockQuantity} Adet</strong>
+            </p>
+
+            <form onSubmit={handleAddStockSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Eklenecek Stok Adedi (+)</label>
+                <input
+                  type="number"
+                  min="1"
+                  placeholder="Örn: 20"
+                  value={addQtyVal}
+                  onChange={(e) => setAddQtyVal(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2 text-slate-900 font-bold text-base focus:outline-none focus:ring-1 focus:ring-emerald-600"
+                  autoFocus
+                  required
+                />
+              </div>
+
+              <div className="flex justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setAddStockVariant(null)}
+                  className="px-3.5 py-1.5 bg-slate-100 text-slate-700 rounded text-xs font-semibold hover:bg-slate-200 border border-slate-200"
+                >
+                  İptal
+                </button>
+                <button
+                  type="submit"
+                  className="px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-xs font-semibold shadow-sm"
+                >
+                  Stoğa Ekle
                 </button>
               </div>
             </form>
@@ -457,14 +868,28 @@ export const StockView: React.FC = () => {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-slate-700 font-semibold mb-1">Taban Fiyat (TL)</label>
-                <input
-                  type="number"
-                  value={newBasePrice}
-                  onChange={(e) => setNewBasePrice(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-semibold focus:ring-1 focus:ring-blue-600"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Taban Fiyat (TL)</label>
+                  <input
+                    type="number"
+                    value={newBasePrice}
+                    onChange={(e) => setNewBasePrice(e.target.value)}
+                    placeholder="100"
+                    className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-semibold focus:ring-1 focus:ring-blue-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Başlangıç Stok Adedi</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={newStockQuantity}
+                    onChange={(e) => setNewStockQuantity(e.target.value)}
+                    placeholder="0"
+                    className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-semibold focus:ring-1 focus:ring-blue-600"
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200">
@@ -583,6 +1008,19 @@ export const StockView: React.FC = () => {
           await fetchCategories()
           await fetchProducts()
         }}
+      />
+
+      {/* Admin PIN Modal for Stock/Product Corrections */}
+      <AdminPinModal
+        isOpen={isAdminPinOpen}
+        onClose={() => {
+          setIsAdminPinOpen(false)
+          setPendingVariantEdit(null)
+          setPendingProductEdit(null)
+        }}
+        onVerified={handleAdminVerifiedForStock}
+        title="Düzenleme Yetkisi"
+        subtitle="Ürün ve varyant bilgilerini değiştirmek için Yönetici PIN girin."
       />
     </div>
   )

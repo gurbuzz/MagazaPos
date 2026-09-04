@@ -3,11 +3,16 @@ import { ShoppingBag, Package, Printer, Receipt, Users, Wifi, Sparkles, Settings
 import { usePosStore } from '../store/usePosStore'
 import { CampaignModal } from './POS/CampaignModal'
 import { SystemSettingsModal } from './Security/SystemSettingsModal'
+import { AdminPinModal } from './Security/AdminPinModal'
 
 export const Header: React.FC = () => {
   const { activeTab, setActiveTab, localIp, setLocalIp, storeName, cashierName, lockApp } = usePosStore()
   const [isCampaignModalOpen, setIsCampaignModalOpen] = useState(false)
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false)
+
+  // Admin PIN gate state
+  const [isAdminPinOpen, setIsAdminPinOpen] = useState(false)
+  const [pendingAdminAction, setPendingAdminAction] = useState<'sales' | 'settings' | null>(null)
 
   useEffect(() => {
     if (window.electron?.getLocalIp) {
@@ -19,6 +24,21 @@ export const Header: React.FC = () => {
         .catch(() => {})
     }
   }, [setLocalIp])
+
+  const handleProtectedAction = (action: 'sales' | 'settings') => {
+    setPendingAdminAction(action)
+    setIsAdminPinOpen(true)
+  }
+
+  const handleAdminVerified = () => {
+    setIsAdminPinOpen(false)
+    if (pendingAdminAction === 'sales') {
+      setActiveTab('sales')
+    } else if (pendingAdminAction === 'settings') {
+      setIsSettingsModalOpen(true)
+    }
+    setPendingAdminAction(null)
+  }
 
   return (
     <header className="h-14 bg-slate-900 border-b border-slate-800 px-5 flex items-center justify-between select-none shadow-md z-20">
@@ -86,15 +106,16 @@ export const Header: React.FC = () => {
         </button>
 
         <button
-          onClick={() => setActiveTab('sales')}
+          onClick={() => handleProtectedAction('sales')}
           className={`flex items-center space-x-2 px-3.5 py-1.5 rounded text-xs font-semibold transition ${
             activeTab === 'sales'
-              ? 'bg-blue-600 text-white shadow-sm'
+              ? 'bg-indigo-600 text-white shadow-sm'
               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
           }`}
         >
           <Receipt className="w-3.5 h-3.5" />
           <span>Ciro & Satış Raporları</span>
+          <Lock className="w-3 h-3 text-indigo-300 opacity-70" />
         </button>
       </nav>
 
@@ -120,11 +141,11 @@ export const Header: React.FC = () => {
           <Lock className="w-4 h-4" />
         </button>
 
-        {/* System Settings Gear Icon Button */}
+        {/* System Settings Gear Icon Button — Admin PIN Protected */}
         <button
-          onClick={() => setIsSettingsModalOpen(true)}
-          className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded border border-slate-700 transition"
-          title="Sistem ve Kasa Ayarları"
+          onClick={() => handleProtectedAction('settings')}
+          className="p-1.5 bg-slate-800 hover:bg-indigo-900/40 text-slate-300 hover:text-indigo-300 rounded border border-slate-700 transition"
+          title="Sistem ve Kasa Ayarları (Yönetici PIN Gerekli)"
         >
           <Settings className="w-4 h-4" />
         </button>
@@ -138,7 +159,32 @@ export const Header: React.FC = () => {
           isOpen={isSettingsModalOpen}
           onClose={() => setIsSettingsModalOpen(false)}
         />
+
+        {/* Admin PIN Verification Gate */}
+        <AdminPinModal
+          isOpen={isAdminPinOpen}
+          onClose={() => {
+            setIsAdminPinOpen(false)
+            setPendingAdminAction(null)
+          }}
+          onVerified={handleAdminVerified}
+          title={
+            pendingAdminAction === 'sales'
+              ? 'Ciro & Satış Raporları'
+              : pendingAdminAction === 'settings'
+              ? 'Sistem Ayarları'
+              : 'Yönetici Yetkisi Gerekli'
+          }
+          subtitle={
+            pendingAdminAction === 'sales'
+              ? 'Satış raporlarını görüntülemek için Yönetici PIN girin.'
+              : pendingAdminAction === 'settings'
+              ? 'Sistem ayarlarına erişmek için Yönetici PIN girin.'
+              : 'Bu işlem için 6 haneli Yönetici PIN şifresini girin.'
+          }
+        />
       </div>
     </header>
   )
 }
+

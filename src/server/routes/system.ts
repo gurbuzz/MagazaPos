@@ -2,9 +2,11 @@ import { Router } from 'express'
 import path from 'path'
 import fs from 'fs'
 import { prisma } from '../db'
-import { requirePinAuth, setSystemPin, getSystemPin } from '../utils/security'
+import { requirePinAuth, requireAdminPinAuth, setSystemPin, getSystemPin, getAdminPin, setAdminPin } from '../utils/security'
 
 export const systemRouter = Router()
+
+// ─── Kasa PIN (4 haneli) ───────────────────────────────────────
 
 // POST /api/system/update-pin: Update PIN stored on server
 systemRouter.post('/update-pin', (req, res) => {
@@ -33,8 +35,39 @@ systemRouter.post('/verify-pin', (req, res) => {
   }
 })
 
+// ─── Yönetici PIN (6 haneli) ───────────────────────────────────
+
+// POST /api/system/verify-admin-pin: Check if provided admin PIN is correct
+systemRouter.post('/verify-admin-pin', (req, res) => {
+  const { adminPin } = req.body
+  const currentAdminPin = getAdminPin()
+  if (adminPin === currentAdminPin) {
+    res.json({ success: true })
+  } else {
+    res.status(401).json({ success: false, error: 'Hatalı Yönetici PIN Şifresi' })
+  }
+})
+
+// POST /api/system/update-admin-pin: Update admin PIN (requires current admin PIN)
+systemRouter.post('/update-admin-pin', requireAdminPinAuth, (req, res) => {
+  const { newAdminPin } = req.body
+  if (!newAdminPin || newAdminPin.length !== 6 || !/^\d{6}$/.test(newAdminPin)) {
+    res.status(400).json({ error: 'Yönetici PIN şifresi tam 6 haneli rakam olmalıdır.' })
+    return
+  }
+
+  const success = setAdminPin(newAdminPin)
+  if (success) {
+    res.json({ success: true, message: 'Yönetici PIN şifresi güncellendi.' })
+  } else {
+    res.status(500).json({ error: 'Yönetici PIN güncellenirken sunucu hatası oluştu.' })
+  }
+})
+
+// ─── Korumalı Tehlikeli İşlemler (Yönetici PIN Gerekli) ────────
+
 // Protected Route: POST /api/system/reset-sales: Only clear sales history (keep stock & products)
-systemRouter.post('/reset-sales', requirePinAuth, async (req, res) => {
+systemRouter.post('/reset-sales', requireAdminPinAuth, async (req, res) => {
   try {
     await prisma.saleItem.deleteMany()
     await prisma.sale.deleteMany()
@@ -46,7 +79,7 @@ systemRouter.post('/reset-sales', requirePinAuth, async (req, res) => {
 })
 
 // Protected Route: POST /api/system/reset-all: Clear sales, stock movements, products, and categories (Full Reset)
-systemRouter.post('/reset-all', requirePinAuth, async (req, res) => {
+systemRouter.post('/reset-all', requireAdminPinAuth, async (req, res) => {
   try {
     await prisma.saleItem.deleteMany()
     await prisma.sale.deleteMany()

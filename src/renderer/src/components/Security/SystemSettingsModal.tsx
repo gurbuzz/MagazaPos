@@ -58,6 +58,12 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
   const [formAutoPrint, setFormAutoPrint] = useState(autoPrintReceipt)
   const [formCustomIp, setFormCustomIp] = useState(customIp)
 
+  // Admin PIN change fields
+  const [formNewAdminPin, setFormNewAdminPin] = useState('')
+  const [formConfirmAdminPin, setFormConfirmAdminPin] = useState('')
+  const [adminPinSaveStatus, setAdminPinSaveStatus] = useState<'idle' | 'success' | 'error'>('idle')
+  const [adminPinError, setAdminPinError] = useState('')
+
   const [detectedIps, setDetectedIps] = useState<any[]>([])
   const [savedSuccess, setSavedSuccess] = useState(false)
   const [isResetting, setIsResetting] = useState(false)
@@ -152,7 +158,7 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
   }
 
   const handleResetSales = async () => {
-    const inputPin = prompt('DİKKAT: Tüm geçmiş satış kayıtları silinecektir! İşlemi onaylamak için 4 Haneli PIN şifrenizi girin:')
+    const inputPin = prompt('DİKKAT: Tüm geçmiş satış kayıtları silinecektir! İşlemi onaylamak için 6 Haneli Yönetici PIN şifrenizi girin:')
     if (!inputPin) return
 
     setIsResetting(true)
@@ -161,9 +167,9 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-PIN-Code': inputPin,
+          'X-Admin-Pin': inputPin,
         },
-        body: JSON.stringify({ pinCode: inputPin }),
+        body: JSON.stringify({ adminPin: inputPin }),
       })
       const data = await res.json()
       if (res.ok) {
@@ -179,7 +185,7 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
   }
 
   const handleResetAll = async () => {
-    const inputPin = prompt('DİKKAT: Tüm stoklar, ürünler ve satışlar silinecektir! İşlemi onaylamak için 4 Haneli PIN şifrenizi girin:')
+    const inputPin = prompt('DİKKAT: Tüm stoklar, ürünler ve satışlar silinecektir! İşlemi onaylamak için 6 Haneli Yönetici PIN şifrenizi girin:')
     if (!inputPin) return
 
     setIsResetting(true)
@@ -188,9 +194,9 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-PIN-Code': inputPin,
+          'X-Admin-Pin': inputPin,
         },
-        body: JSON.stringify({ pinCode: inputPin }),
+        body: JSON.stringify({ adminPin: inputPin }),
       })
       const data = await res.json()
       if (res.ok) {
@@ -203,6 +209,53 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
       alert('Sıfırlama hatası: ' + err.message)
     } finally {
       setIsResetting(false)
+    }
+  }
+
+  const handleAdminPinChange = async () => {
+    setAdminPinError('')
+    setAdminPinSaveStatus('idle')
+
+    if (!formNewAdminPin || formNewAdminPin.length !== 6 || !/^\d{6}$/.test(formNewAdminPin)) {
+      setAdminPinError('Yeni Yönetici PIN tam 6 haneli rakam olmalıdır.')
+      return
+    }
+
+    if (formNewAdminPin !== formConfirmAdminPin) {
+      setAdminPinError('Yeni PIN ile tekrarı eşleşmiyor!')
+      return
+    }
+
+    try {
+      const currentAdminPin = localStorage.getItem('pos_admin_pin_session') || sessionStorage.getItem('pos_admin_pin_session') || ''
+      const res = await fetch('/api/system/update-admin-pin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Pin': currentAdminPin,
+        },
+        body: JSON.stringify({
+          adminPin: currentAdminPin,
+          newAdminPin: formNewAdminPin,
+        }),
+      })
+
+      if (res.ok) {
+        setAdminPinSaveStatus('success')
+        // Update session with new admin PIN
+        sessionStorage.setItem('pos_admin_pin_session', formNewAdminPin)
+        localStorage.setItem('pos_admin_pin_session', formNewAdminPin)
+        setFormNewAdminPin('')
+        setFormConfirmAdminPin('')
+        setTimeout(() => setAdminPinSaveStatus('idle'), 3000)
+      } else {
+        const data = await res.json()
+        setAdminPinError(data.error || 'PIN güncellenemedi.')
+        setAdminPinSaveStatus('error')
+      }
+    } catch (err: any) {
+      setAdminPinError('Sunucu hatası: ' + err.message)
+      setAdminPinSaveStatus('error')
     }
   }
 
@@ -363,6 +416,61 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
                     Açılışta ve kilitlemede bu 4 haneli PIN istenir.
                   </span>
                 </div>
+              </div>
+
+              {/* Admin PIN Change Section */}
+              <div className="p-3 bg-indigo-50/70 border border-indigo-200 rounded space-y-2.5">
+                <label className="block text-xs font-bold text-indigo-900 flex items-center space-x-1.5">
+                  <Lock className="w-4 h-4 text-indigo-700" />
+                  <span>6 Haneli Yönetici PIN Şifresi</span>
+                  <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 text-[9px] rounded font-bold uppercase tracking-wider">
+                    Sadece Patron / Yönetici
+                  </span>
+                </label>
+                <p className="text-[10px] text-indigo-700 font-medium">
+                  Ciro raporları, stok düzeltme ve sistem ayarlarına erişim için bu şifre gereklidir. Kasiyerlere paylaşmayın!
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">Yeni Yönetici PIN</label>
+                    <input
+                      type="password"
+                      maxLength={6}
+                      value={formNewAdminPin}
+                      onChange={(e) => setFormNewAdminPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      placeholder="••••••"
+                      className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded text-slate-900 font-mono text-sm tracking-widest font-bold focus:ring-1 focus:ring-indigo-600 focus:outline-none text-center"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-600 mb-0.5">PIN Tekrarı</label>
+                    <input
+                      type="password"
+                      maxLength={6}
+                      value={formConfirmAdminPin}
+                      onChange={(e) => setFormConfirmAdminPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      placeholder="••••••"
+                      className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded text-slate-900 font-mono text-sm tracking-widest font-bold focus:ring-1 focus:ring-indigo-600 focus:outline-none text-center"
+                    />
+                  </div>
+                </div>
+                {adminPinError && (
+                  <p className="text-[11px] text-rose-600 font-bold">⚠️ {adminPinError}</p>
+                )}
+                {adminPinSaveStatus === 'success' && (
+                  <p className="text-[11px] text-emerald-700 font-bold flex items-center space-x-1">
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Yönetici PIN başarıyla güncellendi!</span>
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={handleAdminPinChange}
+                  disabled={!formNewAdminPin || !formConfirmAdminPin}
+                  className="px-3 py-1.5 bg-indigo-700 hover:bg-indigo-800 text-white text-xs font-bold rounded transition shadow-2xs disabled:opacity-40"
+                >
+                  Yönetici PIN'i Güncelle
+                </button>
               </div>
             </div>
           )}
