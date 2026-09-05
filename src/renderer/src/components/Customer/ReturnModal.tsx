@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
-import { X, RotateCcw, AlertTriangle, Check, PackageCheck, ShoppingBag } from 'lucide-react'
+import { X, RotateCcw, AlertTriangle, Check, PackageCheck, ShoppingBag, User } from 'lucide-react'
+import { notifyDataChanged } from '../../utils/events'
 
 interface ReturnModalProps {
   isOpen: boolean
@@ -11,18 +12,21 @@ interface ReturnModalProps {
 export const ReturnModal: React.FC<ReturnModalProps> = ({ isOpen, onClose, sale, onSuccess }) => {
   const [returnItems, setReturnItems] = useState<{ [saleItemId: string]: number }>({})
   const [reason, setReason] = useState<string>('')
+  const [anonCustomerName, setAnonCustomerName] = useState<string>('')
+  const [anonPhone, setAnonPhone] = useState<string>('')
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
   const [errorMsg, setErrorMsg] = useState<string>('')
 
   useEffect(() => {
     if (isOpen && sale) {
-      // Initialize return quantities to 0
       const initial: { [key: string]: number } = {}
       sale.items?.forEach((item: any) => {
         initial[item.id] = 0
       })
       setReturnItems(initial)
       setReason('')
+      setAnonCustomerName('')
+      setAnonPhone('')
       setErrorMsg('')
     }
   }, [isOpen, sale])
@@ -38,10 +42,11 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({ isOpen, onClose, sale,
   }
 
   // Calculate total refund sum
-  const totalRefund = sale.items?.reduce((sum: number, item: any) => {
-    const qty = returnItems[item.id] || 0
-    return sum + qty * item.unitPrice
-  }, 0) || 0
+  const totalRefund =
+    sale.items?.reduce((sum: number, item: any) => {
+      const qty = returnItems[item.id] || 0
+      return sum + qty * item.unitPrice
+    }, 0) || 0
 
   const totalReturnCount = Object.values(returnItems).reduce((sum, q) => sum + q, 0)
 
@@ -67,6 +72,8 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({ isOpen, onClose, sale,
         body: JSON.stringify({
           items: itemsToSubmit,
           reason: reason.trim(),
+          customerName: anonCustomerName.trim(),
+          phone: anonPhone.trim(),
         }),
       })
 
@@ -78,6 +85,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({ isOpen, onClose, sale,
       }
 
       setIsSubmitting(false)
+      notifyDataChanged()
       onSuccess()
       onClose()
     } catch (err: any) {
@@ -115,13 +123,43 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({ isOpen, onClose, sale,
             </div>
           )}
 
-          {/* Customer Badge */}
-          <div className="bg-blue-50/70 border border-blue-200 rounded-lg p-2.5 flex items-center justify-between text-xs">
-            <span className="text-slate-600 font-medium">Müşteri:</span>
-            <span className="font-bold text-slate-900">
-              {sale.customer?.firstName} {sale.customer?.lastName} ({sale.customer?.phone})
-            </span>
-          </div>
+          {/* Customer Badge or Anonymous info */}
+          {sale.customer ? (
+            <div className="bg-blue-50/70 border border-blue-200 rounded-lg p-2.5 flex items-center justify-between text-xs">
+              <span className="text-slate-600 font-medium">Kayıtlı Müşteri:</span>
+              <span className="font-bold text-slate-900">
+                {sale.customer.firstName} {sale.customer.lastName} ({sale.customer.phone})
+              </span>
+            </div>
+          ) : (
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-600 font-medium flex items-center space-x-1">
+                  <User className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Kayıtsız (Anonim) Fiş İadesi</span>
+                </span>
+                <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                  Fişle İade Geçerli
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-200/60">
+                <input
+                  type="text"
+                  placeholder="Müşteri Adı (İsteğe Bağlı)"
+                  value={anonCustomerName}
+                  onChange={(e) => setAnonCustomerName(e.target.value)}
+                  className="px-2.5 py-1 bg-white border border-slate-300 rounded text-xs font-medium"
+                />
+                <input
+                  type="text"
+                  placeholder="Telefon (İsteğe Bağlı)"
+                  value={anonPhone}
+                  onChange={(e) => setAnonPhone(e.target.value)}
+                  className="px-2.5 py-1 bg-white border border-slate-300 rounded text-xs font-medium"
+                />
+              </div>
+            </div>
+          )}
 
           {/* Item List Table */}
           <div className="flex-1 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100">

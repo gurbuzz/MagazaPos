@@ -1,9 +1,26 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Search, Barcode, Trash2, Plus, Minus, Tag, CreditCard, ShoppingCart, RefreshCw, Sparkles, X, Settings2, User, UserCheck } from 'lucide-react'
+import {
+  Search,
+  Barcode,
+  Trash2,
+  Plus,
+  Minus,
+  Tag,
+  CreditCard,
+  ShoppingCart,
+  RefreshCw,
+  Sparkles,
+  X,
+  Settings2,
+  User,
+  UserCheck,
+  RotateCcw,
+} from 'lucide-react'
 import { usePosStore } from '../../store/usePosStore'
 import { CheckoutModal } from './CheckoutModal'
 import { CampaignModal } from './CampaignModal'
 import { CustomerSelectModal } from '../Customer/CustomerSelectModal'
+import { ExchangeModal } from './ExchangeModal'
 
 export const PosView: React.FC = () => {
   const {
@@ -33,6 +50,7 @@ export const PosView: React.FC = () => {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState<boolean>(false)
   const [isCampaignModalOpen, setIsCampaignModalOpen] = useState<boolean>(false)
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState<boolean>(false)
+  const [isExchangeModalOpen, setIsExchangeModalOpen] = useState<boolean>(false)
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [isEditingTotal, setIsEditingTotal] = useState<boolean>(false)
   const [tempTotalInput, setTempTotalInput] = useState<string>('')
@@ -364,12 +382,22 @@ export const PosView: React.FC = () => {
             </div>
           )}
 
-          <button
-            onClick={() => setIsCustomerModalOpen(true)}
-            className="px-2.5 py-1 bg-white hover:bg-blue-50 text-blue-700 border border-blue-200 rounded text-[11px] font-semibold transition shrink-0 shadow-2xs"
-          >
-            {selectedCustomer ? 'Değiştir' : 'Müşteri Seç'}
-          </button>
+          <div className="flex items-center space-x-1.5 shrink-0">
+            <button
+              onClick={() => setIsExchangeModalOpen(true)}
+              className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded text-[11px] font-semibold transition flex items-center space-x-1 shadow-2xs"
+              title="Eski Fişten Beden / Ürün Değişimi Yap (Sıfır Fark)"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Değişim</span>
+            </button>
+            <button
+              onClick={() => setIsCustomerModalOpen(true)}
+              className="px-2.5 py-1 bg-white hover:bg-blue-50 text-blue-700 border border-blue-200 rounded text-[11px] font-semibold transition shadow-2xs"
+            >
+              {selectedCustomer ? 'Değiştir' : 'Müşteri Seç'}
+            </button>
+          </div>
         </div>
 
         {/* Cart Items List */}
@@ -567,6 +595,11 @@ export const PosView: React.FC = () => {
       <CustomerSelectModal
         isOpen={isCustomerModalOpen}
         onClose={() => setIsCustomerModalOpen(false)}
+      />
+
+      <ExchangeModal
+        isOpen={isExchangeModalOpen}
+        onClose={() => setIsExchangeModalOpen(false)}
       />
     </div>
   )

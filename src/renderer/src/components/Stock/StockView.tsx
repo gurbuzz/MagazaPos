@@ -1,5 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Plus, Search, Layers, Edit3, PackageCheck, Tag, Barcode, Sparkles, AlertCircle, CheckCircle2, ShieldAlert } from 'lucide-react'
+import {
+  Plus,
+  Search,
+  Layers,
+  Edit3,
+  PackageCheck,
+  Tag,
+  Barcode,
+  Sparkles,
+  AlertCircle,
+  CheckCircle2,
+  ShieldAlert,
+  Scan,
+  Check,
+  FileSpreadsheet,
+  Upload,
+  Download,
+  FileCheck,
+  RefreshCw,
+} from 'lucide-react'
+import * as XLSX from 'xlsx'
 import { CategoryModal } from './CategoryModal'
 import { AdminPinModal } from '../Security/AdminPinModal'
 import { notifyDataChanged } from '../../utils/events'
@@ -27,12 +47,37 @@ export const StockView: React.FC = () => {
   const [editProdCategoryId, setEditProdCategoryId] = useState('')
   const [editProdBasePrice, setEditProdBasePrice] = useState('')
 
-  // Quick Inbound Stock State
+  // Quick Inbound Stock State (Manual Table Click)
   const [addStockVariant, setAddStockVariant] = useState<any | null>(null)
   const [addQtyVal, setAddQtyVal] = useState<string>('')
 
+  // Barcode Scanner Quick Stock Entry Modal State
+  const [isBarcodeStockModalOpen, setIsBarcodeStockModalOpen] = useState(false)
+  const [scannedBarcode, setScannedBarcode] = useState('')
+  const [scannedQty, setScannedQty] = useState('1')
+  const [lastScannedResult, setLastScannedResult] = useState<string | null>(null)
+  const scanInputRef = useRef<HTMLInputElement>(null)
+
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false)
+
+  // Quick Create inside Barcode Intake Modal
+  const [quickName, setQuickName] = useState('')
+  const [quickCategoryId, setQuickCategoryId] = useState('')
+  const [quickColor, setQuickColor] = useState('Siyah')
+  const [quickSize, setQuickSize] = useState('M')
+  const [quickSalePrice, setQuickSalePrice] = useState('150')
+  const [quickCostPrice, setQuickCostPrice] = useState('75')
+  const [quickQty, setQuickQty] = useState('1')
+  const [isQuickSubmitting, setIsQuickSubmitting] = useState(false)
+
+  // Excel Bulk Import Modal State
+  const [isExcelModalOpen, setIsExcelModalOpen] = useState(false)
+  const [excelRows, setExcelRows] = useState<any[]>([])
+  const [excelFileName, setExcelFileName] = useState('')
+  const [isExcelImporting, setIsExcelImporting] = useState(false)
+  const [excelResult, setExcelResult] = useState<any | null>(null)
+  const [excelError, setExcelError] = useState<string | null>(null)
 
   // Admin PIN gate for corrections/edits
   const [isAdminPinOpen, setIsAdminPinOpen] = useState(false)
@@ -58,6 +103,12 @@ export const StockView: React.FC = () => {
       setTimeout(() => barcodeInputRef.current?.focus(), 150)
     }
   }, [isAddModalOpen])
+
+  useEffect(() => {
+    if (isBarcodeStockModalOpen) {
+      setTimeout(() => scanInputRef.current?.focus(), 150)
+    }
+  }, [isBarcodeStockModalOpen])
 
   const generateBarcode = () => {
     const randomDigits = Math.floor(1000000000 + Math.random() * 9000000000)
@@ -125,6 +176,238 @@ export const StockView: React.FC = () => {
       fetchCategories()
     }
   }, [isAddModalOpen, isCategoryModalOpen])
+
+  // --- BARCODE SCANNER MATCHING LOGIC ---
+  const foundScannedVariant = scannedBarcode.trim()
+    ? products
+        .flatMap((p) => (p.variants || []).map((v: any) => ({ ...v, product: p })))
+        .find((v: any) => v.barcode === scannedBarcode.trim())
+    : null
+
+  const handleBarcodeStockSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!foundScannedVariant) {
+      alert('Bu barkoda ait ürün bulunamadı!')
+      return
+    }
+
+    const qty = parseInt(scannedQty)
+    if (isNaN(qty) || qty <= 0) {
+      alert('Lütfen geçerli bir adet girin!')
+      return
+    }
+
+    try {
+      const res = await fetch(`/api/variants/${foundScannedVariant.id}/add-stock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          addedQuantity: qty,
+          note: 'Barkod okutarak hızlı stok kabulü',
+        }),
+      })
+
+      if (res.ok) {
+        setLastScannedResult(
+          `✅ "${foundScannedVariant.product.name}" (${foundScannedVariant.attributes?.color} / ${foundScannedVariant.attributes?.size}) -> +${qty} adet stoğa eklendi!`
+        )
+        setScannedBarcode('')
+        setScannedQty('1')
+        fetchProducts()
+        notifyDataChanged()
+        setTimeout(() => scanInputRef.current?.focus(), 100)
+      } else {
+        const errData = await res.json()
+        alert('Stok ekleme hatası: ' + (errData.error || 'Bilinmeyen hata'))
+      }
+    } catch {
+      alert('Hata oluştu')
+    }
+  }
+
+  // --- QUICK CREATE AND STOCK INTAKE (UNREGISTERED BARCODE) ---
+  const handleQuickCreateAndStock = async () => {
+    if (!quickName.trim() || !scannedBarcode.trim()) {
+      alert('Lütfen ürün adını giriniz!')
+      return
+    }
+    const salePriceNum = parseFloat(quickSalePrice) || 0
+    const qtyNum = parseInt(quickQty) || 1
+    const costPriceNum = parseFloat(quickCostPrice) || salePriceNum * 0.5
+
+    const code = `PRD-${scannedBarcode.trim().slice(-6)}`
+    const payload = {
+      code,
+      name: quickName.trim(),
+      brand: 'Mağaza',
+      categoryId: quickCategoryId || null,
+      basePrice: salePriceNum,
+      variants: [
+        {
+          sku: `${code}-${quickColor.trim().toUpperCase()}-${quickSize.trim().toUpperCase()}`,
+          barcode: scannedBarcode.trim(),
+          attributes: { color: quickColor.trim() || 'Standart', size: quickSize.trim() || 'Standart' },
+          costPrice: costPriceNum,
+          salePrice: salePriceNum,
+          stockQuantity: qtyNum,
+        },
+      ],
+    }
+
+    setIsQuickSubmitting(true)
+    try {
+      const res = await fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      if (res.ok) {
+        setLastScannedResult(
+          `✅ Yeni ürün "${quickName}" (${quickColor} / ${quickSize}) tanımlandı ve +${qtyNum} adet stoğa eklendi!`
+        )
+        setQuickName('')
+        setScannedBarcode('')
+        setScannedQty('1')
+        fetchProducts()
+        fetchCategories()
+        notifyDataChanged()
+        setTimeout(() => scanInputRef.current?.focus(), 150)
+      } else {
+        const err = await res.json()
+        alert('Ürün oluşturma hatası: ' + (err.error || 'Bilinmeyen hata'))
+      }
+    } catch (err: any) {
+      alert('Hata: ' + err.message)
+    } finally {
+      setIsQuickSubmitting(false)
+    }
+  }
+
+  // --- EXCEL / CSV BULK IMPORT HANDLERS ---
+  const downloadExcelTemplate = () => {
+    const templateData = [
+      {
+        'Ürün Kodu': 'TSH-001',
+        'Ürün Adı': 'Oversize Basic Tişört',
+        'Kategori': 'Tişört',
+        'Marka': 'Mağaza',
+        'Barkod': '8690001112223',
+        'Renk': 'Siyah',
+        'Beden': 'M',
+        'Alış Fiyatı': 100,
+        'Satış Fiyatı': 250,
+        'Stok Adedi': 20,
+      },
+      {
+        'Ürün Kodu': 'TSH-001',
+        'Ürün Adı': 'Oversize Basic Tişört',
+        'Kategori': 'Tişört',
+        'Marka': 'Mağaza',
+        'Barkod': '8690001112224',
+        'Renk': 'Siyah',
+        'Beden': 'L',
+        'Alış Fiyatı': 100,
+        'Satış Fiyatı': 250,
+        'Stok Adedi': 15,
+      },
+      {
+        'Ürün Kodu': 'PNT-101',
+        'Ürün Adı': 'Slim Fit Chino Pantolon',
+        'Kategori': 'Pantolon',
+        'Marka': 'Mağaza',
+        'Barkod': '8690001112225',
+        'Renk': 'Bej',
+        'Beden': '32',
+        'Alış Fiyatı': 250,
+        'Satış Fiyatı': 550,
+        'Stok Adedi': 10,
+      },
+    ]
+
+    const ws = XLSX.utils.json_to_sheet(templateData)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Ürünler')
+    XLSX.writeFile(wb, 'MagazaPOS_Ornek_Urun_Sablonu.xlsx')
+  }
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setExcelFileName(file.name)
+    setExcelError(null)
+    setExcelResult(null)
+
+    const reader = new FileReader()
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target?.result
+        const wb = XLSX.read(bstr, { type: 'array' })
+        const wsname = wb.SheetNames[0]
+        const ws = wb.Sheets[wsname]
+        const rawJson: any[] = XLSX.utils.sheet_to_json(ws)
+
+        if (rawJson.length === 0) {
+          setExcelError('Dosya boş görünüyor.')
+          return
+        }
+
+        const mapped = rawJson
+          .map((row: any) => ({
+            code: row['Ürün Kodu'] || row['Urun Kodu'] || row['Kod'] || row['Code'] || '',
+            name: row['Ürün Adı'] || row['Urun Adi'] || row['Ad'] || row['Name'] || '',
+            category: row['Kategori'] || row['Category'] || '',
+            brand: row['Marka'] || row['Brand'] || 'Mağaza',
+            barcode: String(row['Barkod'] || row['Barcode'] || '').trim(),
+            color: String(row['Renk'] || row['Color'] || 'Standart').trim(),
+            size: String(row['Beden'] || row['Size'] || 'Standart').trim(),
+            costPrice: parseFloat(row['Alış Fiyatı'] || row['Alis Fiyati'] || row['Cost'] || 0),
+            salePrice: parseFloat(row['Satış Fiyatı'] || row['Satis Fiyati'] || row['Price'] || 0),
+            quantity: parseInt(row['Stok Adedi'] || row['Stok'] || row['Adet'] || row['Quantity'] || 0),
+          }))
+          .filter((r) => r.name && r.barcode)
+
+        if (mapped.length === 0) {
+          setExcelError('Geçerli ürün bulunamadı. Lütfen "Ürün Adı" ve "Barkod" sütunlarının dolu olduğundan emin olun.')
+          return
+        }
+
+        setExcelRows(mapped)
+      } catch (err: any) {
+        setExcelError('Dosya okunurken hata oluştu: ' + err.message)
+      }
+    }
+    reader.readAsArrayBuffer(file)
+  }
+
+  const handleExecuteImport = async () => {
+    if (excelRows.length === 0) return
+    setIsExcelImporting(true)
+    setExcelError(null)
+
+    try {
+      const res = await fetch('/api/products/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: excelRows }),
+      })
+
+      const data = await res.json()
+      if (res.ok) {
+        setExcelResult(data)
+        fetchProducts()
+        fetchCategories()
+        notifyDataChanged()
+      } else {
+        setExcelError(data.error || 'İçe aktarma başarısız oldu.')
+      }
+    } catch (err: any) {
+      setExcelError('Hata: ' + err.message)
+    } finally {
+      setIsExcelImporting(false)
+    }
+  }
 
   // --- EDIT VARIANT HANDLERS ---
   const openVariantEditModal = (variant: any) => {
@@ -243,7 +526,7 @@ export const StockView: React.FC = () => {
     }
   }
 
-  // --- QUICK ADD STOCK (MAL KABUL - NO PIN) ---
+  // --- QUICK ADD STOCK (MANUAL ROW CLICK - NO PIN) ---
   const handleAddStockSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!addStockVariant || !addQtyVal) return
@@ -291,7 +574,7 @@ export const StockView: React.FC = () => {
     }
   }
 
-  // Duplicate barcode check for real-time validation
+  // Duplicate barcode check for real-time validation (New product creation)
   const trimmedBarcode = newBarcode.trim()
   const duplicateProduct = trimmedBarcode
     ? products.find((prod) =>
@@ -366,12 +649,39 @@ export const StockView: React.FC = () => {
       {/* Left List: Products */}
       <div className="w-1/3 border-r border-slate-200 flex flex-col bg-white">
         <div className="p-3.5 border-b border-slate-200 space-y-2.5 bg-slate-50">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <h2 className="font-bold text-slate-900 text-xs flex items-center space-x-1.5">
               <Layers className="w-4 h-4 text-blue-700" />
               <span>Ürünler ({filteredProducts.length})</span>
             </h2>
             <div className="flex items-center space-x-1.5">
+              <button
+                onClick={() => {
+                  setIsBarcodeStockModalOpen(true)
+                  setLastScannedResult(null)
+                  setScannedBarcode('')
+                  setScannedQty('1')
+                }}
+                className="px-2 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-semibold flex items-center space-x-1 transition shadow-xs"
+                title="Barkod Okuyucu İle Hızlı Stok Girişi (Mal Kabul)"
+              >
+                <Scan className="w-3.5 h-3.5" />
+                <span>Barkodlu Mal Kabul</span>
+              </button>
+              <button
+                onClick={() => {
+                  setIsExcelModalOpen(true)
+                  setExcelRows([])
+                  setExcelFileName('')
+                  setExcelResult(null)
+                  setExcelError(null)
+                }}
+                className="px-2 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-semibold flex items-center space-x-1 transition shadow-xs"
+                title="Excel / CSV ile Toplu Ürün ve Stok Yükleme"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5" />
+                <span>Toplu Excel</span>
+              </button>
               <button
                 onClick={() => setIsCategoryModalOpen(true)}
                 className="px-2 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded text-xs font-semibold flex items-center space-x-1 transition"
@@ -555,6 +865,225 @@ export const StockView: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* BARCODE SCANNER FAST STOCK ENTRY MODAL (MAL KABUL) */}
+      {isBarcodeStockModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-lg p-5 w-full max-w-lg shadow-xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center space-x-2">
+                <Scan className="w-5 h-5 text-emerald-600" />
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">Barkod Okutarak Stok Kabulü</h3>
+                  <p className="text-[11px] text-slate-500">Barkod okuyucu ile okutun veya barkod numarasını yazıp enter'a basın.</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsBarcodeStockModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 font-bold text-base px-2"
+              >
+                ✕
+              </button>
+            </div>
+
+            {lastScannedResult && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded text-xs font-semibold text-emerald-800 flex items-center space-x-2 animate-fadeIn">
+                <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{lastScannedResult}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleBarcodeStockSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                  <span>Barkod Okutun (veya yazın)</span>
+                  <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                    Otomatik Odaklı ⚡
+                  </span>
+                </label>
+                <div className="relative">
+                  <input
+                    ref={scanInputRef}
+                    type="text"
+                    placeholder="Barkod okuyucu hazır..."
+                    value={scannedBarcode}
+                    onChange={(e) => setScannedBarcode(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2.5 text-slate-900 font-mono font-bold text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    autoFocus
+                  />
+                  {scannedBarcode && (
+                    <div className="absolute right-3 top-3">
+                      {foundScannedVariant ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 text-amber-500" />
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Matched Product Details Card */}
+              {scannedBarcode.trim() && (
+                <div>
+                  {foundScannedVariant ? (
+                    <div className="p-3.5 bg-slate-50 border border-emerald-300 rounded-lg space-y-2">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <span className="text-[10px] font-bold text-emerald-700 uppercase">
+                            {foundScannedVariant.product.category?.name || 'Giyim'}
+                          </span>
+                          <h4 className="font-bold text-slate-900 text-sm">{foundScannedVariant.product.name}</h4>
+                          <p className="text-xs text-slate-600 font-medium">
+                            Varyant: <span className="font-bold text-slate-900">{foundScannedVariant.attributes?.color} / {foundScannedVariant.attributes?.size}</span>
+                          </p>
+                          <p className="text-[11px] text-slate-400 font-mono">SKU: {foundScannedVariant.sku} | Barkod: {foundScannedVariant.barcode}</p>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[10px] text-slate-500 block font-semibold">Mevcut Stok</span>
+                          <span className="text-sm font-bold text-slate-900">{foundScannedVariant.stockQuantity} Adet</span>
+                          <span className="block text-xs font-bold text-emerald-700 mt-0.5">{foundScannedVariant.salePrice.toFixed(2)} ₺</span>
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-200 flex items-center space-x-3">
+                        <div className="w-1/2">
+                          <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Stoğa Eklenecek Adet (+)</label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={scannedQty}
+                            onChange={(e) => setScannedQty(e.target.value)}
+                            className="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 font-bold text-sm focus:ring-1 focus:ring-emerald-500"
+                            required
+                          />
+                        </div>
+                        <div className="w-1/2 pt-4">
+                          <button
+                            type="submit"
+                            className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold shadow-xs flex items-center justify-center space-x-1"
+                          >
+                            <Plus className="w-4 h-4" />
+                            <span>Stoğa Ekle (Enter)</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-3.5 bg-amber-50/80 border border-amber-300 rounded-lg space-y-3">
+                      <div className="flex items-center space-x-2 text-amber-800 text-xs font-semibold">
+                        <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                        <span>Bu barkod (<strong>{scannedBarcode}</strong>) sistemde kayıtlı değil!</span>
+                      </div>
+
+                      <div className="bg-white p-3 rounded border border-amber-200 space-y-2.5 shadow-2xs">
+                        <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
+                          <span className="font-bold text-xs text-slate-800 flex items-center space-x-1">
+                            <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                            <span>⚡ Bu Barkodla Hızlı Ürün Tanımla ve Stoğa Ekle</span>
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono">Barkod: {scannedBarcode}</span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div className="col-span-2">
+                            <label className="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Ürün Adı *</label>
+                            <input
+                              type="text"
+                              placeholder="Örn: Pamuklu Polo Tişört"
+                              value={quickName}
+                              onChange={(e) => setQuickName(e.target.value)}
+                              className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-amber-500"
+                              autoFocus
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Kategori</label>
+                            <select
+                              value={quickCategoryId}
+                              onChange={(e) => setQuickCategoryId(e.target.value)}
+                              className="w-full px-2 py-1.5 bg-slate-50 border border-slate-300 rounded text-xs font-medium focus:outline-none"
+                            >
+                              <option value="">Kategorisiz</option>
+                              {categories.map((c) => (
+                                <option key={c.id} value={c.id}>{c.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="grid grid-cols-2 gap-1">
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Renk</label>
+                              <input
+                                type="text"
+                                placeholder="Renk"
+                                value={quickColor}
+                                onChange={(e) => setQuickColor(e.target.value)}
+                                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-300 rounded text-xs font-medium"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Beden</label>
+                              <input
+                                type="text"
+                                placeholder="Beden"
+                                value={quickSize}
+                                onChange={(e) => setQuickSize(e.target.value)}
+                                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-300 rounded text-xs font-medium"
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Satış Fiyatı (₺) *</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={quickSalePrice}
+                              onChange={(e) => setQuickSalePrice(e.target.value)}
+                              className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded text-xs font-bold text-emerald-700"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Giriş Stoğu (Adet) *</label>
+                            <input
+                              type="number"
+                              min="1"
+                              value={quickQty}
+                              onChange={(e) => setQuickQty(e.target.value)}
+                              className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded text-xs font-bold text-slate-900"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-100 flex justify-end">
+                          <button
+                            type="button"
+                            onClick={handleQuickCreateAndStock}
+                            disabled={isQuickSubmitting || !quickName.trim()}
+                            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded text-xs font-bold shadow-xs flex items-center space-x-1 disabled:opacity-50"
+                          >
+                            <Plus className="w-4 h-4" />
+                            <span>{isQuickSubmitting ? 'Kaydediliyor...' : 'Kaydet ve Stoğa Al'}</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="flex justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsBarcodeStockModalOpen(false)}
+                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded text-xs font-semibold hover:bg-slate-200 border border-slate-200"
+                >
+                  Kapat
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Variant Full Edit Modal (Price, Barcode, Color/Size, Stock) */}
       {editingVariant && (
@@ -762,7 +1291,7 @@ export const StockView: React.FC = () => {
         </div>
       )}
 
-      {/* Quick Add Stock Modal (Mal Kabul - No PIN) */}
+      {/* Quick Add Stock Modal (Manual Row Click - No PIN) */}
       {addStockVariant && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white border border-slate-200 rounded-lg p-5 w-full max-w-sm shadow-xl space-y-4">
@@ -1022,6 +1551,164 @@ export const StockView: React.FC = () => {
         title="Düzenleme Yetkisi"
         subtitle="Ürün ve varyant bilgilerini değiştirmek için Yönetici PIN girin."
       />
+
+      {/* EXCEL / CSV BULK IMPORT MODAL */}
+      {isExcelModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-xl p-5 w-full max-w-2xl shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center space-x-2">
+                <FileSpreadsheet className="w-5 h-5 text-indigo-600" />
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">Excel / CSV ile Toplu Ürün & Stok Yükleme</h3>
+                  <p className="text-[11px] text-slate-500">
+                    Tedarikçiden gelen veya hazırladığınız Excel tablosunu tek tıkla sisteme aktarın.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsExcelModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 font-bold text-base px-2"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Template Download & File Upload Bar */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-3 bg-indigo-50/70 border border-indigo-200 rounded-lg">
+                <div className="text-xs text-indigo-950 font-medium">
+                  <strong>Örnek Şablon:</strong> Formatı görmek için hazır şablonu indirin ve doldurun.
+                </div>
+                <button
+                  type="button"
+                  onClick={downloadExcelTemplate}
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-semibold flex items-center space-x-1.5 transition shadow-xs"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Şablonu İndir (.xlsx)</span>
+                </button>
+              </div>
+
+              {/* Upload Input Area */}
+              <div className="border-2 border-dashed border-slate-300 hover:border-indigo-500 rounded-lg p-4 text-center transition bg-slate-50">
+                <input
+                  type="file"
+                  id="excelFileInput"
+                  accept=".xlsx,.xls,.csv"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+                <label
+                  htmlFor="excelFileInput"
+                  className="cursor-pointer flex flex-col items-center justify-center space-y-1.5"
+                >
+                  <Upload className="w-6 h-6 text-indigo-600" />
+                  <span className="text-xs font-bold text-slate-800">
+                    {excelFileName ? `Seçilen Dosya: ${excelFileName}` : 'Excel (.xlsx) veya CSV Dosyası Seçin'}
+                  </span>
+                  <span className="text-[10px] text-slate-500">Tıklayın veya dosyayı buraya bırakın</span>
+                </label>
+              </div>
+
+              {/* Error Box */}
+              {excelError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded text-xs font-medium flex items-center space-x-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>{excelError}</span>
+                </div>
+              )}
+
+              {/* Success Result Box */}
+              {excelResult && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded text-xs space-y-1">
+                  <div className="font-bold flex items-center space-x-1">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <span>{excelResult.message}</span>
+                  </div>
+                  {excelResult.errors && excelResult.errors.length > 0 && (
+                    <div className="text-[11px] text-amber-800 pt-1 border-t border-emerald-200">
+                      <strong>Uyarılar:</strong>
+                      <ul className="list-disc pl-4 space-y-0.5 mt-0.5">
+                        {excelResult.errors.slice(0, 5).map((e: string, idx: number) => (
+                          <li key={idx}>{e}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Preview Table */}
+            {excelRows.length > 0 && !excelResult && (
+              <div className="flex-1 overflow-hidden flex flex-col border border-slate-200 rounded-lg">
+                <div className="p-2.5 bg-slate-50 border-b border-slate-200 flex justify-between items-center text-xs font-semibold text-slate-700">
+                  <span>Önizleme ({excelRows.length} Geçerli Satır Okundu)</span>
+                  <span className="text-[11px] text-slate-500 font-normal">İlk 10 satır gösteriliyor</span>
+                </div>
+                <div className="overflow-auto flex-1 max-h-48 text-[11px]">
+                  <table className="w-full text-left text-slate-700">
+                    <thead className="bg-slate-100 text-slate-600 border-b border-slate-200 sticky top-0">
+                      <tr>
+                        <th className="px-3 py-1.5">Kod</th>
+                        <th className="px-3 py-1.5">Ürün Adı</th>
+                        <th className="px-3 py-1.5">Kategori</th>
+                        <th className="px-3 py-1.5">Barkod</th>
+                        <th className="px-3 py-1.5">Varyant</th>
+                        <th className="px-3 py-1.5">Fiyat</th>
+                        <th className="px-3 py-1.5 text-right">Adet</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {excelRows.slice(0, 10).map((row, i) => (
+                        <tr key={i} className="hover:bg-slate-50">
+                          <td className="px-3 py-1 font-mono text-[10px] text-slate-600">{row.code || '-'}</td>
+                          <td className="px-3 py-1 font-bold text-slate-900">{row.name}</td>
+                          <td className="px-3 py-1">{row.category || '-'}</td>
+                          <td className="px-3 py-1 font-mono">{row.barcode}</td>
+                          <td className="px-3 py-1">
+                            {row.color} / {row.size}
+                          </td>
+                          <td className="px-3 py-1 text-emerald-700 font-semibold">{row.salePrice.toFixed(2)} ₺</td>
+                          <td className="px-3 py-1 text-right font-bold text-slate-900">+{row.quantity}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Footer Buttons */}
+            <div className="flex justify-between items-center pt-2 border-t border-slate-100">
+              <span className="text-xs text-slate-500 font-medium">
+                {excelRows.length > 0 && !excelResult ? `${excelRows.length} ürün aktarılmaya hazır.` : ''}
+              </span>
+              <div className="flex space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setIsExcelModalOpen(false)}
+                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded text-xs font-semibold hover:bg-slate-200 border border-slate-200"
+                >
+                  {excelResult ? 'Tamamla' : 'İptal'}
+                </button>
+                {excelRows.length > 0 && !excelResult && (
+                  <button
+                    type="button"
+                    onClick={handleExecuteImport}
+                    disabled={isExcelImporting}
+                    className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-bold shadow-xs flex items-center space-x-1.5 disabled:opacity-50"
+                  >
+                    <FileCheck className="w-4 h-4" />
+                    <span>{isExcelImporting ? 'Stoğa Aktarılıyor...' : 'Stoğa Aktarımı Başlat'}</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

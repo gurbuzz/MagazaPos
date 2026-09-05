@@ -130,11 +130,11 @@ salesRouter.post('/', async (req, res) => {
   }
 })
 
-// POST /api/sales/:id/return - Return items from a sale (Registered Customers ONLY)
+// POST /api/sales/:id/return - Return items from a sale (Registered & Anonymous)
 salesRouter.post('/:id/return', async (req, res) => {
   try {
     const { id } = req.params
-    const { items, reason } = req.body // items: Array<{ saleItemId: string, returnQuantity: number }>
+    const { items, reason, customerName, phone } = req.body // items: Array<{ saleItemId: string, returnQuantity: number }>
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       res.status(400).json({ error: 'İade edilecek ürün seçilmedi.' })
@@ -155,14 +155,6 @@ salesRouter.post('/:id/return', async (req, res) => {
 
     if (!sale) {
       res.status(404).json({ error: 'Satış kaydı bulunamadı.' })
-      return
-    }
-
-    // STRICT RULE: Return is ONLY allowed for registered customers!
-    if (!sale.customerId || !sale.customer) {
-      res.status(400).json({
-        error: 'İade işlemi yasal takip nedeniyle yalnızca kayıtlı müşterilerin alışverişleri için gerçekleştirilebilir. Kayıtsız (anonim) alışverişler iade edilemez.'
-      })
       return
     }
 
@@ -189,7 +181,11 @@ salesRouter.post('/:id/return', async (req, res) => {
 
     // Process return in atomic transaction
     const updatedSale = await prisma.$transaction(async (tx) => {
-      const customerName = `${sale.customer?.firstName} ${sale.customer?.lastName}`
+      const effectiveCustomerName = sale.customer
+        ? `${sale.customer.firstName} ${sale.customer.lastName}`
+        : customerName && customerName.trim()
+        ? `${customerName.trim()}${phone ? ` (${phone.trim()})` : ''}`
+        : 'Anonim Müşteri'
 
       for (const returnItem of items) {
         const qtyToReturn = parseInt(returnItem.returnQuantity)
@@ -221,7 +217,7 @@ salesRouter.post('/:id/return', async (req, res) => {
             variantId: existingItem.variantId,
             type: 'RETURN',
             quantity: qtyToReturn,
-            note: `İade Fişi: ${sale.receiptNo} (${qtyToReturn} ad) - Müşteri: ${customerName}${reason ? ` - Nedeni: ${reason}` : ''}`
+            note: `İade Fişi: ${sale.receiptNo} (${qtyToReturn} ad) - ${effectiveCustomerName}${reason ? ` - Nedeni: ${reason}` : ''}`
           }
         })
       }

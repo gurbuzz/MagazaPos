@@ -47,7 +47,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
         cashierName,
         customerId: selectedCustomer ? selectedCustomer.id : null,
         paymentType:
-          paymentMode === 'CASH'
+          total === 0
+            ? { cash: 0, card: 0, note: 'Sıfır Fark Değişim' }
+            : paymentMode === 'CASH'
             ? { cash: total, card: 0 }
             : paymentMode === 'CARD'
             ? { cash: 0, card: total }
@@ -118,12 +120,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
               .join('')}
           </div>
           <div class="total">
-            <div class="item"><span>Ara Toplam:</span><span>${getSubtotal().toFixed(2)} TL</span></div>
-            <div class="item"><span>İndirim:</span><span>-${discountAmount.toFixed(2)} TL</span></div>
-            <div class="item" style="font-size: 14px;"><span>GENEL TOPLAM:</span><span>${total.toFixed(2)} TL</span></div>
-          </div>
-          <div class="header" style="border-bottom: none; border-top: 1px dashed #000; margin-top: 10px;">
-            <p>Bizi Tercih Ettiğiniz İçin Teşekkür Ederiz!</p>
+            ${discountAmount > 0 ? `<p>İndirim / Değişim Mahsubu: -${discountAmount.toFixed(2)} TL</p>` : ''}
+            <p>TOPLAM: ${total.toFixed(2)} TL</p>
+            ${total === 0 ? '<p>İşlem Türü: SIFIR FARK DEĞİŞİM</p>' : ''}
           </div>
         </body>
       </html>
@@ -147,7 +146,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
         {/* Header */}
         <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
           <h2 className="font-bold text-slate-900 text-sm">
-            {completedSale ? 'Ödeme Tamamlandı' : 'Ödeme ve Tahsilat'}
+            {completedSale ? 'İşlem Tamamlandı' : total === 0 ? 'Sıfır Fark Değişim Onayı' : 'Ödeme ve Tahsilat'}
           </h2>
           <button
             onClick={onClose}
@@ -171,101 +170,127 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
             </div>
 
             {/* Payment Mode Selector */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-tight">
-                Ödeme Yöntemi
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleModeChange('CASH')}
-                  className={`p-3 rounded border flex flex-col items-center space-y-1.5 transition ${
-                    paymentMode === 'CASH'
-                      ? 'bg-blue-50 border-blue-500 text-blue-700 font-bold shadow-2xs'
-                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  <Banknote className="w-5 h-5" />
-                  <span className="text-xs">Nakit</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleModeChange('CARD')}
-                  className={`p-3 rounded border flex flex-col items-center space-y-1.5 transition ${
-                    paymentMode === 'CARD'
-                      ? 'bg-blue-50 border-blue-500 text-blue-700 font-bold shadow-2xs'
-                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  <CreditCard className="w-5 h-5" />
-                  <span className="text-xs">Kredi Kartı</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleModeChange('SPLIT')}
-                  className={`p-3 rounded border flex flex-col items-center space-y-1.5 transition ${
-                    paymentMode === 'SPLIT'
-                      ? 'bg-blue-50 border-blue-500 text-blue-700 font-bold shadow-2xs'
-                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  <div className="flex space-x-1">
-                    <Banknote className="w-4 h-4" />
-                    <CreditCard className="w-4 h-4" />
-                  </div>
-                  <span className="text-xs">Parçalı Ödeme</span>
-                </button>
+            {total === 0 ? (
+              <div className="bg-emerald-50 border border-emerald-300 rounded-lg p-3.5 text-center space-y-1">
+                <span className="text-xs font-bold text-emerald-800 flex items-center justify-center space-x-1">
+                  <span>✨ Sıfır Fark Değişim / İade Mahsubu</span>
+                </span>
+                <p className="text-[11px] text-emerald-700 font-medium">
+                  Bu işlem birebir değişim veya tam mahsup kapsamındadır. Nakit ya da kart tahsilatı gerekmez (0.00 ₺).
+                </p>
               </div>
-            </div>
+            ) : (
+              <>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-tight">
+                    Ödeme Yöntemi
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleModeChange('CASH')}
+                      className={`p-3 rounded border flex flex-col items-center space-y-1.5 transition ${
+                        paymentMode === 'CASH'
+                          ? 'bg-blue-50 border-blue-500 text-blue-700 font-bold shadow-2xs'
+                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <Banknote className="w-5 h-5" />
+                      <span className="text-xs">Nakit</span>
+                    </button>
 
-            {/* Inputs based on Mode */}
-            {paymentMode === 'CASH' && (
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Müşteriden Alınan Nakit (TL)
-                </label>
-                <input
-                  type="number"
-                  placeholder={total.toString()}
-                  value={givenCash}
-                  onChange={(e) => setGivenCash(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2 text-slate-900 font-bold text-base focus:outline-none focus:ring-1 focus:ring-blue-600"
-                />
-                {givenCash && changeDue >= 0 && (
-                  <div className="mt-2 text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 p-2.5 rounded flex justify-between items-center">
-                    <span>Para Üstü:</span>
-                    <span className="font-bold text-sm">{changeDue.toFixed(2)} ₺</span>
+                    <button
+                      type="button"
+                      onClick={() => handleModeChange('CARD')}
+                      className={`p-3 rounded border flex flex-col items-center space-y-1.5 transition ${
+                        paymentMode === 'CARD'
+                          ? 'bg-blue-50 border-blue-500 text-blue-700 font-bold shadow-2xs'
+                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <CreditCard className="w-5 h-5" />
+                      <span className="text-xs">Kredi Kartı</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleModeChange('SPLIT')}
+                      className={`p-3 rounded border flex flex-col items-center space-y-1.5 transition ${
+                        paymentMode === 'SPLIT'
+                          ? 'bg-blue-50 border-blue-500 text-blue-700 font-bold shadow-2xs'
+                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex space-x-1">
+                        <Banknote className="w-4 h-4" />
+                        <CreditCard className="w-4 h-4" />
+                      </div>
+                      <span className="text-xs">Parçalı Ödeme</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Inputs based on Mode */}
+                {paymentMode === 'CASH' && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Müşteriden Alınan Nakit (TL)
+                    </label>
+                    <input
+                      type="number"
+                      placeholder="Alınan tutarı girin..."
+                      value={givenCash}
+                      onChange={(e) => setGivenCash(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded text-slate-900 font-bold text-sm focus:outline-none focus:ring-1 focus:ring-blue-600"
+                      autoFocus
+                    />
+                    {givenCash && changeDue >= 0 && (
+                      <div className="mt-2 p-2.5 bg-emerald-50 border border-emerald-200 rounded flex justify-between items-center text-xs">
+                        <span className="font-semibold text-emerald-800">Para Üstü:</span>
+                        <span className="text-sm font-bold text-emerald-700 font-mono">
+                          {changeDue.toFixed(2)} ₺
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
-              </div>
+
+                {paymentMode === 'SPLIT' && (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Nakit Kısmı</label>
+                        <input
+                          type="number"
+                          value={cashAmount}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value) || 0
+                            setCashAmount(val)
+                            setCardAmount(Math.max(0, total - val))
+                          }}
+                          className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded text-xs font-bold text-slate-900"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Kart Kısmı</label>
+                        <input
+                          type="number"
+                          value={cardAmount}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value) || 0
+                            setCardAmount(val)
+                            setCashAmount(Math.max(0, total - val))
+                          }}
+                          className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded text-xs font-bold text-slate-900"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
 
-            {paymentMode === 'SPLIT' && (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Nakit Tutar</label>
-                  <input
-                    type="number"
-                    value={cashAmount}
-                    onChange={(e) => setCashAmount(parseFloat(e.target.value) || 0)}
-                    className="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2 text-slate-900 font-bold focus:outline-none focus:ring-1 focus:ring-blue-600"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Kart Tutar</label>
-                  <input
-                    type="number"
-                    value={cardAmount}
-                    onChange={(e) => setCardAmount(parseFloat(e.target.value) || 0)}
-                    className="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2 text-slate-900 font-bold focus:outline-none focus:ring-1 focus:ring-blue-600"
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Action Submit Button */}
+            {/* Final Action Button */}
             <button
               disabled={isProcessing}
               onClick={handleCheckoutSubmit}
@@ -276,7 +301,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
               ) : (
                 <>
                   <CheckCircle className="w-4 h-4" />
-                  <span>Tahsilatı Tamamla ve Fiş Kes</span>
+                  <span>{total === 0 ? 'Sıfır Fark Değişimi Tamamla' : 'Tahsilatı Tamamla ve Fiş Kes'}</span>
                 </>
               )}
             </button>

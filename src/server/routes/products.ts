@@ -176,6 +176,136 @@ productRouter.post('/', async (req, res) => {
   }
 })
 
+// POST /api/products/import - Bulk import products and variants (from Excel/CSV)
+productRouter.post('/import', async (req, res) => {
+  try {
+    const { items } = req.body
+    if (!Array.isArray(items) || items.length === 0) {
+      res.status(400).json({ error: 'Yüklenecek veri bulunamadı.' })
+      return
+    }
+
+    let createdProducts = 0
+    let createdVariants = 0
+    let updatedStockCount = 0
+    const errors: string[] = []
+
+    await prisma.$transaction(async (tx) => {
+      for (let i = 0; i < items.length; i++) {
+        const row = items[i]
+        const rowIndex = i + 1
+
+        const code = String(row.code || '').trim()
+        const name = String(row.name || '').trim()
+        const barcode = String(row.barcode || '').trim()
+        const categoryName = String(row.category || '').trim()
+        const color = String(row.color || 'Standart').trim()
+        const size = String(row.size || 'Standart').trim()
+        const brand = String(row.brand || 'Marka').trim()
+        const costPrice = parseFloat(row.costPrice) || 0
+        const salePrice = parseFloat(row.salePrice) || 0
+        const quantity = parseInt(row.quantity) || 0
+
+        if (!name || !barcode) {
+          errors.push(`Satır ${rowIndex}: Ürün adı ve barkod zorunludur.`)
+          continue
+        }
+
+        // 1. Resolve Category
+        let categoryId: string | null = null
+        if (categoryName) {
+          let category = await tx.category.findUnique({ where: { name: categoryName } })
+          if (!category) {
+            category = await tx.category.create({ data: { name: categoryName } })
+          }
+          categoryId = category.id
+        }
+
+        // 2. Check if variant already exists by barcode
+        const existingVariant = await tx.productVariant.findUnique({
+          where: { barcode },
+          include: { product: true }
+        })
+
+        if (existingVariant) {
+          if (quantity > 0) {
+            await tx.productVariant.update({
+              where: { id: existingVariant.id },
+              data: {
+                stockQuantity: { increment: quantity },
+                ...(salePrice > 0 && { salePrice }),
+                ...(costPrice > 0 && { costPrice })
+              }
+            })
+            await tx.stockMovement.create({
+              data: {
+                variantId: existingVariant.id,
+                type: 'INBOUND',
+                quantity,
+                note: `Excel Toplu Stok Girişi (+${quantity} ad)`
+              }
+            })
+            updatedStockCount++
+          }
+          continue
+        }
+
+        // 3. Resolve Product by code (or generate code if missing)
+        const productCode = code || `PRD-${barcode.slice(-6)}`
+        let product = await tx.product.findUnique({ where: { code: productCode } })
+
+        if (!product) {
+          product = await tx.product.create({
+            data: {
+              code: productCode,
+              name,
+              brand,
+              basePrice: salePrice > 0 ? salePrice : 100,
+              categoryId: categoryId || null
+            }
+          })
+          createdProducts++
+        }
+
+        // 4. Create new variant
+        const sku = `${productCode}-${color.toUpperCase()}-${size.toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`
+        const newVariant = await tx.productVariant.create({
+          data: {
+            productId: product.id,
+            sku,
+            barcode,
+            attributes: JSON.stringify({ color, size }),
+            costPrice,
+            salePrice: salePrice > 0 ? salePrice : product.basePrice,
+            stockQuantity: quantity
+          }
+        })
+        createdVariants++
+
+        if (quantity > 0) {
+          await tx.stockMovement.create({
+            data: {
+              variantId: newVariant.id,
+              type: 'INBOUND',
+              quantity,
+              note: `Excel Toplu Yeni Ürün Girişi (+${quantity} ad)`
+            }
+          })
+        }
+      }
+    })
+
+    res.json({
+      success: true,
+      message: `${createdProducts} yeni ürün, ${createdVariants} yeni varyant oluşturuldu. ${updatedStockCount} ürünün stoğu artırıldı.`,
+      stats: { createdProducts, createdVariants, updatedStockCount, errorCount: errors.length },
+      errors
+    })
+  } catch (error: any) {
+    res.status(500).json({ error: 'İçe aktarma hatası: ' + error.message })
+  }
+})
+
 // PUT /api/variants/:id/stock - Update variant stock quantity atomically (Yönetici PIN Gerekli)
 productRouter.put('/variants/:id/stock', requireAdminPinAuth, async (req, res) => {
   try {

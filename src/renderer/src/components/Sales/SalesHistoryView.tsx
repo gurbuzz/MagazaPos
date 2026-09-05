@@ -13,14 +13,18 @@ import {
   X,
   Eye,
   ShoppingBag,
+  RotateCcw,
 } from 'lucide-react'
 import { usePosStore } from '../../store/usePosStore'
+import { ReturnModal } from '../Customer/ReturnModal'
 
 export const SalesHistoryView: React.FC = () => {
   const { receiptFooterNote, storeName, storeAddress, storePhone } = usePosStore()
   const [sales, setSales] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [selectedSale, setSelectedSale] = useState<any | null>(null)
+  const [returnSale, setReturnSale] = useState<any | null>(null)
+  const [isReturnModalOpen, setIsReturnModalOpen] = useState(false)
 
   // Filter States
   const [searchTerm, setSearchTerm] = useState('')
@@ -456,6 +460,22 @@ export const SalesHistoryView: React.FC = () => {
                           <span>Yazdır</span>
                         </button>
                         <button
+                          onClick={() => {
+                            setReturnSale(sale)
+                            setIsReturnModalOpen(true)
+                          }}
+                          disabled={sale.status === 'RETURNED'}
+                          className={`px-2.5 py-1 rounded transition font-semibold text-xs inline-flex items-center space-x-1 ${
+                            sale.status === 'RETURNED'
+                              ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
+                              : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 shadow-2xs'
+                          }`}
+                          title={sale.status === 'RETURNED' ? 'Bu fiş tamamen iade edilmiştir' : 'Ürün İadesi Yap'}
+                        >
+                          <RotateCcw className="w-3.5 h-3.5 text-amber-600" />
+                          <span>{sale.status === 'RETURNED' ? 'İade Edildi' : sale.status === 'PARTIAL_RETURN' ? 'Kısmi İade' : 'İade'}</span>
+                        </button>
+                        <button
                           onClick={() => setSelectedSale(sale)}
                           className="px-2.5 py-1 bg-blue-700 hover:bg-blue-800 text-white rounded transition font-semibold text-xs inline-flex items-center space-x-1 shadow-2xs"
                         >
@@ -546,6 +566,18 @@ export const SalesHistoryView: React.FC = () => {
                   <span>Fiş Yazdır</span>
                 </button>
                 <button
+                  onClick={() => {
+                    setReturnSale(selectedSale)
+                    setIsReturnModalOpen(true)
+                    setSelectedSale(null)
+                  }}
+                  disabled={selectedSale.status === 'RETURNED'}
+                  className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded text-xs flex items-center space-x-1 transition shadow-2xs disabled:opacity-50"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>İade Yap</span>
+                </button>
+                <button
                   onClick={() => setSelectedSale(null)}
                   className="px-4 py-1.5 bg-blue-700 hover:bg-blue-800 text-white font-semibold rounded text-xs transition shadow-2xs"
                 >
@@ -555,6 +587,16 @@ export const SalesHistoryView: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* RETURN MODAL */}
+        <ReturnModal
+          isOpen={isReturnModalOpen}
+          onClose={() => setIsReturnModalOpen(false)}
+          sale={returnSale}
+          onSuccess={() => {
+            fetchSales()
+          }}
+        />
       </div>
     </div>
   )
