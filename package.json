@@ -4,11 +4,12 @@
   "description": "POS ve Stok Yönetimi Sistemi (Giyim Mağazaları)",
   "main": "dist-electron/main/index.js",
   "scripts": {
-    "dev": "mkdir -p dist-electron/main/public && cp -r src/server/public/* dist-electron/main/public/ && vite",
+    "copy:public": "node scripts/copy-public.js",
+    "dev": "node scripts/copy-public.js && vite",
     "dev:server": "tsx src/server/index.ts",
-    "build": "mkdir -p dist-electron/main/public && cp -r src/server/public/* dist-electron/main/public/ && tsc && vite build",
+    "build": "node scripts/copy-public.js && tsc && vite build",
     "test:api": "tsx scripts/test_system.ts",
-    "package:win": "mkdir -p dist-electron/main/public && cp -r src/server/public/* dist-electron/main/public/ && tsc && vite build && electron-builder --win nsis",
+    "package:win": "node scripts/copy-public.js && tsc && vite build && electron-builder --win nsis",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio"
@@ -24,8 +25,12 @@
       "dist-electron/**/*",
       "prisma/**/*",
       ".env",
-      "node_modules/@prisma/client/**/*",
-      "node_modules/.prisma/**/*"
+      "node_modules/@prisma/**/*",
+      {
+        "from": "node_modules/.prisma",
+        "to": "node_modules/.prisma",
+        "filter": ["**/*"]
+      }
     ],
     "asarUnpack": [
       "**/node_modules/.prisma/client/*.node",
