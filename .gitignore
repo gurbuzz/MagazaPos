@@ -20,6 +20,9 @@ prisma/*.db-wal
 *.sqlite
 *.sqlite3
 
+# Local Device License (Must not be shared across PCs)
+data/license.json
+
 # Environment Variables
 .env
 .env.local

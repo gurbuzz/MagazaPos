@@ -6,6 +6,7 @@ import { StockView } from './components/Stock/StockView'
 import { LabelPrinterModal } from './components/Print/LabelPrinterModal'
 import { SalesHistoryView } from './components/Sales/SalesHistoryView'
 import { PinLockModal } from './components/Security/PinLockModal'
+import { LicenseLockModal } from './components/Security/LicenseLockModal'
 import { usePosStore } from './store/usePosStore'
 
 export const App: React.FC = () => {
@@ -24,6 +25,9 @@ export const App: React.FC = () => {
 
       {/* Security 4-Digit PIN Lock Screen */}
       <PinLockModal />
+
+      {/* Hardware-Locked Single Device License Modal */}
+      <LicenseLockModal />
     </div>
   )
 }

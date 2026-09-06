@@ -12,7 +12,8 @@
     "package:win": "node scripts/copy-public.js && tsc && vite build && electron-builder --win nsis",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "lisans": "node scripts/lisans-uret.js"
   },
   "build": {
     "appId": "com.magazapos.app",

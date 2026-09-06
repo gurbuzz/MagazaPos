@@ -84,6 +84,49 @@ Mağaza içindeki telefon veya tableti el terminali olarak kullanabilirsiniz:
 
 ---
 
+## 🔑 Cihaz Lisanslama ve Kopyalama Koruması (Hardware-Lock)
+
+MağazaPOS, yazılımın izinsiz kopyalanıp başka bilgisayarlarda çalıştırılmasını engellemek için **Donanım Kilidi (Machine ID)** sistemine sahiptir.
+
+### 1. Sistem Nasıl Çalışır?
+1. **Cihaz Kimliği:** Program bir bilgisayara kurulduğunda, o bilgisayarın donanım kimliğini (Windows MachineGuid / UUID) okur ve ekranda benzersiz bir **Cihaz Kodu** (örneğin: `MPOS-8F2B-91AC`) göstererek kilitlenir.
+2. **Kod İletimi:** Müşteri ekrandaki bu kodu (tek tıkla kopyalayarak) size WhatsApp veya SMS ile gönderir.
+3. **Şifre Üretimi:** Siz aşağıdaki komutla bu cihaza özel **6 haneli aktivasyon şifresini** üretip müşteriye iletirsiniz.
+4. **Kalıcı Kilit:** Şifre bir kez girildikten sonra program o cihaza kalıcı olarak lisanslanır ve bir daha şifre sormaz.
+
+### 2. Klasör Başka Bilgisayara Kopyalanırsa Ne Olur?
+Eğer dükkan sahibi veya herhangi biri program klasörünü bir flash belleğe alıp başka bir bilgisayara yapıştırırsa:
+* Yeni bilgisayarın donanım kimliği farklı olacağı için sistem **otomatik olarak kilitlenir**.
+* Yeni bilgisayarın Cihaz Kodunu gösterir ve sizden yeni aktivasyon şifresi almadan program kesinlikle açılmaz.
+
+### 3. Geliştirici Şifreyi Nasıl Üretir?
+Gelecekte tüm sohbet geçmişi veya bağlam kaybolsa bile, siz veya herhangi bir yapay zeka asistanı doğrudan bu projeyi analiz ederek tek bir komutla şifre üretebilir:
+
+```bash
+# Terminalden cihaz kodunu yazarak şifre üretme:
+npm run lisans <CIHAZ_KODU>
+
+# Örnek Kullanım:
+npm run lisans MPOS-8F2B-91AC
+```
+
+**Çıktı Örneği:**
+```text
+============================================================
+  🔑 MağazaPOS Cihaz Lisans & Aktivasyon Şifresi
+============================================================
+  🖥️  Cihaz Kodu       : MPOS-8F2B-91AC
+  ⭐  Aktivasyon Şifresi: 473359
+============================================================
+```
+
+Müşteriye bu 6 haneli şifreyi vermeniz yeterlidir.
+
+> [!NOTE]
+> `scripts/lisans-uret.js` aracı geliştirici ortamında yer alır; müşteriye dağıtılan derlenmiş `.exe` veya `win-unpacked` paketlerine bu script dahil edilmez.
+
+---
+
 ## 💻 Özet Özellikler
 - **Masaüstü Uygulaması (.exe):** Electron.js ve yerel gömülü SQLite veritabanı ile Windows 11 bilgisayarında bağımsız masaüstü ikonu ile çalışma.
 - **Tek Tıkla Windows Installer (.exe):** NSIS otomatik kurulum paketi (`release/MağazaPOS Setup 1.0.0.exe`).

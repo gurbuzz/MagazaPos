@@ -8,6 +8,7 @@ import { customersRouter } from './routes/customers'
 import { mobileRouter } from './routes/mobile'
 import { printRouter } from './routes/print'
 import { systemRouter } from './routes/system'
+import { licenseRouter } from './routes/license'
 
 const app = express()
 const PORT = process.env.PORT || 3782
@@ -53,6 +54,7 @@ app.use('/api/customers', customersRouter)
 app.use('/api/mobile', mobileRouter)
 app.use('/api/print', printRouter)
 app.use('/api/system', systemRouter)
+app.use('/api/license', licenseRouter)
 
 // Healthcheck
 app.get('/api/health', (req, res) => {
