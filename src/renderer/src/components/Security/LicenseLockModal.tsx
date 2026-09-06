@@ -98,7 +98,7 @@ export const LicenseLockModal: React.FC = () => {
             <Lock className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h2 className="text-xl font-bold tracking-tight">MağazaPOS - Cihaz Aktivasyonu</h2>
+            <h2 className="text-xl font-bold tracking-tight">Lufian & Jack & Jones - Cihaz Aktivasyonu</h2>
             <p className="text-xs text-amber-100 mt-0.5">
               Bu yazılım tek bir bilgisayara kilitli lisanslanmaktadır
             </p>
@@ -250,7 +250,7 @@ export const LicenseLockModal: React.FC = () => {
 
         {/* Modal Footer */}
         <div className="bg-slate-50 border-t border-slate-100 px-6 py-3 text-center text-[11px] text-slate-400">
-          MağazaPOS Lisans Güvenlik Modülü • Tek Cihaz Koruması
+          Lufian & Jack & Jones Kasa ve Stok Sistemi • Tek Cihaz Lisansı
         </div>
       </div>
     </div>

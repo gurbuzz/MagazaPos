@@ -315,7 +315,7 @@ export const StockView: React.FC = () => {
         'Ürün Kodu': 'PNT-101',
         'Ürün Adı': 'Slim Fit Chino Pantolon',
         'Kategori': 'Pantolon',
-        'Marka': 'Mağaza',
+        'Marka': 'Lufian',
         'Barkod': '8690001112225',
         'Renk': 'Bej',
         'Beden': '32',
@@ -328,7 +328,7 @@ export const StockView: React.FC = () => {
     const ws = XLSX.utils.json_to_sheet(templateData)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Ürünler')
-    XLSX.writeFile(wb, 'MagazaPOS_Ornek_Urun_Sablonu.xlsx')
+    XLSX.writeFile(wb, 'Lufian_JackJones_Urun_Sablonu.xlsx')
   }
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {

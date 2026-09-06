@@ -46,6 +46,10 @@ app.get('/mobile', (req, res) => {
     res.status(404).send('Mobil sayfa dosyası bulunamadı.')
   }
 })
+// Ana dizine girildiğinde doğrudan mobil terminale yönlendir
+app.get('/', (_req, res) => {
+  res.redirect('/mobile')
+})
 
 // Register API Routes
 app.use('/api/products', productRouter)

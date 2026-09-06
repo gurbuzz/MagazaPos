@@ -10,7 +10,7 @@ interface CheckoutModalProps {
 }
 
 export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, onSuccess }) => {
-  const { cartItems, discountAmount, getTotal, getSubtotal, cashierName, clearCart, selectedCustomer } = usePosStore()
+  const { cartItems, discountAmount, getTotal, getSubtotal, cashierName, clearCart, selectedCustomer, storeName } = usePosStore()
 
   const [paymentMode, setPaymentMode] = useState<'CASH' | 'CARD' | 'SPLIT'>('CASH')
   const [cashAmount, setCashAmount] = useState<number>(0)
@@ -102,7 +102,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
         </head>
         <body>
           <div class="header">
-            <h3>MAĞAZA POS</h3>
+            <h3>${storeName || 'LUFIAN & JACK & JONES'}</h3>
             <p>Fiş No: ${completedSale.receiptNo}</p>
             ${custInfo ? `<p>Müşteri: ${custInfo.firstName} ${custInfo.lastName}</p>` : ''}
             <p>Tarih: ${new Date().toLocaleString('tr-TR')}</p>

@@ -126,7 +126,7 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
     }
 
     updateSystemSettings({
-      storeName: formStoreName.trim() || 'MağazaPOS Giyim',
+      storeName: formStoreName.trim() || 'Lufian | Jack & Jones',
       storeAddress: formStoreAddress.trim(),
       storePhone: formStorePhone.trim(),
       cashierName: formCashierName.trim() || 'Kasiyer 1',
@@ -348,7 +348,7 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
                     type="text"
                     value={formStoreName}
                     onChange={(e) => setFormStoreName(e.target.value)}
-                    placeholder="Örn: Show Apparel Mağazası"
+                    placeholder="Örn: Lufian | Jack & Jones"
                     className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded text-slate-900 text-xs font-semibold focus:ring-1 focus:ring-blue-600 focus:outline-none"
                   />
                 </div>

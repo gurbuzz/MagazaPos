@@ -12,7 +12,7 @@ function createWindow() {
     height: 768,
     minWidth: 1024,
     minHeight: 680,
-    title: 'MağazaPOS - POS ve Stok Yönetimi',
+    title: 'Lufian & Jack & Jones - POS ve Stok Yönetimi',
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       nodeIntegration: false,

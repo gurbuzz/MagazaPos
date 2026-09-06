@@ -111,7 +111,13 @@ export const usePosStore = create<PosState>((set, get) => ({
   // Default security & system settings
   isLocked: true, // App starts locked on launch!
   pinCode: localStorage.getItem('pos_pin_code') || '1234',
-  storeName: localStorage.getItem('pos_store_name') || 'MağazaPOS Giyim',
+  storeName: (() => {
+    const saved = localStorage.getItem('pos_store_name')
+    if (!saved || saved === 'MağazaPOS Giyim' || saved.includes('MağazaPOS')) {
+      return 'Lufian | Jack & Jones'
+    }
+    return saved
+  })(),
   storeAddress: localStorage.getItem('pos_store_address') || 'Atatürk Cad. No:14/A Kadıköy / İstanbul',
   storePhone: localStorage.getItem('pos_store_phone') || '0216 345 67 89',
   cashierName: localStorage.getItem('pos_cashier_name') || 'Kasiyer 1',

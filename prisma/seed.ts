@@ -28,7 +28,7 @@ async function main() {
     data: {
       code: 'PRD-KZK-001',
       name: 'Boğazlı Örme Kazak',
-      brand: 'Show Apparel',
+      brand: 'Lufian',
       basePrice: 899.90,
       description: '%100 Pamuklu kışlık boğazlı erkek kazak',
       categoryId: catUst.id,
@@ -49,7 +49,7 @@ async function main() {
     data: {
       code: 'PRD-JNS-002',
       name: 'Slim Fit Denim Pantolon',
-      brand: 'Show Denim',
+      brand: 'Jack & Jones',
       basePrice: 1299.00,
       description: 'Esnek kot kumaş slim fit tasarım',
       categoryId: catAlt.id,
@@ -69,7 +69,7 @@ async function main() {
     data: {
       code: 'PRD-TSH-003',
       name: 'Oversize Basic Tişört',
-      brand: 'Show Basic',
+      brand: 'Jack & Jones',
       basePrice: 349.90,
       description: '%100 Süprem pamuk basic unisex tişört',
       categoryId: catUst.id,
@@ -90,7 +90,7 @@ async function main() {
     data: {
       code: 'PRD-GMK-004',
       name: 'Ekoseli Oduncu Gömlek',
-      brand: 'Show Casual',
+      brand: 'Lufian',
       basePrice: 649.90,
       description: 'Çift cepli sıcak tutan ekoseli gömlek',
       categoryId: catUst.id,
@@ -110,7 +110,7 @@ async function main() {
     data: {
       code: 'PRD-SWT-005',
       name: 'Kapüşonlu Basic Sweatshirt',
-      brand: 'Show Sport',
+      brand: 'Jack & Jones',
       basePrice: 799.00,
       description: ' içi şardonlu sıcak tutan kapüşonlu sweatshirt',
       categoryId: catUst.id,
@@ -130,7 +130,7 @@ async function main() {
     data: {
       code: 'PRD-CHN-006',
       name: 'Klasik Chino Kanvas Pantolon',
-      brand: 'Show Elegant',
+      brand: 'Lufian',
       basePrice: 1149.00,
       description: 'Ofis ve günlük kullanıma uygun pamuk kanvas pantolon',
       categoryId: catAlt.id,
@@ -150,7 +150,7 @@ async function main() {
     data: {
       code: 'PRD-MNT-007',
       name: 'Kaz Tüyü Şişme Mont',
-      brand: 'Show Outdoor',
+      brand: 'Lufian',
       basePrice: 2499.00,
       description: 'Su geçirmez rüzgar kesici hafif kışlık şişme mont',
       categoryId: catDis.id,
@@ -170,7 +170,7 @@ async function main() {
     data: {
       code: 'PRD-KMR-008',
       name: 'Hakiki Deri Erkek Kemer',
-      brand: 'Show Leather',
+      brand: 'Lufian',
       basePrice: 399.00,
       description: '%100 Hakiki dana derisi metal tokalı kemer',
       categoryId: catAksesuar.id,

@@ -138,7 +138,7 @@ export const SalesHistoryView: React.FC = () => {
         </head>
         <body>
           <div class="header">
-            <h3>${storeName || 'MAĞAZA POS'}</h3>
+            <h3>${storeName || 'LUFIAN & JACK & JONES'}</h3>
             <p>${storeAddress || ''}</p>
             <p>Tel: ${storePhone || ''}</p>
             <p>Fiş No: ${sale.receiptNo}</p>

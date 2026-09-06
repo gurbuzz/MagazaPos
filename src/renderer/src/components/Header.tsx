@@ -44,13 +44,16 @@ export const Header: React.FC = () => {
     <header className="h-14 bg-slate-900 border-b border-slate-800 px-5 flex items-center justify-between select-none shadow-md z-20">
       {/* Brand & Store Name */}
       <div className="flex items-center space-x-3">
-        <div className="flex items-center space-x-2.5 bg-slate-800/80 border border-slate-700/60 px-3 py-1 rounded-md">
-          <div className="w-6 h-6 rounded bg-blue-600 flex items-center justify-center text-white font-bold text-xs">
-            POS
+        <div className="flex items-center space-x-3 bg-slate-800/90 border border-slate-700/70 px-3.5 py-1.5 rounded-lg shadow-sm">
+          <div className="flex items-center space-x-1.5 text-xs font-black tracking-wider">
+            <span className="text-amber-400">LUFIAN</span>
+            <span className="text-slate-600 font-normal">|</span>
+            <span className="text-sky-400">JACK & JONES</span>
           </div>
-          <div className="flex flex-col">
-            <h1 className="font-bold text-slate-100 text-xs tracking-tight leading-tight">{storeName}</h1>
-            <span className="text-[10px] text-slate-400 font-medium">Kasa: <span className="text-blue-400 font-semibold">{cashierName}</span></span>
+          <div className="h-4 w-px bg-slate-700/80"></div>
+          <div className="flex items-center space-x-1.5 text-[11px] text-slate-400 font-medium">
+            <span>Kasa:</span>
+            <span className="text-blue-400 font-semibold">{cashierName}</span>
           </div>
         </div>
       </div>
