@@ -1,8 +1,17 @@
 @echo off
-chcp 65001 >nul
-setlocal enabledelayedexpansion
+chcp 65001 >nul 2>nul
 title MagazaPOS - Kasa ve Stok Yonetim Sistemi
 cd /d "%~dp0"
+
+:: Ne olursa olsun pencere acik kalsin
+call :main
+echo.
+echo Devam etmek icin bir tusa basin...
+pause >nul
+exit /b
+
+:main
+setlocal enabledelayedexpansion
 
 echo ============================================================
 echo   MagazaPOS - Kasa ve Stok Yonetim Sistemi
@@ -10,95 +19,98 @@ echo   Lufian ve Jack Jones POS
 echo ============================================================
 echo.
 
-:: 1. Masaustu Kisayolu (Shortcut & Icon) Olusturma
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ws = New-Object -ComObject WScript.Shell; $d = [Environment]::GetFolderPath('Desktop'); $lnk = Join-Path $d 'MagazaPOS.lnk'; if (-not (Test-Path $lnk)) { $s = $ws.CreateShortcut($lnk); $target = '%~dp0MagazaPosKurulum.bat'; $exe = Get-ChildItem -Path '%~dp0release\win-unpacked' -Filter '*.exe' -ErrorAction SilentlyContinue | Select-Object -First 1; if ($exe) { $target = $exe.FullName }; $s.TargetPath = $target; $s.WorkingDirectory = '%~dp0'; if (Test-Path '%~dp0public\icon.ico') { $s.IconLocation = '%~dp0public\icon.ico,0' }; $s.WindowStyle = 7; $s.Description = 'MagazaPOS Kasa ve Stok Yonetim Sistemi'; $s.Save(); Write-Host '[OK] Masaustune MagazaPOS kisayolu olusturuldu.' }" >nul 2>&1
+:: 1. Masaustu Kisayolu Olustur
+call :kisayol
 
 :: 2. Node.js Kontrolu
 where node >nul 2>nul
-if !errorlevel! neq 0 (
+if errorlevel 1 (
     echo [UYARI] Node.js sisteminizde kurulu bulunamadi.
     echo.
-    for %%F in ("release\win-unpacked\*.exe") do (
-        echo [BILGI] Hazir derlenmis surum tespit edildi: %%~nxF
-        echo Node.js gerekmeden MagazaPOS simdi baslatiliyor...
-        echo.
-        start "" "%%~fF"
-        exit /b 0
+    if exist "release\win-unpacked" (
+        for %%F in ("release\win-unpacked\*.exe") do (
+            echo [BILGI] Hazir derlenmis surum tespit edildi: %%~nxF
+            echo Node.js gerekmeden MagazaPOS simdi baslatiliyor...
+            echo.
+            start "" "%%~fF"
+            goto :eof
+        )
     )
     echo [HATA] Node.js bulunamadi ve derlenmis exe paketi yok.
-    echo Lutfen https://nodejs.org adresinden Node.js 'LTS' surumunu kurun.
+    echo Lutfen https://nodejs.org adresinden Node.js LTS surumunu kurun.
     echo.
-    pause
-    exit /b 1
+    goto :eof
 )
 
-:: 3. Ortam Dosyasi (.env) Kontrolu
+echo [OK] Node.js tespit edildi.
+node -v
+echo.
+
+:: 3. Ortam Dosyasi (.env)
 if not exist ".env" (
     echo [BILGI] .env yapilandirma dosyasi hazirlaniyor...
-    (echo DATABASE_URL="file:./dev.db")> .env
-    (echo PORT=3782)>> .env
+    echo DATABASE_URL="file:./dev.db"> ".env"
+    echo PORT=3782>> ".env"
 )
 
+:: 4. Prisma klasoru
 if not exist "prisma" mkdir "prisma"
 
-:: 4. Ilk Kurulum / Paket Kontrolu
-set "NEED_SETUP=0"
-if not exist "node_modules" set "NEED_SETUP=1"
-if not exist "node_modules\.prisma\client" set "NEED_SETUP=1"
+:: 5. Ilk Kurulum / Paket Kontrolu
+if not exist "node_modules" goto :kurulum
+if not exist "node_modules\.prisma\client" goto :kurulum
+goto :kurulum_atla
 
-if "!NEED_SETUP!"=="1" (
+:kurulum
+echo.
+echo ============================================================
+echo   Ilk Calistirma - Otomatik Kurulum Basliyor
+echo   Lutfen paketler yuklenirken bekleyiniz...
+echo ============================================================
+echo.
+echo [1/3] Paket bagimliliklari yukleniyor (npm install)...
+call npm install
+if errorlevel 1 (
     echo.
-    echo ============================================================
-    echo   Ilk Calistirma / Otomatik Kurulum Basliyor...
-    echo   Lutfen paketler yuklenirken bekleyiniz.
-    echo ============================================================
-    echo.
-    echo [1/3] Paket bagimliliklari yukleniyor (npm install)...
-    call npm install
-    if !errorlevel! neq 0 (
-        echo.
-        echo [HATA] npm install sirasinda hata olustu.
-        pause
-        exit /b 1
-    )
-
-    echo.
-    echo [2/3] Prisma istemcisi hazirlaniyor...
-    call npx prisma generate
-    if !errorlevel! neq 0 (
-        echo.
-        echo [HATA] prisma generate sirasinda hata olustu.
-        pause
-        exit /b 1
-    )
+    echo [HATA] npm install sirasinda hata olustu.
+    goto :eof
 )
 
-:: 5. SQLite Veritabani ve Baslangic Tablolari Kontrolu
+echo.
+echo [2/3] Prisma istemcisi hazirlaniyor...
+call npx prisma generate
+if errorlevel 1 (
+    echo.
+    echo [HATA] prisma generate sirasinda hata olustu.
+    goto :eof
+)
+
+:kurulum_atla
+
+:: 6. Veritabani Kontrolu
 if not exist "prisma\dev.db" (
     echo.
-    echo [BILGI] Veritabani bulunamadi. Tablolar olusturuluyor...
+    echo [3/3] Veritabani bulunamadi. Tablolar olusturuluyor...
     call npx prisma db push --accept-data-loss
-    if !errorlevel! neq 0 (
+    if errorlevel 1 (
         echo.
-        echo [HATA] Veritabani semasi yuklenirken hata olustu.
-        pause
-        exit /b 1
+        echo [HATA] Veritabani semasi olusturulurken hata olustu.
+        goto :eof
     )
-
-    echo [BILGI] Baslangic giyim kategorileri ve ornek urunler yukleniyor...
+    echo [BILGI] Baslangic urunleri yukleniyor...
     call npx tsx prisma/seed.ts
 )
 
-:: 6. Statik Mobil Dosyalarini Kopyala
+:: 7. Statik Dosyalari Kopyala
 if exist "scripts\copy-public.js" (
     call node scripts\copy-public.js
 )
 
-:: 7. Uygulamayi Baslat
+:: 8. Uygulamayi Baslat
 echo.
 echo ============================================================
 echo   MagazaPOS Baslatiliyor...
-echo   (Masaustunuzdeki "MagazaPOS" simgesini de kullanabilirsiniz)
+echo   Masaustunuzdeki MagazaPOS simgesini de kullanabilirsiniz.
 echo ============================================================
 echo.
 
@@ -106,4 +118,42 @@ call npm run dev
 
 echo.
 echo [BILGI] MagazaPOS oturumu sonlandi.
-pause
+goto :eof
+
+:: -----------------------------------------------------------
+:: Masaustu kisayolu olusturma (ayri fonksiyon)
+:: -----------------------------------------------------------
+:kisayol
+set "VBS_FILE=%TEMP%\magazapos_shortcut.vbs"
+set "BAT_PATH=%~dp0MagazaPosKurulum.bat"
+set "ICON_PATH=%~dp0public\icon.ico"
+
+:: Derlenmis exe varsa onu hedef al
+if exist "release\win-unpacked" (
+    for %%F in ("release\win-unpacked\*.exe") do (
+        set "BAT_PATH=%%~fF"
+    )
+)
+
+:: Masaustunde zaten kisayol varsa tekrar olusturma
+set "DESKTOP="
+for /f "usebackq tokens=*" %%D in (`powershell -NoProfile -Command "[Environment]::GetFolderPath('Desktop')"`) do set "DESKTOP=%%D"
+if "!DESKTOP!"=="" goto :eof
+if exist "!DESKTOP!\MagazaPOS.lnk" goto :eof
+
+:: VBScript ile kisayol olustur (PowerShell'den daha guvenilir)
+(
+    echo Set ws = CreateObject("WScript.Shell"^)
+    echo Set lnk = ws.CreateShortcut("!DESKTOP!\MagazaPOS.lnk"^)
+    echo lnk.TargetPath = "!BAT_PATH!"
+    echo lnk.WorkingDirectory = "%~dp0"
+    echo lnk.Description = "MagazaPOS Kasa ve Stok Yonetim Sistemi"
+    echo lnk.WindowStyle = 7
+    if exist "!ICON_PATH!" echo lnk.IconLocation = "!ICON_PATH!, 0"
+    echo lnk.Save
+)> "!VBS_FILE!"
+
+cscript //nologo "!VBS_FILE!" >nul 2>&1
+del "!VBS_FILE!" >nul 2>&1
+echo [OK] Masaustune MagazaPOS kisayolu olusturuldu.
+goto :eof
