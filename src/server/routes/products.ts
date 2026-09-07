@@ -148,21 +148,34 @@ productRouter.post('/', async (req, res) => {
   try {
     const { code, name, brand, basePrice, description, categoryId, variants } = req.body
 
+    if (!code || !name) {
+      res.status(400).json({ error: 'Ürün kodu ve ürün adı zorunludur' })
+      return
+    }
+
+    const existingProduct = await prisma.product.findUnique({ where: { code } })
+    if (existingProduct) {
+      res.status(400).json({
+        error: `Bu ürün kodu (${code}) zaten "${existingProduct.name}" ürününde kayıtlıdır! Mevcut ürüne varyant/beden eklemek için ürün detayındaki "+ Yeni Varyant Ekle" butonunu kullanabilirsiniz.`
+      })
+      return
+    }
+
     const product = await prisma.product.create({
       data: {
         code,
         name,
         brand,
-        basePrice: parseFloat(basePrice),
+        basePrice: parseFloat(basePrice) || 0,
         description,
         categoryId: categoryId || null,
         variants: {
-          create: variants.map((v: any) => ({
+          create: (variants || []).map((v: any) => ({
             sku: v.sku,
             barcode: v.barcode,
             attributes: typeof v.attributes === 'string' ? v.attributes : JSON.stringify(v.attributes || {}),
             costPrice: parseFloat(v.costPrice || 0),
-            salePrice: parseFloat(v.salePrice || basePrice),
+            salePrice: parseFloat(v.salePrice || basePrice || 0),
             stockQuantity: parseInt(v.stockQuantity || 0)
           }))
         }
@@ -172,6 +185,87 @@ productRouter.post('/', async (req, res) => {
 
     res.status(201).json(formatProduct(product))
   } catch (error: any) {
+    if (error.code === 'P2002') {
+      res.status(400).json({ error: 'Ürün kodu veya barkod numarası sistemde zaten kayıtlı!' })
+      return
+    }
+    res.status(400).json({ error: error.message })
+  }
+})
+
+// POST /api/products/:id/variants - Add a new variant to an existing product
+productRouter.post('/:id/variants', async (req, res) => {
+  try {
+    const { id } = req.params
+    const { color, size, barcode, salePrice, costPrice, stockQuantity } = req.body
+
+    const product = await prisma.product.findUnique({ where: { id } })
+    if (!product) {
+      res.status(404).json({ error: 'Ürün bulunamadı' })
+      return
+    }
+
+    if (!barcode || !barcode.trim()) {
+      res.status(400).json({ error: 'Barkod numarası zorunludur' })
+      return
+    }
+
+    const trimmedBarcode = barcode.trim()
+    const existingVariant = await prisma.productVariant.findUnique({
+      where: { barcode: trimmedBarcode },
+      include: { product: true }
+    })
+
+    if (existingVariant) {
+      res.status(400).json({
+        error: `Bu barkod (${trimmedBarcode}) zaten "${existingVariant.product?.name || 'Başka Ürün'}" (${existingVariant.sku}) üzerinde kayıtlıdır!`
+      })
+      return
+    }
+
+    const clr = (color || 'Standart').trim()
+    const sz = (size || 'Standart').trim()
+    const sku = `${product.code}-${clr.toUpperCase()}-${sz.toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`
+    const sPrice = parseFloat(salePrice) || product.basePrice
+    const cPrice = parseFloat(costPrice) || (sPrice * 0.5)
+    const qty = parseInt(stockQuantity) || 0
+
+    const newVariant = await prisma.$transaction(async (tx) => {
+      const v = await tx.productVariant.create({
+        data: {
+          productId: id,
+          sku,
+          barcode: trimmedBarcode,
+          attributes: JSON.stringify({ color: clr, size: sz }),
+          costPrice: cPrice,
+          salePrice: sPrice,
+          stockQuantity: qty
+        },
+        include: {
+          product: { include: { category: true } }
+        }
+      })
+
+      if (qty > 0) {
+        await tx.stockMovement.create({
+          data: {
+            variantId: v.id,
+            type: 'INBOUND',
+            quantity: qty,
+            note: `Yeni varyant oluşturma stok girişi (+${qty} ad)`
+          }
+        })
+      }
+
+      return v
+    })
+
+    res.status(201).json(formatVariant(newVariant))
+  } catch (error: any) {
+    if (error.code === 'P2002') {
+      res.status(400).json({ error: 'Bu barkod veya SKU numarası zaten kayıtlıdır!' })
+      return
+    }
     res.status(400).json({ error: error.message })
   }
 })

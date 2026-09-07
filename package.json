@@ -1,6 +1,7 @@
 {
   "name": "magazapos",
   "version": "1.0.0",
+  "author": "MagazaPOS",
   "description": "POS ve Stok Yönetimi Sistemi (Giyim Mağazaları)",
   "main": "dist-electron/main/index.js",
   "scripts": {
@@ -17,13 +18,14 @@
   },
   "build": {
     "appId": "com.magazapos.app",
-    "productName": "Lufian & Jack & Jones",
+    "productName": "MagazaPOS",
     "directories": {
       "output": "release"
     },
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
+      "src/server/public/**/*",
       "prisma/**/*",
       ".env",
       "node_modules/@prisma/**/*",
@@ -45,8 +47,7 @@
     ],
     "win": {
       "target": [
-        "nsis",
-        "portable"
+        "nsis"
       ],
       "icon": "public/icon.ico"
     },
@@ -56,7 +57,7 @@
       "allowToChangeInstallationDirectory": false,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Lufian & Jack & Jones"
+      "shortcutName": "MagazaPOS"
     }
   },
   "dependencies": {

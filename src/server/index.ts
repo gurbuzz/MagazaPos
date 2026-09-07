@@ -53,6 +53,13 @@ app.get('/', (_req, res) => {
 
 // Register API Routes
 app.use('/api/products', productRouter)
+
+// Direct compatibility alias for /api/variants/* requests
+app.use('/api/variants', (req, res, next) => {
+  req.url = '/variants' + req.url
+  productRouter(req, res, next)
+})
+
 app.use('/api/sales', salesRouter)
 app.use('/api/customers', customersRouter)
 app.use('/api/mobile', mobileRouter)

@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, Menu } from 'electron'
 import path from 'path'
+import fs from 'fs'
 import { startServer } from '../server'
 import { getLocalIpAddress } from '../server/utils/network'
 
@@ -51,7 +52,13 @@ function createWindow() {
   } else if (process.env.NODE_ENV === 'development') {
     mainWindow.loadURL('http://localhost:5173')
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../../index.html'))
+    const prodPaths = [
+      path.join(__dirname, '../../dist/index.html'),
+      path.join(__dirname, '../renderer/index.html'),
+      path.join(__dirname, '../../index.html'),
+    ]
+    const prodFile = prodPaths.find((p) => fs.existsSync(p)) || prodPaths[0]
+    mainWindow.loadFile(prodFile)
   }
 }
 

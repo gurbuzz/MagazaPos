@@ -1,7 +1,5 @@
 import os
 
-# Ana bat icerigi - call :main + pause yapisi ile
-# ne olursa olsun pencere KAPANMAZ
 magazapos_kurulum_bat = r"""@echo off
 chcp 65001 >nul 2>nul
 title MagazaPOS - Kasa ve Stok Yonetim Sistemi
@@ -26,21 +24,20 @@ echo.
 :: 1. Masaustu Kisayolu Olustur
 call :kisayol
 
-:: 2. Node.js Kontrolu
+:: 2. Derlenmis .exe varsa terminal olmadan dogrudan baslat
+if exist "release\win-unpacked" (
+    for %%F in ("release\win-unpacked\*.exe") do (
+        echo [BILGI] Derlenmis MagazaPOS surumu tespit edildi: %%~nxF
+        echo Arka plan konsolu olmadan dogrudan baslatiliyor...
+        start "" "%%~fF"
+        goto :eof
+    )
+)
+
+:: 3. Node.js Kontrolu
 where node >nul 2>nul
 if errorlevel 1 (
-    echo [UYARI] Node.js sisteminizde kurulu bulunamadi.
-    echo.
-    if exist "release\win-unpacked" (
-        for %%F in ("release\win-unpacked\*.exe") do (
-            echo [BILGI] Hazir derlenmis surum tespit edildi: %%~nxF
-            echo Node.js gerekmeden MagazaPOS simdi baslatiliyor...
-            echo.
-            start "" "%%~fF"
-            goto :eof
-        )
-    )
-    echo [HATA] Node.js bulunamadi ve derlenmis exe paketi yok.
+    echo [HATA] Node.js sisteminizde kurulu bulunamadi ve derlenmis .exe yok.
     echo Lutfen https://nodejs.org adresinden Node.js LTS surumunu kurun.
     echo.
     goto :eof
@@ -50,17 +47,17 @@ echo [OK] Node.js tespit edildi.
 node -v
 echo.
 
-:: 3. Ortam Dosyasi (.env)
+:: 4. Ortam Dosyasi (.env)
 if not exist ".env" (
     echo [BILGI] .env yapilandirma dosyasi hazirlaniyor...
     echo DATABASE_URL="file:./dev.db"> ".env"
     echo PORT=3782>> ".env"
 )
 
-:: 4. Prisma klasoru
+:: 5. Prisma klasoru
 if not exist "prisma" mkdir "prisma"
 
-:: 5. Ilk Kurulum / Paket Kontrolu
+:: 6. Ilk Kurulum / Paket Kontrolu
 if not exist "node_modules" goto :kurulum
 if not exist "node_modules\.prisma\client" goto :kurulum
 goto :kurulum_atla
@@ -91,7 +88,7 @@ if errorlevel 1 (
 
 :kurulum_atla
 
-:: 6. Veritabani Kontrolu
+:: 7. Veritabani Kontrolu
 if not exist "prisma\dev.db" (
     echo.
     echo [3/3] Veritabani bulunamadi. Tablolar olusturuluyor...
@@ -105,16 +102,59 @@ if not exist "prisma\dev.db" (
     call npx tsx prisma/seed.ts
 )
 
-:: 7. Statik Dosyalari Kopyala
+:: 8. Statik Dosyalari Kopyala
 if exist "scripts\copy-public.js" (
     call node scripts\copy-public.js
 )
 
-:: 8. Uygulamayi Baslat
+:: 9. Calistirma / Paketleme Secenegi
+echo.
+echo ============================================================
+echo   MagazaPOS Baslatma Secenekleri:
+echo ============================================================
+echo   [1] Hizli Baslat (Terminal arkada acik kalir)
+echo   [2] Windows .EXE Olarak Paketle (Terminal tamamen kapanir - Tavsiye Edilen)
+echo ============================================================
+echo.
+set "SECIM=1"
+set /p "SECIM=Seciminiz [1 veya 2] (Enter ile 1 baslatilir): "
+
+if "!SECIM!"=="2" (
+    echo.
+    echo ============================================================
+    echo   MagazaPOS Windows .EXE paketi olusturuluyor...
+    echo   Bu islem bir defaya mahsus yapilir ve birkac dakika surebilir.
+    echo   Lutfen bekleyiniz...
+    echo ============================================================
+    echo.
+    call npm run package:win
+    if errorlevel 1 (
+        echo.
+        echo [UYARI] Paketleme sirasinda hata olustu. Hizli modda baslatiliyor...
+        call npm run dev
+        goto :eof
+    )
+    echo.
+    echo ============================================================
+    echo   [TEBRIKLER] MagazaPOS .EXE Kurulum Paketi Olusturuldu!
+    echo   Kurulum Setup Dosyasi: release\ klasorundedir.
+    echo   Kurulumsuz Calisan EXE: release\win-unpacked\MagazaPOS.exe
+    echo ============================================================
+    echo.
+    call :kisayol
+    if exist "release\win-unpacked" (
+        for %%F in ("release\win-unpacked\*.exe") do (
+            echo MagazaPOS simdi baslatiliyor (Sifir terminal)...
+            start "" "%%~fF"
+            goto :eof
+        )
+    )
+    goto :eof
+)
+
 echo.
 echo ============================================================
 echo   MagazaPOS Baslatiliyor...
-echo   Masaustunuzdeki MagazaPOS simgesini de kullanabilirsiniz.
 echo ============================================================
 echo.
 
@@ -129,30 +169,29 @@ goto :eof
 :: -----------------------------------------------------------
 :kisayol
 set "VBS_FILE=%TEMP%\magazapos_shortcut.vbs"
-set "BAT_PATH=%~dp0MagazaPosKurulum.bat"
+set "TARGET_PATH=%~dp0MagazaPosKurulum.bat"
 set "ICON_PATH=%~dp0public\icon.ico"
+set "WIN_STYLE=7"
 
-:: Derlenmis exe varsa onu hedef al
+:: Derlenmis exe varsa kisayolu dogrudan EXE'ye bagla (sifir terminal)
 if exist "release\win-unpacked" (
     for %%F in ("release\win-unpacked\*.exe") do (
-        set "BAT_PATH=%%~fF"
+        set "TARGET_PATH=%%~fF"
+        set "WIN_STYLE=1"
     )
 )
 
-:: Masaustunde zaten kisayol varsa tekrar olusturma
 set "DESKTOP="
 for /f "usebackq tokens=*" %%D in (`powershell -NoProfile -Command "[Environment]::GetFolderPath('Desktop')"`) do set "DESKTOP=%%D"
 if "!DESKTOP!"=="" goto :eof
-if exist "!DESKTOP!\MagazaPOS.lnk" goto :eof
 
-:: VBScript ile kisayol olustur (PowerShell'den daha guvenilir)
 (
     echo Set ws = CreateObject("WScript.Shell"^)
     echo Set lnk = ws.CreateShortcut("!DESKTOP!\MagazaPOS.lnk"^)
-    echo lnk.TargetPath = "!BAT_PATH!"
+    echo lnk.TargetPath = "!TARGET_PATH!"
     echo lnk.WorkingDirectory = "%~dp0"
     echo lnk.Description = "MagazaPOS Kasa ve Stok Yonetim Sistemi"
-    echo lnk.WindowStyle = 7
+    echo lnk.WindowStyle = !WIN_STYLE!
     if exist "!ICON_PATH!" echo lnk.IconLocation = "!ICON_PATH!, 0"
     echo lnk.Save
 )> "!VBS_FILE!"
@@ -167,10 +206,55 @@ goto :eof
 with open("MagazaPosKurulum.bat", "wb") as f:
     f.write(magazapos_kurulum_bat.strip().replace("\n", "\r\n").encode("utf-8"))
 
-# Remove legacy batch files if they exist
-for old_file in ["KURULUM_WIN11.bat", "BASLAT_WIN11.bat", "MagazaPOS.bat"]:
-    if os.path.exists(old_file):
-        os.remove(old_file)
-        print(f"Removed: {old_file}")
+# Also create a dedicated Paketle_EXE.bat for instant 1-click packaging
+paketle_exe_bat = r"""@echo off
+chcp 65001 >nul 2>nul
+title MagazaPOS - Windows .EXE Paketleme Araci
+cd /d "%~dp0"
 
-print("OK: MagazaPosKurulum.bat created successfully.")
+echo ============================================================
+echo   MagazaPOS Windows (.EXE) Paketleme Araci
+echo   Terminal olmadan calisan masaustu paketi olusturuluyor...
+echo ============================================================
+echo.
+
+where node >nul 2>nul
+if errorlevel 1 (
+    echo [HATA] Node.js bulunamadi.
+    pause
+    exit /b
+)
+
+echo [BILGI] .EXE paketi olusturuluyor, lutfen bekleyiniz...
+echo.
+call npm run package:win
+if errorlevel 1 (
+    echo.
+    echo [HATA] Paketleme basarisiz oldu.
+    pause
+    exit /b
+)
+
+echo.
+echo ============================================================
+echo   [BASARILI] MagazaPOS .EXE Paketi Olusturuldu!
+echo   release\ klasorunu kontrol edebilirsiniz.
+echo ============================================================
+echo.
+
+:: Masaustu kisayolunu guncelle
+if exist "release\win-unpacked" (
+    for %%F in ("release\win-unpacked\*.exe") do (
+        echo [BILGI] MagazaPOS simdi terminal olmadan baslatiliyor...
+        start "" "%%~fF"
+        exit /b
+    )
+)
+
+pause
+"""
+
+with open("Paketle_EXE.bat", "wb") as f:
+    f.write(paketle_exe_bat.strip().replace("\n", "\r\n").encode("utf-8"))
+
+print("OK: MagazaPosKurulum.bat and Paketle_EXE.bat created successfully.")

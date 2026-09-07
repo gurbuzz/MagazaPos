@@ -18,6 +18,7 @@ import {
   Download,
   FileCheck,
   RefreshCw,
+  X,
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { CategoryModal } from './CategoryModal'
@@ -57,6 +58,22 @@ export const StockView: React.FC = () => {
   const [scannedQty, setScannedQty] = useState('1')
   const [lastScannedResult, setLastScannedResult] = useState<string | null>(null)
   const scanInputRef = useRef<HTMLInputElement>(null)
+
+  // Search input and barcode scan highlight states
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const [highlightedVariantId, setHighlightedVariantId] = useState<string | null>(null)
+  const [scanToast, setScanToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null)
+
+  // Add Variant to Existing Product Modal State
+  const [isAddVariantModalOpen, setIsAddVariantModalOpen] = useState(false)
+  const [newVarColor, setNewVarColor] = useState('Siyah')
+  const [newVarSize, setNewVarSize] = useState('M')
+  const [newVarBarcode, setNewVarBarcode] = useState('')
+  const [newVarSalePrice, setNewVarSalePrice] = useState('')
+  const [newVarCostPrice, setNewVarCostPrice] = useState('')
+  const [newVarStockQty, setNewVarStockQty] = useState('1')
+  const [isCreatingVariant, setIsCreatingVariant] = useState(false)
+  const newVarBarcodeInputRef = useRef<HTMLInputElement>(null)
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false)
@@ -110,9 +127,20 @@ export const StockView: React.FC = () => {
     }
   }, [isBarcodeStockModalOpen])
 
+  useEffect(() => {
+    if (isAddVariantModalOpen) {
+      setTimeout(() => newVarBarcodeInputRef.current?.focus(), 150)
+    }
+  }, [isAddVariantModalOpen])
+
   const generateBarcode = () => {
     const randomDigits = Math.floor(1000000000 + Math.random() * 9000000000)
     setNewBarcode(`869${randomDigits}`)
+  }
+
+  const generateVariantBarcode = () => {
+    const randomDigits = Math.floor(1000000000 + Math.random() * 9000000000)
+    setNewVarBarcode(`869${randomDigits}`)
   }
 
   const fetchProducts = async () => {
@@ -198,7 +226,7 @@ export const StockView: React.FC = () => {
     }
 
     try {
-      const res = await fetch(`/api/variants/${foundScannedVariant.id}/add-stock`, {
+      const res = await fetch(`/api/products/variants/${foundScannedVariant.id}/add-stock`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -537,7 +565,7 @@ export const StockView: React.FC = () => {
     }
 
     try {
-      const res = await fetch(`/api/variants/${addStockVariant.id}/add-stock`, {
+      const res = await fetch(`/api/products/variants/${addStockVariant.id}/add-stock`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -547,9 +575,18 @@ export const StockView: React.FC = () => {
       })
 
       if (res.ok) {
+        const targetId = addStockVariant.id
+        const targetSku = addStockVariant.sku
         setAddStockVariant(null)
         setAddQtyVal('')
-        fetchProducts()
+        setHighlightedVariantId(targetId)
+        setScanToast({
+          type: 'success',
+          message: `✅ "${targetSku}" stoğuna +${qty} adet başarıyla eklendi!`,
+        })
+        setTimeout(() => setScanToast(null), 4000)
+        setTimeout(() => setHighlightedVariantId(null), 6000)
+        await fetchProducts()
         notifyDataChanged()
       } else {
         const errData = await res.json()
@@ -557,6 +594,54 @@ export const StockView: React.FC = () => {
       }
     } catch {
       alert('Hata oluştu')
+    }
+  }
+
+  // --- ADD NEW VARIANT TO EXISTING PRODUCT ---
+  const handleAddVariantToProduct = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedProduct) return
+    if (!newVarBarcode.trim()) {
+      alert('Lütfen geçerli bir barkod numarası girin veya otomatik üretin!')
+      return
+    }
+
+    setIsCreatingVariant(true)
+    try {
+      const res = await fetch(`/api/products/${selectedProduct.id}/variants`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          color: newVarColor,
+          size: newVarSize,
+          barcode: newVarBarcode.trim(),
+          salePrice: parseFloat(newVarSalePrice) || selectedProduct.basePrice,
+          costPrice: parseFloat(newVarCostPrice) || ((parseFloat(newVarSalePrice) || selectedProduct.basePrice) * 0.5),
+          stockQuantity: parseInt(newVarStockQty) || 0,
+        }),
+      })
+
+      const data = await res.json()
+      if (res.ok) {
+        setIsAddVariantModalOpen(false)
+        setNewVarBarcode('')
+        setNewVarStockQty('1')
+        setHighlightedVariantId(data.id)
+        setScanToast({
+          type: 'success',
+          message: `✅ Yeni varyant (${newVarColor} / ${newVarSize}) başarıyla eklendi!`,
+        })
+        setTimeout(() => setScanToast(null), 4000)
+        setTimeout(() => setHighlightedVariantId(null), 6000)
+        await fetchProducts()
+        notifyDataChanged()
+      } else {
+        alert('Varyant ekleme hatası: ' + (data.error || 'Bilinmeyen hata'))
+      }
+    } catch (err: any) {
+      alert('Hata: ' + err.message)
+    } finally {
+      setIsCreatingVariant(false)
     }
   }
 
@@ -638,11 +723,167 @@ export const StockView: React.FC = () => {
     }
   }
 
-  const filteredProducts = products.filter(
-    (p) =>
-      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.code.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  // --- BARCODE SEARCH & LOOKUP HANDLER ---
+  const handleBarcodeSearchSubmit = async (codeToSearch: string) => {
+    const raw = codeToSearch.trim()
+    if (!raw) return
+
+    // 1. Check in-memory variants by barcode or SKU
+    let matchedProduct: any = null
+    let matchedVariant: any = null
+
+    for (const prod of products) {
+      const v = prod.variants?.find(
+        (variant: any) =>
+          variant.barcode === raw ||
+          variant.sku?.toLowerCase() === raw.toLowerCase()
+      )
+      if (v) {
+        matchedProduct = prod
+        matchedVariant = v
+        break
+      }
+    }
+
+    // 2. If not matched by barcode, check if product code matches exactly
+    if (!matchedProduct) {
+      matchedProduct = products.find((prod) => prod.code?.toLowerCase() === raw.toLowerCase())
+      if (matchedProduct && matchedProduct.variants?.length > 0) {
+        matchedVariant = matchedProduct.variants[0]
+      }
+    }
+
+    // 3. If still not found in memory, query server barcode lookup
+    if (!matchedProduct) {
+      try {
+        const res = await fetch(`/api/products/variants/barcode/${encodeURIComponent(raw)}`)
+        if (res.ok) {
+          const vData = await res.json()
+          matchedVariant = vData
+          matchedProduct = products.find((p) => p.id === vData.productId) || vData.product
+        }
+      } catch (err) {
+        console.error('Barcode lookup error:', err)
+      }
+    }
+
+    if (matchedProduct) {
+      setSelectedProduct(matchedProduct)
+      if (matchedVariant) {
+        setHighlightedVariantId(matchedVariant.id)
+        setTimeout(() => setHighlightedVariantId(null), 6000)
+      }
+      setScanToast({
+        type: 'success',
+        message: `⚡ Bulundu: "${matchedProduct.name}" ${
+          matchedVariant?.attributes?.color ? `(${matchedVariant.attributes.color} / ${matchedVariant.attributes.size})` : ''
+        }`,
+      })
+      setTimeout(() => setScanToast(null), 4000)
+    } else {
+      if (filteredProducts.length > 0) {
+        setSelectedProduct(filteredProducts[0])
+        setScanToast({
+          type: 'success',
+          message: `⚡ Eşleşen Ürün: "${filteredProducts[0].name}"`,
+        })
+        setTimeout(() => setScanToast(null), 3000)
+      } else {
+        setScanToast({
+          type: 'error',
+          message: `⚠️ Barkod veya arama bulunamadı: "${raw}"`,
+        })
+        setTimeout(() => setScanToast(null), 4000)
+      }
+    }
+  }
+
+  // --- GLOBAL USB HID BARCODE SCANNER LISTENER ---
+  useEffect(() => {
+    let barcodeBuffer = ''
+    let lastKeyTime = Date.now()
+
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (
+        isAddModalOpen ||
+        isBarcodeStockModalOpen ||
+        isCategoryModalOpen ||
+        isExcelModalOpen ||
+        isAdminPinOpen ||
+        addStockVariant ||
+        editingVariant ||
+        editingProduct ||
+        isAddVariantModalOpen
+      ) {
+        return
+      }
+
+      const activeElement = document.activeElement
+      const isSearchFocused = activeElement === searchInputRef.current
+      const isOtherInputFocused =
+        activeElement?.tagName === 'INPUT' ||
+        activeElement?.tagName === 'TEXTAREA' ||
+        activeElement?.tagName === 'SELECT'
+
+      const currentTime = Date.now()
+      const timeDiff = currentTime - lastKeyTime
+      lastKeyTime = currentTime
+
+      if (timeDiff > 120) {
+        barcodeBuffer = ''
+      }
+
+      if (e.key === 'Enter') {
+        const code = (isSearchFocused ? searchTerm : barcodeBuffer).trim()
+        if (code.length >= 2) {
+          e.preventDefault()
+          handleBarcodeSearchSubmit(code)
+        }
+        barcodeBuffer = ''
+        return
+      }
+
+      if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        if (!isOtherInputFocused || isSearchFocused || timeDiff < 50) {
+          barcodeBuffer += e.key
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleGlobalKeyDown)
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown)
+  }, [
+    isAddModalOpen,
+    isBarcodeStockModalOpen,
+    isCategoryModalOpen,
+    isExcelModalOpen,
+    isAdminPinOpen,
+    addStockVariant,
+    editingVariant,
+    editingProduct,
+    isAddVariantModalOpen,
+    searchTerm,
+    products,
+  ])
+
+  const normalizedSearch = searchTerm.trim().toLowerCase()
+  const filteredProducts = products.filter((p) => {
+    if (!normalizedSearch) return true
+    if (p.name?.toLowerCase().includes(normalizedSearch)) return true
+    if (p.code?.toLowerCase().includes(normalizedSearch)) return true
+    if (p.brand && p.brand.toLowerCase().includes(normalizedSearch)) return true
+    if (p.category?.name && p.category.name.toLowerCase().includes(normalizedSearch)) return true
+    if (p.variants?.some((v: any) => {
+      const bc = String(v.barcode || '').toLowerCase()
+      const sku = String(v.sku || '').toLowerCase()
+      const clr = String(v.attributes?.color || '').toLowerCase()
+      const sz = String(v.attributes?.size || '').toLowerCase()
+      return bc.includes(normalizedSearch) || sku.includes(normalizedSearch) || clr.includes(normalizedSearch) || sz.includes(normalizedSearch)
+    })) {
+      return true
+    }
+    return false
+  })
 
   return (
     <div className="h-[calc(100vh-3.5rem)] bg-slate-100 flex overflow-hidden font-sans">
@@ -702,14 +943,69 @@ export const StockView: React.FC = () => {
 
           <div className="relative">
             <input
+              ref={searchInputRef}
               type="text"
-              placeholder="Ürün veya Kod Ara..."
+              placeholder="Ürün Adı, Kod veya Barkod Okutun (Enter)..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-300 rounded text-slate-900 text-xs placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 font-medium"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  handleBarcodeSearchSubmit(searchTerm)
+                }
+              }}
+              className="w-full pl-8 pr-16 py-1.5 bg-white border border-slate-300 rounded text-slate-900 text-xs placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600 font-medium transition"
             />
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2" />
+            <div className="absolute right-2 top-1.5 flex items-center space-x-1">
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchTerm('')
+                    searchInputRef.current?.focus()
+                  }}
+                  className="text-slate-400 hover:text-slate-600 p-0.5"
+                  title="Aramayı Temizle"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+              <div
+                className="flex items-center text-emerald-600 pl-0.5"
+                title="Barkod okuyucu aktif: Barkodu okutup Enter tuşuna basabilirsiniz."
+              >
+                <Barcode className="w-4 h-4" />
+              </div>
+            </div>
           </div>
+
+          {/* Barcode Search Toast / Feedback Notification */}
+          {scanToast && (
+            <div
+              className={`p-2 rounded text-xs font-semibold flex items-center justify-between border transition animate-fadeIn ${
+                scanToast.type === 'success'
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                  : 'bg-rose-50 text-rose-800 border-rose-200'
+              }`}
+            >
+              <div className="flex items-center space-x-1.5 overflow-hidden">
+                {scanToast.type === 'success' ? (
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                ) : (
+                  <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                )}
+                <span className="truncate">{scanToast.message}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setScanToast(null)}
+                className="text-slate-400 hover:text-slate-600 text-xs ml-2 shrink-0 font-bold"
+              >
+                ✕
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Product Selection Column */}
@@ -787,10 +1083,29 @@ export const StockView: React.FC = () => {
             </div>
 
             <div>
-              <h3 className="font-bold text-slate-800 text-xs uppercase tracking-tight mb-3 flex items-center space-x-1.5">
-                <PackageCheck className="w-4 h-4 text-blue-700" />
-                <span>Ürün Varyantları & Stok Seviyeleri</span>
-              </h3>
+              <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                <h3 className="font-bold text-slate-800 text-xs uppercase tracking-tight flex items-center space-x-1.5">
+                  <PackageCheck className="w-4 h-4 text-blue-700" />
+                  <span>Ürün Varyantları & Stok Seviyeleri</span>
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewVarColor('Siyah')
+                    setNewVarSize('M')
+                    setNewVarSalePrice(selectedProduct.basePrice?.toString() || '100')
+                    setNewVarCostPrice(((parseFloat(selectedProduct.basePrice) || 100) * 0.5).toString())
+                    setNewVarBarcode('')
+                    setNewVarStockQty('1')
+                    setIsAddVariantModalOpen(true)
+                  }}
+                  className="px-2.5 py-1.5 bg-blue-700 hover:bg-blue-800 text-white rounded text-xs font-semibold flex items-center space-x-1 shadow-xs transition"
+                  title="Bu ürüne yeni renk, beden veya barkod varyantı ekle"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ Yeni Varyant Ekle</span>
+                </button>
+              </div>
 
               <div className="border border-slate-200 rounded-lg overflow-hidden">
                 <table className="w-full text-left text-xs text-slate-700">
@@ -806,13 +1121,36 @@ export const StockView: React.FC = () => {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {selectedProduct.variants?.map((v: any) => {
+                      const isHighlighted =
+                        v.id === highlightedVariantId ||
+                        (searchTerm.trim() && v.barcode === searchTerm.trim())
+
                       return (
-                        <tr key={v.id} className="hover:bg-slate-50 transition">
+                        <tr
+                          key={v.id}
+                          className={`transition ${
+                            isHighlighted
+                              ? 'bg-emerald-50 border-2 border-emerald-500 shadow-xs'
+                              : 'hover:bg-slate-50'
+                          }`}
+                        >
                           <td className="px-5 py-3 font-semibold text-slate-900">
-                            {v.attributes?.color} / {v.attributes?.size}
+                            <div className="flex items-center space-x-1.5">
+                              <span>{v.attributes?.color} / {v.attributes?.size}</span>
+                              {isHighlighted && (
+                                <span className="px-1.5 py-0.5 bg-emerald-600 text-white text-[9px] font-bold rounded shadow-2xs flex items-center space-x-0.5 animate-pulse">
+                                  <Barcode className="w-2.5 h-2.5" />
+                                  <span>Barkod Eşleşti</span>
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="px-5 py-3 font-mono text-slate-500">{v.sku}</td>
-                          <td className="px-5 py-3 font-mono text-slate-700 font-medium">{v.barcode}</td>
+                          <td className="px-5 py-3 font-mono text-slate-700 font-medium">
+                            <span className={isHighlighted ? 'text-emerald-800 font-bold' : ''}>
+                              {v.barcode}
+                            </span>
+                          </td>
                           <td className="px-5 py-3 font-bold text-emerald-700">{v.salePrice.toFixed(2)} ₺</td>
                           <td className="px-5 py-3">
                             <span
@@ -1706,6 +2044,149 @@ export const StockView: React.FC = () => {
                 )}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* New Variant Modal for Selected Product */}
+      {isAddVariantModalOpen && selectedProduct && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-lg p-5 w-full max-w-md shadow-xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <div className="flex items-center space-x-2">
+                <Plus className="w-5 h-5 text-blue-700" />
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">Mevcut Ürüne Yeni Varyant Ekle</h3>
+                  <p className="text-[11px] text-slate-500 font-mono">
+                    {selectedProduct.name} ({selectedProduct.code})
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddVariantModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 font-bold text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleAddVariantToProduct} className="space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Varyant Renk *</label>
+                  <input
+                    type="text"
+                    placeholder="Örn: Siyah, Mavi"
+                    value={newVarColor}
+                    onChange={(e) => setNewVarColor(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-medium focus:ring-1 focus:ring-blue-600"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Beden *</label>
+                  <input
+                    type="text"
+                    placeholder="Örn: S, M, L, 42"
+                    value={newVarSize}
+                    onChange={(e) => setNewVarSize(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-medium focus:ring-1 focus:ring-blue-600"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Barcode Section with Scanner / Generator */}
+              <div className="pt-2 border-t border-slate-200">
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-slate-700 font-bold flex items-center space-x-1">
+                    <Barcode className="w-3.5 h-3.5 text-blue-700" />
+                    <span>Barkod Numarası *</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={generateVariantBarcode}
+                    className="text-[11px] font-semibold text-blue-700 hover:text-blue-800 hover:underline flex items-center space-x-1"
+                    title="Otomatik 13 haneli EAN barkod üret"
+                  >
+                    <Sparkles className="w-3 h-3 text-amber-500" />
+                    <span>Otomatik Üret</span>
+                  </button>
+                </div>
+
+                <div className="relative">
+                  <input
+                    ref={newVarBarcodeInputRef}
+                    type="text"
+                    placeholder="Barkod okutun veya elle yazın..."
+                    value={newVarBarcode}
+                    onChange={(e) => setNewVarBarcode(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-mono font-bold text-xs focus:ring-1 focus:ring-blue-600 focus:outline-none"
+                    required
+                  />
+                  {newVarBarcode.trim() && (
+                    <div className="absolute right-2.5 top-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Satış Fiyatı (₺) *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={newVarSalePrice}
+                    onChange={(e) => setNewVarSalePrice(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-bold text-emerald-700 focus:ring-1 focus:ring-blue-600"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Alış Fiyatı (Maliyet ₺)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={newVarCostPrice}
+                    onChange={(e) => setNewVarCostPrice(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-semibold focus:ring-1 focus:ring-blue-600"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">Başlangıç Stoğu (Adet)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={newVarStockQty}
+                  onChange={(e) => setNewVarStockQty(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-bold text-base focus:ring-1 focus:ring-blue-600"
+                  required
+                />
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsAddVariantModalOpen(false)}
+                  className="px-3.5 py-1.5 bg-slate-100 text-slate-700 rounded text-xs font-semibold hover:bg-slate-200 border border-slate-200"
+                >
+                  İptal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCreatingVariant}
+                  className="px-4 py-1.5 bg-blue-700 hover:bg-blue-800 text-white rounded text-xs font-semibold shadow-sm flex items-center space-x-1 disabled:opacity-50"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>{isCreatingVariant ? 'Ekleniyor...' : 'Varyantı Kaydet & Stoğa Al'}</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
