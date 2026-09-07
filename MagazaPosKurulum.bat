@@ -153,6 +153,19 @@ echo    EXE Paketi Olusturuluyor...
 echo    Bu islem 5-10 dakika surebilir.
 echo  ============================================================
 echo.
+
+REM Code signing devre disi birak (sertifika yok, symlink hatasi onlenir)
+set CSC_IDENTITY_AUTO_DISCOVERY=false
+set WIN_CSC_LINK=
+set DEBUG=electron-builder
+
+REM Sorunlu winCodeSign cache temizle (symlink hatasi kaynagi)
+if exist "%LOCALAPPDATA%\electron-builder\Cache\winCodeSign" (
+    echo  [BILGI] Sorunlu winCodeSign cache temizleniyor...
+    rmdir /s /q "%LOCALAPPDATA%\electron-builder\Cache\winCodeSign" >nul 2>&1
+    echo  [OK] Cache temizlendi.
+)
+
 echo  [1/3] TypeScript derleniyor...
 call npx tsc --skipLibCheck
 echo  [2/3] Vite build yapiliyor...
@@ -162,8 +175,8 @@ if errorlevel 1 (
     pause
     goto BITIS
 )
-echo  [3/3] Electron paketi olusturuluyor...
-call npx electron-builder --win nsis --publish never
+echo  [3/3] Electron paketi olusturuluyor (imzasiz)...
+call npx electron-builder --win nsis --publish never --config.win.signAndEditExecutable=false
 if errorlevel 1 (
     echo  [HATA] electron-builder basarisiz!
     pause
