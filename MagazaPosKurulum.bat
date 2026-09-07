@@ -185,15 +185,49 @@ if errorlevel 1 (
 echo.
 echo  ============================================================
 echo    [BASARILI] EXE Paketi Olusturuldu!
-echo    release\ klasorunu kontrol edin.
 echo  ============================================================
 echo.
+
+REM Masaustunu bul
+for /f "usebackq delims=" %%D in (`powershell -NoProfile -Command "[Environment]::GetFolderPath('Desktop')"`) do set "MASA=%%D"
+
+REM Setup installer'i masaustune kopyala
+if defined MASA (
+    for %%F in ("release\*.exe") do (
+        echo  [BILGI] Kurulum dosyasi masaustune kopyalaniyor: %%~nxF
+        copy /y "%%~fF" "%MASA%\%%~nxF" >nul 2>&1
+        echo  [OK] Masaustune kopyalandi: %MASA%\%%~nxF
+    )
+)
+
+REM Masaustu kisayolunu EXE'ye guncelle
 if exist "release\win-unpacked" (
     for %%F in ("release\win-unpacked\*.exe") do (
-        echo  [BILGI] MagazaPOS baslatiliyor: %%~nxF
+        set "EXE_YOL=%%~fF"
+        if defined MASA (
+            set "VBS2=%TEMP%\mpos_exe_lnk.vbs"
+            echo Set ws = CreateObject^("WScript.Shell"^)> "%TEMP%\mpos_exe_lnk.vbs"
+            echo Set lnk = ws.CreateShortcut^("%MASA%\MagazaPOS.lnk"^)>> "%TEMP%\mpos_exe_lnk.vbs"
+            echo lnk.TargetPath = "%%~fF">> "%TEMP%\mpos_exe_lnk.vbs"
+            echo lnk.WorkingDirectory = "%~dp0">> "%TEMP%\mpos_exe_lnk.vbs"
+            echo lnk.Description = "MagazaPOS Kasa ve Stok Yonetim">> "%TEMP%\mpos_exe_lnk.vbs"
+            echo lnk.WindowStyle = 1>> "%TEMP%\mpos_exe_lnk.vbs"
+            echo lnk.Save>> "%TEMP%\mpos_exe_lnk.vbs"
+            cscript //nologo "%TEMP%\mpos_exe_lnk.vbs" >nul 2>&1
+            del "%TEMP%\mpos_exe_lnk.vbs" >nul 2>&1
+            echo  [OK] Masaustu kisayolu EXE'ye guncellendi.
+        )
+        echo.
+        echo  [BILGI] MagazaPOS simdi baslatiliyor...
         start "" "%%~fF"
     )
 )
+
+echo.
+echo  Masaustunuzdeki dosyalar:
+echo    - MagazaPOS.lnk   (Kisayol - cift tikla calistir)
+echo    - Setup .exe       (Kurulum dosyasi - baska bilgisayara kurmak icin)
+echo.
 pause
 goto BITIS
 
