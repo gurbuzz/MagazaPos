@@ -37,15 +37,15 @@ Standart bir Windows programı gibi kurulum sihirbazıyla kurmak isterseniz:
 
 ---
 
-### Yöntem 3: Tek Tıkla Akıllı Başlatıcı (`MagazaPOS.bat`)
+### Yöntem 3: Tek Tıkla Akıllı Kurulum ve Başlatıcı (`MagazaPosKurulum.bat`)
 
-Yazılımı kaynak kod üzerinden çalıştırmak ve masaüstü kısayoluyla tek tıkla açmak için:
+Yazılımı kaynak kod üzerinden kurmak, çalıştırmak ve masaüstü kısayolu oluşturmak için:
 
 1. **Ön Koşul:** Bilgisayarda **Node.js (LTS sürümü)** kurulu olmalıdır: [nodejs.org](https://nodejs.org/)
-2. **Tek Tıkla Başlatın:**
-   * Proje ana klasöründeki **`MagazaPOS.bat`** dosyasına çift tıklayın.
+2. **Tek Tıkla Kurun ve Başlatın:**
+   * Proje ana klasöründeki **`MagazaPosKurulum.bat`** dosyasına çift tıklayın.
    * **İlk Çalıştırmada:** Sistem eksikleri algılar; bağımlılıkları (`npm install`), veritabanı şemasını ve örnek ürünleri otomatik yükler, ardından **Windows Masaüstünüze logolu "MagazaPOS" kısayolunu ekler**.
-   * **Sonraki Günlerde:** Doğrudan masaüstünüzdeki **MagazaPOS** simgesine tıklayarak kasayı 2-3 saniyede açabilirsiniz. Klasör içine girmenize dahi gerek kalmaz!
+   * **Sonraki Günlerde:** İster `MagazaPosKurulum.bat` dosyasından, ister doğrudan masaüstünüzdeki **MagazaPOS** simgesine tıklayarak kasayı 2-3 saniyede açabilirsiniz. Klasör içine girmenize dahi gerek kalmaz!
 
 ---
 
