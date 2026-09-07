@@ -42,4 +42,4 @@ if exist "release\win-unpacked" (
     )
 )
 
-pause
+pause

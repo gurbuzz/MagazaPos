@@ -1,237 +1,189 @@
 @echo off
 chcp 65001 >nul 2>nul
-title MagazaPOS - Kurulum ve Baslat
-
-:: Pencere her zaman acik kalsin - en basa koy
-if "%1"=="--inner" goto :baslat_ic
-
-:: Kendini yeniden ac, bu sefer pencere kapanmaz
-cmd.exe /k ""%~f0" --inner"
+title MagazaPOS - Kasa ve Stok Yonetim Sistemi
+REM Pencere kapanmasin - kendini /k ile yeniden ac
+if "%1"=="--run" goto BASLAT
+cmd.exe /k "%~f0" --run
 exit
 
-:baslat_ic
+:BASLAT
 cd /d "%~dp0"
 cls
-
 echo.
 echo  ============================================================
 echo    MagazaPOS - Kasa ve Stok Yonetim Sistemi
 echo  ============================================================
 echo.
 
-:: ============================================================
-:: 1. Node.js Kontrol
-:: ============================================================
+REM --- Node.js Kontrol ---
+echo  [KONTROL] Node.js araniyor...
 where node >nul 2>nul
 if errorlevel 1 (
+    echo.
     echo  [HATA] Node.js bulunamadi!
-    echo  Lutfen https://nodejs.org adresinden Node.js LTS indirin.
+    echo  https://nodejs.org adresinden Node.js LTS indirin.
     echo.
     pause
-    exit /b 1
+    goto BITIS
 )
 echo  [OK] Node.js bulundu:
-node -v
+call node -v
 echo.
 
-:: ============================================================
-:: 2. .env Dosyasi
-:: ============================================================
+REM --- .env Dosyasi ---
 if not exist ".env" (
     echo  [BILGI] .env dosyasi olusturuluyor...
-    (
-        echo DATABASE_URL="file:./dev.db"
-        echo PORT=3782
-    ) > ".env"
+    echo DATABASE_URL="file:./dev.db"> ".env"
+    echo PORT=3782>> ".env"
     echo  [OK] .env olusturuldu.
     echo.
 )
 
-:: ============================================================
-:: 3. node_modules Kontrol / npm install
-:: ============================================================
+REM --- npm install ---
 if not exist "node_modules" (
-    echo  [1/3] node_modules bulunamadi - npm install basliyor...
-    echo  Bu islem birkas dakika surebilir, lutfen bekleyin...
+    echo  [1/4] Paketler yukleniyor - npm install...
+    echo  Bu islem birkac dakika surebilir, lutfen bekleyin...
     echo.
-    npm install
+    call npm install
     if errorlevel 1 (
         echo.
-        echo  [HATA] npm install basarisiz oldu!
-        echo  Lutfen internet baglantinizi kontrol edin.
+        echo  [HATA] npm install basarisiz!
         pause
-        exit /b 1
+        goto BITIS
     )
+    echo.
     echo  [OK] npm install tamamlandi.
     echo.
 )
 
-:: ============================================================
-:: 4. Prisma Client
-:: ============================================================
+REM --- Prisma Generate (her zaman kontrol et) ---
 if not exist "node_modules\.prisma\client" (
-    echo  [2/3] Prisma istemcisi hazirlaniyor...
+    echo  [2/4] Prisma istemcisi hazirlaniyor...
     call npx prisma generate
     if errorlevel 1 (
-        echo.
-        echo  [HATA] prisma generate basarisiz oldu!
+        echo  [HATA] prisma generate basarisiz!
         pause
-        exit /b 1
+        goto BITIS
     )
-    echo  [OK] Prisma istemcisi hazirlandi.
+    echo  [OK] Prisma istemcisi hazir.
     echo.
+) else (
+    echo  [OK] Prisma istemcisi mevcut.
 )
 
-:: ============================================================
-:: 5. Veritabani
-:: ============================================================
+REM --- Veritabani ---
 if not exist "prisma\dev.db" (
-    echo  [3/3] Veritabani olusturuluyor...
+    echo  [3/4] Veritabani olusturuluyor...
     call npx prisma db push --accept-data-loss
     if errorlevel 1 (
-        echo.
         echo  [HATA] Veritabani olusturulamadi!
         pause
-        exit /b 1
+        goto BITIS
     )
     echo  [OK] Veritabani olusturuldu.
     echo.
-    echo  [BILGI] Ornek veriler yukleniyor...
+    echo  [4/4] Ornek veriler yukleniyor...
     call npx tsx prisma/seed.ts
     echo  [OK] Ornek veriler yuklendi.
     echo.
+) else (
+    echo  [OK] Veritabani mevcut.
 )
 
-:: ============================================================
-:: 6. Public Dosyalari
-:: ============================================================
+REM --- Public dosyalari kopyala ---
 if exist "scripts\copy-public.js" (
-    node scripts\copy-public.js >nul 2>nul
+    call node scripts\copy-public.js >nul 2>nul
 )
 
-:: ============================================================
-:: Masaustu kisayolu olustur
-:: ============================================================
-call :kisayol_olustur
+REM --- Masaustu Kisayolu ---
+echo  [BILGI] Masaustu kisayolu olusturuluyor...
+set "VBS_TEMP=%TEMP%\mpos_lnk.vbs"
+set "HEDEF=%~dp0MagazaPosKurulum.bat"
+set "IKON=%~dp0public\icon.ico"
+if exist "release\win-unpacked" (
+    for %%F in ("release\win-unpacked\*.exe") do set "HEDEF=%%~fF"
+)
+for /f "usebackq delims=" %%D in (`powershell -NoProfile -Command "[Environment]::GetFolderPath('Desktop')"`) do set "MASAUSTU=%%D"
+if defined MASAUSTU (
+    echo Set ws = CreateObject^("WScript.Shell"^)> "%VBS_TEMP%"
+    echo Set lnk = ws.CreateShortcut^("%MASAUSTU%\MagazaPOS.lnk"^)>> "%VBS_TEMP%"
+    echo lnk.TargetPath = "%HEDEF%">> "%VBS_TEMP%"
+    echo lnk.WorkingDirectory = "%~dp0">> "%VBS_TEMP%"
+    echo lnk.Description = "MagazaPOS">> "%VBS_TEMP%"
+    echo lnk.WindowStyle = 1>> "%VBS_TEMP%"
+    echo lnk.Save>> "%VBS_TEMP%"
+    cscript //nologo "%VBS_TEMP%" >nul 2>&1
+    del "%VBS_TEMP%" >nul 2>&1
+    echo  [OK] Masaustu kisayolu olusturuldu.
+) else (
+    echo  [UYARI] Masaustu yolu bulunamadi, kisayol olusturulamadi.
+)
+echo.
 
-:: ============================================================
-:: 7. Secenek Menusu
-:: ============================================================
-cls
+REM --- Menu ---
+echo  ============================================================
+echo    MagazaPOS Hazir! Ne yapmak istiyorsunuz?
+echo  ============================================================
+echo.
+echo    [1] Hizli Baslat (Gelistirici Modu)
+echo    [2] EXE Paketi Olustur (electron-builder)
 echo.
 echo  ============================================================
-echo    MagazaPOS Hazir!
-echo  ============================================================
 echo.
-echo    [1] Hizli Baslat   ^(Gelistirici Modu - Tavsiye Edilen^)
-echo    [2] EXE Paketi Olustur ^(electron-builder ile .exe^)
-echo.
-echo  ============================================================
-echo.
-set /p "SECIM=  Seciminiz (1 veya 2): "
+set /p SECIM="  Seciminiz (1 veya 2): "
 
-if "%SECIM%"=="2" goto :exe_paketle
-goto :hizli_baslat
+if "%SECIM%"=="2" goto EXE_PAKETLE
+goto HIZLI_BASLAT
 
-:: ============================================================
-:hizli_baslat
-:: ============================================================
+:HIZLI_BASLAT
 echo.
 echo  [BILGI] MagazaPOS baslatiliyor...
-echo  Uygulamayi durdurmak icin bu pencereyi kapatin.
+echo  Kapatmak icin bu pencereyi kapatin veya Ctrl+C basin.
 echo.
 call npm run dev
-if errorlevel 1 (
-    echo.
-    echo  [HATA] npm run dev basarisiz oldu! Hata kodu: %errorlevel%
-)
 echo.
+echo  [BILGI] MagazaPOS kapandi.
 pause
-exit /b
+goto BITIS
 
-:: ============================================================
-:exe_paketle
-:: ============================================================
+:EXE_PAKETLE
 echo.
 echo  ============================================================
 echo    EXE Paketi Olusturuluyor...
-echo    Bu islem 5-10 dakika surebilir. Lutfen bekleyin.
+echo    Bu islem 5-10 dakika surebilir.
 echo  ============================================================
 echo.
-
 echo  [1/3] TypeScript derleniyor...
 call npx tsc --skipLibCheck
-if errorlevel 1 (
-    echo  [UYARI] TypeScript hatalari var ama devam ediliyor...
-)
-
 echo  [2/3] Vite build yapiliyor...
 call npx vite build
 if errorlevel 1 (
-    echo.
-    echo  [HATA] Vite build basarisiz oldu!
+    echo  [HATA] Vite build basarisiz!
     pause
-    exit /b 1
+    goto BITIS
 )
-
 echo  [3/3] Electron paketi olusturuluyor...
 call npx electron-builder --win nsis --publish never
 if errorlevel 1 (
-    echo.
-    echo  [HATA] electron-builder basarisiz oldu!
-    echo  Hata detaylari yukarida gorulabilir.
+    echo  [HATA] electron-builder basarisiz!
     pause
-    exit /b 1
+    goto BITIS
 )
-
 echo.
 echo  ============================================================
 echo    [BASARILI] EXE Paketi Olusturuldu!
 echo    release\ klasorunu kontrol edin.
 echo  ============================================================
 echo.
-
-:: Olusturulan EXE'yi baslat
 if exist "release\win-unpacked" (
     for %%F in ("release\win-unpacked\*.exe") do (
         echo  [BILGI] MagazaPOS baslatiliyor: %%~nxF
         start "" "%%~fF"
-        exit /b 0
     )
 )
-
 pause
-exit /b 0
+goto BITIS
 
-:: ============================================================
-:kisayol_olustur
-:: ============================================================
-set "VBS_TEMP=%TEMP%\mpos_lnk_%RANDOM%.vbs"
-set "HEDEF=%~dp0MagazaPosKurulum.bat"
-set "IKON=%~dp0public\icon.ico"
-
-:: EXE varsa kisayol direkt EXE'ye gitsin
-if exist "release\win-unpacked" (
-    for %%F in ("release\win-unpacked\*.exe") do (
-        set "HEDEF=%%~fF"
-    )
-)
-
-for /f "usebackq delims=" %%D in (`powershell -NoProfile -Command "[Environment]::GetFolderPath('Desktop')"`) do set "MASAUSTU=%%D"
-if not defined MASAUSTU goto :eof
-
-(
-    echo Set ws = CreateObject("WScript.Shell"^)
-    echo Set lnk = ws.CreateShortcut("%MASAUSTU%\MagazaPOS.lnk"^)
-    echo lnk.TargetPath = "%HEDEF%"
-    echo lnk.WorkingDirectory = "%~dp0"
-    echo lnk.Description = "MagazaPOS Kasa ve Stok Yonetim Sistemi"
-    echo lnk.WindowStyle = 1
-    if exist "%IKON%" echo lnk.IconLocation = "%IKON%, 0"
-    echo lnk.Save
-) > "%VBS_TEMP%"
-
-cscript //nologo "%VBS_TEMP%" >nul 2>&1
-del "%VBS_TEMP%" >nul 2>&1
-echo  [OK] Masaustune kisayol olusturuldu.
-goto :eof
+:BITIS
+echo.
+echo  Pencereyi kapatmak icin exit yazin veya capraz tusuna basin.
