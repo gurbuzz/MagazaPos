@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu } from 'electron'
 import path from 'path'
 import { startServer } from '../server'
 import { getLocalIpAddress } from '../server/utils/network'
@@ -7,17 +7,35 @@ import { getLocalIpAddress } from '../server/utils/network'
 let mainWindow: BrowserWindow | null = null
 
 function createWindow() {
+  // POS Kasa Ekranı: File, Edit, View, Window, Help menü çubuğunu gizle
+  Menu.setApplicationMenu(null)
+
+  const iconPath = path.resolve(__dirname, '../../public/icon.ico')
+
   mainWindow = new BrowserWindow({
     width: 1366,
     height: 768,
     minWidth: 1024,
     minHeight: 680,
     title: 'Lufian & Jack & Jones - POS ve Stok Yönetimi',
+    autoHideMenuBar: true,
+    icon: iconPath,
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       nodeIntegration: false,
       contextIsolation: true,
     },
+  })
+
+  // Ekranı tam kaplayacak şekilde maximize et
+  mainWindow.maximize()
+
+  // F11 tuşu ile kiosk / çerçevesiz tam ekran geçişi
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.key === 'F11' && input.type === 'keyDown') {
+      mainWindow?.setFullScreen(!mainWindow.isFullScreen())
+      event.preventDefault()
+    }
   })
 
   // Start embedded Node.js Express server

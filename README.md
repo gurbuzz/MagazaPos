@@ -37,16 +37,15 @@ Standart bir Windows programı gibi kurulum sihirbazıyla kurmak isterseniz:
 
 ---
 
-### Yöntem 3: Kaynak Koddan Çalıştırma ve Geliştirme (.bat ile)
+### Yöntem 3: Tek Tıkla Akıllı Başlatıcı (`MagazaPOS.bat`)
 
-Yazılımı kaynak kod üzerinden çalıştırmak veya özelleştirmek isterseniz:
+Yazılımı kaynak kod üzerinden çalıştırmak ve masaüstü kısayoluyla tek tıkla açmak için:
 
 1. **Ön Koşul:** Bilgisayarda **Node.js (LTS sürümü)** kurulu olmalıdır: [nodejs.org](https://nodejs.org/)
-2. **İlk Kurulum (Otomatik Sihirbaz):**
-   * Proje ana klasöründeki **`KURULUM_WIN11.bat`** dosyasına çift tıklayın.
-   * Bu betik; `npm install` bağımlılıklarını kurar, SQLite veritabanı şemasını hazırlar, örnek başlangıç ürünlerini yükler ve dosyaları derler.
-3. **Sistemi Başlatma:**
-   * Kurulum tamamlandıktan sonra her zaman **`BASLAT_WIN11.bat`** dosyasına çift tıklayarak sistemi başlatabilirsiniz.
+2. **Tek Tıkla Başlatın:**
+   * Proje ana klasöründeki **`MagazaPOS.bat`** dosyasına çift tıklayın.
+   * **İlk Çalıştırmada:** Sistem eksikleri algılar; bağımlılıkları (`npm install`), veritabanı şemasını ve örnek ürünleri otomatik yükler, ardından **Windows Masaüstünüze logolu "MagazaPOS" kısayolunu ekler**.
+   * **Sonraki Günlerde:** Doğrudan masaüstünüzdeki **MagazaPOS** simgesine tıklayarak kasayı 2-3 saniyede açabilirsiniz. Klasör içine girmenize dahi gerek kalmaz!
 
 ---
 
