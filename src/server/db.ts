@@ -6,8 +6,16 @@ import { getUserDataDir } from './utils/paths'
 // Windows dosya yollarını SQLite URI formatına dönüştürür (ters eğik çizgi '\\' yerine '/')
 // Windows'ta 'file:C:\\...' kullanımı SQLite Error Code 14 (SQLITE_CANTOPEN) hatasına yol açar!
 export function toSqliteUrl(filePath: string): string {
-  const normalized = filePath.replace(/\\/g, '/')
-  return normalized.startsWith('file:') ? normalized : `file:${normalized}`
+  let normalized = filePath.replace(/\\/g, '/')
+  if (!normalized.startsWith('file:')) {
+    // Windows absolute path starting with drive letter needs triple slash
+    if (normalized.match(/^[a-zA-Z]:\//)) {
+      normalized = `file:///${normalized}`
+    } else {
+      normalized = `file:${normalized}`
+    }
+  }
+  return normalized
 }
 
 // Veritabanının dolu ve tablolarının mevcut olduğunu doğrular (boş veya 0-byte SQLite dosyalarını eler)
@@ -49,13 +57,15 @@ function initializeDatabaseFile(): string {
     }
   } catch (e) {}
 
+  const resourcesPath = (process as any).resourcesPath || ''
+
   const candidateSeedDbs = [
     // 1. extraResources: "to": "dev.db" -> process.resourcesPath/dev.db
-    path.join((process as any).resourcesPath || '', 'dev.db'),
+    path.join(resourcesPath, 'dev.db'),
     // 2. appPath/../dev.db (resources/dev.db)
     appPath ? path.join(path.dirname(appPath), 'dev.db') : '',
     // 3. Fallback yollar
-    path.join((process as any).resourcesPath || '', 'prisma', 'dev.db'),
+    path.join(resourcesPath, 'prisma', 'dev.db'),
     path.resolve(process.cwd(), 'resources', 'dev.db'),
     path.resolve(process.cwd(), 'prisma', 'dev.db'),
     path.resolve(process.cwd(), 'dev.db'),
@@ -82,7 +92,8 @@ function initializeDatabaseFile(): string {
     }
   }
 
-  // Geliştirme modu fallback
+  // Geliştirme modu fallback veya paketlenmiş uygulamada eksik dev.db
+  console.warn('[DB] UYARI: Gecerli bir hazir veritabani (dev.db) bulunamadi! Bos veritabani olusturulacak (Tablolar eksik olabilir).')
   const defaultLocalDb = path.resolve(process.cwd(), 'prisma/dev.db')
   const dir = path.dirname(defaultLocalDb)
   if (!fs.existsSync(dir)) {
@@ -107,16 +118,18 @@ function configurePrismaEngine() {
     }
   } catch (e) {}
 
+  const resourcesPath = (process as any).resourcesPath || ''
+
   const candidateEnginePaths = [
     // 1. Electron unpacked asar via process.resourcesPath
-    path.join((process as any).resourcesPath || '', 'app.asar.unpacked', 'node_modules', '.prisma', 'client', engineFileName),
+    path.join(resourcesPath, 'app.asar.unpacked', 'node_modules', '.prisma', 'client', engineFileName),
     // 2. Electron unpacked asar via app.getAppPath()
     appPath ? path.join(path.dirname(appPath), 'app.asar.unpacked', 'node_modules', '.prisma', 'client', engineFileName) : '',
     // 3. Fallback relative to __dirname
     path.resolve(__dirname, '..', '..', '..', 'app.asar.unpacked', 'node_modules', '.prisma', 'client', engineFileName),
     path.resolve(__dirname, '..', '..', 'app.asar.unpacked', 'node_modules', '.prisma', 'client', engineFileName),
     // 4. Local node_modules (dev / unpacked)
-    path.join((process as any).resourcesPath || '', 'node_modules', '.prisma', 'client', engineFileName),
+    path.join(resourcesPath, 'node_modules', '.prisma', 'client', engineFileName),
     path.resolve(process.cwd(), 'node_modules', '.prisma', 'client', engineFileName),
     path.resolve(__dirname, '..', '..', 'node_modules', '.prisma', 'client', engineFileName),
     path.resolve(__dirname, '..', '..', '..', 'node_modules', '.prisma', 'client', engineFileName),
@@ -133,12 +146,15 @@ function configurePrismaEngine() {
   if (found) {
     process.env.PRISMA_QUERY_ENGINE_LIBRARY = found
     console.log('[DB] PRISMA_QUERY_ENGINE_LIBRARY configured:', found)
+  } else {
+    console.warn('[DB] PRISMA_QUERY_ENGINE_LIBRARY BULUNAMADI! Prisma baslatilirken hata olusabilir.')
   }
 }
 
 configurePrismaEngine()
 const dbUrl = initializeDatabaseFile()
 process.env.DATABASE_URL = dbUrl
+console.log(`[DB] Prisma DATABASE_URL: ${dbUrl}`)
 
 export const prisma = new PrismaClient({
   datasources: {
@@ -156,7 +172,7 @@ export async function initDbPragmas() {
     await prisma.$queryRawUnsafe('PRAGMA synchronous=NORMAL;')
     console.log(`[DB] SQLite WAL modu ve busy_timeout (5000ms) aktifleştirildi. [${dbUrl}]`)
   } catch (err) {
-    console.error('[DB] PRAGMA ayarları uygulanırken hata:', err)
+    console.error('[DB] PRAGMA ayarları uygulanırken hata (Veritabani baglantisi saglanamamis veya tablolar eksik olabilir):', err)
   }
 }
 

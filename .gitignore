@@ -9,8 +9,8 @@ release/
 out/
 
 # Local Database & SQLite files
-prisma/dev.db
 prisma/*.db
+!prisma/dev.db
 prisma/*.db-journal
 prisma/*.db-shm
 prisma/*.db-wal
