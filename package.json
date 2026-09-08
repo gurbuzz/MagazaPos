@@ -44,7 +44,7 @@
     "extraResources": [
       {
         "from": "prisma/dev.db",
-        "to": "prisma/dev.db"
+        "to": "dev.db"
       }
     ],
     "win": {

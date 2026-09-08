@@ -1,7 +1,6 @@
 import { PrismaClient } from '@prisma/client'
 import path from 'path'
 import fs from 'fs'
-import { execSync } from 'child_process'
 import { getUserDataDir } from './utils/paths'
 
 // Windows dosya yollarını SQLite URI formatına dönüştürür (ters eğik çizgi '\\' yerine '/')
@@ -27,6 +26,11 @@ function isDatabaseValid(filePath: string): boolean {
 
 function initializeDatabaseFile(): string {
   const userDataDir = getUserDataDir()
+  if (!fs.existsSync(userDataDir)) {
+    try {
+      fs.mkdirSync(userDataDir, { recursive: true })
+    } catch (e) {}
+  }
   const targetDbPath = path.join(userDataDir, 'magazapos.db')
 
   // Eğer AppData içindeki kalıcı veritabanı zaten varsa ve geçerliyse doğrudan onu kullan
@@ -35,15 +39,29 @@ function initializeDatabaseFile(): string {
     return toSqliteUrl(targetDbPath)
   }
 
-  // İlk çalıştırma veya eksik/bozuk veritabanı: Paketlenmiş veya yerel hazır/örnek veritabanını ara
+  // İlk çalıştırma veya eksik/bozuk veritabanı: resources altındaki hazır dev.db şablonunu ara
+  let appPath = ''
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { app } = require('electron')
+    if (app && typeof app.getAppPath === 'function') {
+      appPath = app.getAppPath()
+    }
+  } catch (e) {}
+
   const candidateSeedDbs = [
+    // 1. extraResources: "to": "dev.db" -> process.resourcesPath/dev.db
+    path.join((process as any).resourcesPath || '', 'dev.db'),
+    // 2. appPath/../dev.db (resources/dev.db)
+    appPath ? path.join(path.dirname(appPath), 'dev.db') : '',
+    // 3. Fallback yollar
     path.join((process as any).resourcesPath || '', 'prisma', 'dev.db'),
-    path.resolve(process.cwd(), 'resources', 'prisma', 'dev.db'),
+    path.resolve(process.cwd(), 'resources', 'dev.db'),
     path.resolve(process.cwd(), 'prisma', 'dev.db'),
     path.resolve(process.cwd(), 'dev.db'),
     path.resolve(__dirname, '..', '..', '..', 'prisma', 'dev.db'),
     path.resolve(__dirname, '..', '..', 'prisma', 'dev.db'),
-  ]
+  ].filter(Boolean)
 
   const foundSeed = candidateSeedDbs.find((p) => {
     try {
@@ -55,10 +73,6 @@ function initializeDatabaseFile(): string {
 
   if (foundSeed) {
     try {
-      const targetDir = path.dirname(targetDbPath)
-      if (!fs.existsSync(targetDir)) {
-        fs.mkdirSync(targetDir, { recursive: true })
-      }
       fs.copyFileSync(foundSeed, targetDbPath)
       console.log(`[DB] Hazır veritabanı AppData konumuna başarıyla kopyalandı:\n  Kaynak: ${foundSeed}\n  Hedef: ${targetDbPath}`)
       return toSqliteUrl(targetDbPath)
@@ -68,7 +82,7 @@ function initializeDatabaseFile(): string {
     }
   }
 
-  // Geliştirme modu fallback (eğer hiçbir veritabanı bulunamazsa)
+  // Geliştirme modu fallback
   const defaultLocalDb = path.resolve(process.cwd(), 'prisma/dev.db')
   const dir = path.dirname(defaultLocalDb)
   if (!fs.existsSync(dir)) {
@@ -84,17 +98,29 @@ function configurePrismaEngine() {
   const isWindows = process.platform === 'win32'
   const engineFileName = isWindows ? 'query_engine-windows.dll.node' : 'libquery_engine-debian-openssl-3.0.x.so.node'
 
+  let appPath = ''
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { app } = require('electron')
+    if (app && typeof app.getAppPath === 'function') {
+      appPath = app.getAppPath()
+    }
+  } catch (e) {}
+
   const candidateEnginePaths = [
-    // Unpacked asar paths in Electron production (resources/app.asar.unpacked/...)
+    // 1. Electron unpacked asar via process.resourcesPath
     path.join((process as any).resourcesPath || '', 'app.asar.unpacked', 'node_modules', '.prisma', 'client', engineFileName),
-    path.join((process as any).resourcesPath || '', 'node_modules', '.prisma', 'client', engineFileName),
+    // 2. Electron unpacked asar via app.getAppPath()
+    appPath ? path.join(path.dirname(appPath), 'app.asar.unpacked', 'node_modules', '.prisma', 'client', engineFileName) : '',
+    // 3. Fallback relative to __dirname
     path.resolve(__dirname, '..', '..', '..', 'app.asar.unpacked', 'node_modules', '.prisma', 'client', engineFileName),
     path.resolve(__dirname, '..', '..', 'app.asar.unpacked', 'node_modules', '.prisma', 'client', engineFileName),
-    path.resolve(process.cwd(), 'resources', 'app.asar.unpacked', 'node_modules', '.prisma', 'client', engineFileName),
+    // 4. Local node_modules (dev / unpacked)
+    path.join((process as any).resourcesPath || '', 'node_modules', '.prisma', 'client', engineFileName),
     path.resolve(process.cwd(), 'node_modules', '.prisma', 'client', engineFileName),
     path.resolve(__dirname, '..', '..', 'node_modules', '.prisma', 'client', engineFileName),
     path.resolve(__dirname, '..', '..', '..', 'node_modules', '.prisma', 'client', engineFileName),
-  ]
+  ].filter(Boolean)
 
   const found = candidateEnginePaths.find((p) => {
     try {
@@ -122,56 +148,6 @@ export const prisma = new PrismaClient({
   },
 })
 
-// Sadece geliştirme ortamında (npx mevcutken) eksik tablo varsa şemayı oluştur
-async function ensureDevDatabaseSchema() {
-  // Paketli prod ortamında npx çalıştırmayı deneme (npx yoktur)
-  const isPackaged = !process.env.VITE_DEV_SERVER_URL && process.env.NODE_ENV === 'production'
-  if (isPackaged) {
-    return
-  }
-
-  try {
-    const tables: any[] = await prisma.$queryRawUnsafe(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name='Category';"
-    )
-    if (!tables || tables.length === 0) {
-      console.log('[DB-DEV] Veritabanı tabloları bulunamadı. Şema dev modunda oluşturuluyor...')
-
-      const schemaPath = [
-        path.resolve(process.cwd(), 'prisma/schema.prisma'),
-        path.resolve(__dirname, '../../prisma/schema.prisma'),
-      ].find((p) => fs.existsSync(p))
-
-      if (schemaPath) {
-        try {
-          execSync(`npx prisma db push --schema="${schemaPath}" --skip-generate --accept-data-loss`, {
-            stdio: 'pipe',
-            env: { ...process.env, DATABASE_URL: dbUrl },
-          })
-          console.log('[DB-DEV] Veritabanı şeması oluşturuldu.')
-
-          const seedPath = [
-            path.resolve(process.cwd(), 'prisma/seed.ts'),
-            path.resolve(__dirname, '../../prisma/seed.ts'),
-          ].find((p) => fs.existsSync(p))
-
-          if (seedPath) {
-            execSync(`npx tsx "${seedPath}"`, {
-              stdio: 'pipe',
-              env: { ...process.env, DATABASE_URL: dbUrl },
-            })
-            console.log('[DB-DEV] Başlangıç verileri yüklendi.')
-          }
-        } catch (e) {
-          console.warn('[DB-DEV] Şema oluşturma uyarısı:', e)
-        }
-      }
-    }
-  } catch (err) {
-    console.warn('[DB-DEV] Tablo kontrolü:', err)
-  }
-}
-
 // Configure SQLite WAL mode & busy timeout for concurrent read/write operations
 export async function initDbPragmas() {
   try {
@@ -179,8 +155,6 @@ export async function initDbPragmas() {
     await prisma.$queryRawUnsafe('PRAGMA busy_timeout=5000;')
     await prisma.$queryRawUnsafe('PRAGMA synchronous=NORMAL;')
     console.log(`[DB] SQLite WAL modu ve busy_timeout (5000ms) aktifleştirildi. [${dbUrl}]`)
-
-    await ensureDevDatabaseSchema()
   } catch (err) {
     console.error('[DB] PRAGMA ayarları uygulanırken hata:', err)
   }
