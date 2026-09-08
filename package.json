@@ -27,7 +27,6 @@
       "dist-electron/**/*",
       "src/server/public/**/*",
       "prisma/**/*",
-      ".env",
       "node_modules/@prisma/**/*",
       "node_modules/.prisma/**/*",
       {
