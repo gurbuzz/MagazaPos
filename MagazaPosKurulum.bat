@@ -180,17 +180,13 @@ echo    [BASARILI] MagazaPOS Kurulum Paketi Olusturuldu!
 echo  ============================================================
 echo.
 
-REM Setup dosyasini baska PC'lere tasimak icin Masaustune 'MagazaPOS-Kurulum.exe' adiyla kopyala
+REM Masaustu temizligi: Varsa eski kurulum exe'sini masaustunden temizle (sadece kisayol kalsin)
 for /f "usebackq delims=" %%D in (`powershell -NoProfile -Command "[Environment]::GetFolderPath('Desktop')"`) do set "MASA=%%D"
 if defined MASA (
-    for %%F in ("release\*.exe") do (
-        copy /y "%%~fF" "%MASA%\MagazaPOS-Kurulum.exe" >nul 2>&1
-        echo  [BILGI] Diger bilgisayarlara kurulum yapmak icin:
-        echo         Masaustune 'MagazaPOS-Kurulum.exe' kopyalandi.
-    )
+    if exist "%MASA%\MagazaPOS-Kurulum.exe" del /f /q "%MASA%\MagazaPOS-Kurulum.exe" >nul 2>&1
+    if exist "%MASA%\MagazaPOS Setup *.exe" del /f /q "%MASA%\MagazaPOS Setup *.exe" >nul 2>&1
 )
 
-echo.
 echo  [BILGI] MagazaPOS simdi bu bilgisayara kuruluyor ve baslatiliyor...
 for %%F in ("release\*.exe") do (
     start "" "%%~fF"

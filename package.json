@@ -29,15 +29,12 @@
       "prisma/**/*",
       ".env",
       "node_modules/@prisma/**/*",
-      {
-        "from": "node_modules/.prisma",
-        "to": "node_modules/.prisma",
-        "filter": ["**/*"]
-      }
+      "node_modules/.prisma/**/*"
     ],
     "asarUnpack": [
-      "**/node_modules/.prisma/client/*.node",
-      "**/node_modules/@prisma/client/*.node"
+      "**/node_modules/.prisma/**/*",
+      "**/node_modules/@prisma/**/*",
+      "**/prisma/**/*"
     ],
     "extraResources": [
       {

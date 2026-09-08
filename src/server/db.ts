@@ -65,6 +65,34 @@ function initializeDatabaseFile(): string {
   return toSqliteUrl(defaultLocalDb)
 }
 
+function configurePrismaEngine() {
+  const isWindows = process.platform === 'win32'
+  const engineFileName = isWindows ? 'query_engine-windows.dll.node' : 'libquery_engine-debian-openssl-3.0.x.so.node'
+
+  const candidateEnginePaths = [
+    // Unpacked asar paths in Electron production
+    path.join((process as any).resourcesPath || '', 'app.asar.unpacked/node_modules/.prisma/client', engineFileName),
+    path.join((process as any).resourcesPath || '', 'node_modules/.prisma/client', engineFileName),
+    path.resolve(process.cwd(), 'node_modules/.prisma/client', engineFileName),
+    path.resolve(__dirname, '../../node_modules/.prisma/client', engineFileName),
+    path.resolve(__dirname, '../../../node_modules/.prisma/client', engineFileName),
+  ]
+
+  const found = candidateEnginePaths.find((p) => {
+    try {
+      return fs.existsSync(p) && fs.statSync(p).size > 0
+    } catch {
+      return false
+    }
+  })
+
+  if (found) {
+    process.env.PRISMA_QUERY_ENGINE_LIBRARY = found
+    console.log('[DB] PRISMA_QUERY_ENGINE_LIBRARY configured:', found)
+  }
+}
+
+configurePrismaEngine()
 const dbUrl = initializeDatabaseFile()
 process.env.DATABASE_URL = dbUrl
 
