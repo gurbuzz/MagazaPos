@@ -11,28 +11,43 @@ export function toSqliteUrl(filePath: string): string {
   return normalized.startsWith('file:') ? normalized : `file:${normalized}`
 }
 
+// Veritabanının dolu ve tablolarının mevcut olduğunu doğrular (boş veya 0-byte SQLite dosyalarını eler)
+function isDatabaseValid(filePath: string): boolean {
+  try {
+    if (!fs.existsSync(filePath)) return false
+    const stat = fs.statSync(filePath)
+    // Şema ve başlangıç verileriyle dolu bir MagazaPOS veritabanı ~108 KB'dir.
+    // 20 KB'den küçükse tablolar eksik veya boştur.
+    if (stat.size < 20480) return false
+    return true
+  } catch {
+    return false
+  }
+}
+
 function initializeDatabaseFile(): string {
   const userDataDir = getUserDataDir()
   const targetDbPath = path.join(userDataDir, 'magazapos.db')
 
-  // Eğer AppData içindeki kalıcı veritabanı zaten varsa doğrudan onu kullan
-  if (fs.existsSync(targetDbPath) && fs.statSync(targetDbPath).size > 0) {
+  // Eğer AppData içindeki kalıcı veritabanı zaten varsa ve geçerliyse doğrudan onu kullan
+  if (isDatabaseValid(targetDbPath)) {
     console.log(`[DB] Mevcut kalıcı veritabanı kullanılıyor: ${targetDbPath}`)
     return toSqliteUrl(targetDbPath)
   }
 
-  // İlk çalıştırma: Paketlenmiş veya yerel hazır/örnek veritabanını ara
+  // İlk çalıştırma veya eksik/bozuk veritabanı: Paketlenmiş veya yerel hazır/örnek veritabanını ara
   const candidateSeedDbs = [
-    path.join((process as any).resourcesPath || '', 'prisma/dev.db'),
-    path.resolve(process.cwd(), 'prisma/dev.db'),
+    path.join((process as any).resourcesPath || '', 'prisma', 'dev.db'),
+    path.resolve(process.cwd(), 'resources', 'prisma', 'dev.db'),
+    path.resolve(process.cwd(), 'prisma', 'dev.db'),
     path.resolve(process.cwd(), 'dev.db'),
-    path.resolve(__dirname, '../../prisma/dev.db'),
-    path.resolve(__dirname, '../../../prisma/dev.db'),
+    path.resolve(__dirname, '..', '..', '..', 'prisma', 'dev.db'),
+    path.resolve(__dirname, '..', '..', 'prisma', 'dev.db'),
   ]
 
   const foundSeed = candidateSeedDbs.find((p) => {
     try {
-      return fs.existsSync(p) && fs.statSync(p).size > 0
+      return fs.existsSync(p) && fs.statSync(p).size > 20480
     } catch {
       return false
     }
@@ -70,12 +85,15 @@ function configurePrismaEngine() {
   const engineFileName = isWindows ? 'query_engine-windows.dll.node' : 'libquery_engine-debian-openssl-3.0.x.so.node'
 
   const candidateEnginePaths = [
-    // Unpacked asar paths in Electron production
-    path.join((process as any).resourcesPath || '', 'app.asar.unpacked/node_modules/.prisma/client', engineFileName),
-    path.join((process as any).resourcesPath || '', 'node_modules/.prisma/client', engineFileName),
-    path.resolve(process.cwd(), 'node_modules/.prisma/client', engineFileName),
-    path.resolve(__dirname, '../../node_modules/.prisma/client', engineFileName),
-    path.resolve(__dirname, '../../../node_modules/.prisma/client', engineFileName),
+    // Unpacked asar paths in Electron production (resources/app.asar.unpacked/...)
+    path.join((process as any).resourcesPath || '', 'app.asar.unpacked', 'node_modules', '.prisma', 'client', engineFileName),
+    path.join((process as any).resourcesPath || '', 'node_modules', '.prisma', 'client', engineFileName),
+    path.resolve(__dirname, '..', '..', '..', 'app.asar.unpacked', 'node_modules', '.prisma', 'client', engineFileName),
+    path.resolve(__dirname, '..', '..', 'app.asar.unpacked', 'node_modules', '.prisma', 'client', engineFileName),
+    path.resolve(process.cwd(), 'resources', 'app.asar.unpacked', 'node_modules', '.prisma', 'client', engineFileName),
+    path.resolve(process.cwd(), 'node_modules', '.prisma', 'client', engineFileName),
+    path.resolve(__dirname, '..', '..', 'node_modules', '.prisma', 'client', engineFileName),
+    path.resolve(__dirname, '..', '..', '..', 'node_modules', '.prisma', 'client', engineFileName),
   ]
 
   const found = candidateEnginePaths.find((p) => {

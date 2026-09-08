@@ -141,6 +141,9 @@ if exist "%LOCALAPPDATA%\electron-builder\Cache\winCodeSign" (
     rmdir /s /q "%LOCALAPPDATA%\electron-builder\Cache\winCodeSign" >nul 2>&1
 )
 
+REM Eger MagazaPOS arkada aciksa dosya kilitlenmesini onlemek icin kapat
+taskkill /F /IM MagazaPOS.exe >nul 2>&1
+
 echo  [1/4] Veritabani semasi ve ornek veriler pakete hazirlaniyor...
 call npx prisma generate
 call npx prisma db push --accept-data-loss
@@ -148,6 +151,7 @@ call npx tsx prisma/seed.ts
 if not exist "prisma\dev.db" (
     if exist "dev.db" copy /y "dev.db" "prisma\dev.db" >nul 2>&1
 )
+if exist "prisma\dev.db" copy /y "prisma\dev.db" "dev.db" >nul 2>&1
 echo  [OK] Veritabani pakete hazirlandi.
 
 echo.
