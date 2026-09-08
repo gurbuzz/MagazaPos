@@ -2,19 +2,7 @@ import { PrismaClient } from '@prisma/client'
 import path from 'path'
 import fs from 'fs'
 import { execSync } from 'child_process'
-
-// Otomatik .env kontrolü ve oluşturma
-function ensureEnvFile() {
-  try {
-    const envPath = path.resolve(process.cwd(), '.env')
-    if (!fs.existsSync(envPath)) {
-      fs.writeFileSync(envPath, 'DATABASE_URL="file:./dev.db"\nPORT=3782\n', 'utf-8')
-      console.log('[DB] Eksik .env dosyası otomatik olarak oluşturuldu.')
-    }
-  } catch (e) {
-    // Yazma izin hatası durumunda sessizce devam et
-  }
-}
+import { getUserDataDir } from './utils/paths'
 
 // Windows dosya yollarını SQLite URI formatına dönüştürür (ters eğik çizgi '\\' yerine '/')
 // Windows'ta 'file:C:\\...' kullanımı SQLite Error Code 14 (SQLITE_CANTOPEN) hatasına yol açar!
@@ -23,41 +11,61 @@ export function toSqliteUrl(filePath: string): string {
   return normalized.startsWith('file:') ? normalized : `file:${normalized}`
 }
 
-function getDatabaseUrl(): string {
-  ensureEnvFile()
+function initializeDatabaseFile(): string {
+  const userDataDir = getUserDataDir()
+  const targetDbPath = path.join(userDataDir, 'magazapos.db')
 
-  if (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('file:') && process.env.DATABASE_URL !== 'file:./dev.db') {
-    return toSqliteUrl(process.env.DATABASE_URL)
+  // Eğer AppData içindeki kalıcı veritabanı zaten varsa doğrudan onu kullan
+  if (fs.existsSync(targetDbPath) && fs.statSync(targetDbPath).size > 0) {
+    console.log(`[DB] Mevcut kalıcı veritabanı kullanılıyor: ${targetDbPath}`)
+    return toSqliteUrl(targetDbPath)
   }
 
-  const possiblePaths = [
+  // İlk çalıştırma: Paketlenmiş veya yerel hazır/örnek veritabanını ara
+  const candidateSeedDbs = [
+    path.join((process as any).resourcesPath || '', 'prisma/dev.db'),
     path.resolve(process.cwd(), 'prisma/dev.db'),
     path.resolve(process.cwd(), 'dev.db'),
     path.resolve(__dirname, '../../prisma/dev.db'),
     path.resolve(__dirname, '../../../prisma/dev.db'),
-    path.join((process as any).resourcesPath || '', 'prisma/dev.db'),
   ]
 
-  const found = possiblePaths.find((p) => fs.existsSync(p))
-  if (found) {
-    return toSqliteUrl(found)
-  }
-
-  // Varsayılan hedef: proje kökündeki prisma/dev.db
-  const defaultPath = path.resolve(process.cwd(), 'prisma/dev.db')
-  const dir = path.dirname(defaultPath)
-  if (!fs.existsSync(dir)) {
+  const foundSeed = candidateSeedDbs.find((p) => {
     try {
-      fs.mkdirSync(dir, { recursive: true })
-    } catch (e) {
-      console.error('[DB] Veritabanı klasörü oluşturulamadı:', e)
+      return fs.existsSync(p) && fs.statSync(p).size > 0
+    } catch {
+      return false
+    }
+  })
+
+  if (foundSeed) {
+    try {
+      const targetDir = path.dirname(targetDbPath)
+      if (!fs.existsSync(targetDir)) {
+        fs.mkdirSync(targetDir, { recursive: true })
+      }
+      fs.copyFileSync(foundSeed, targetDbPath)
+      console.log(`[DB] Hazır veritabanı AppData konumuna başarıyla kopyalandı:\n  Kaynak: ${foundSeed}\n  Hedef: ${targetDbPath}`)
+      return toSqliteUrl(targetDbPath)
+    } catch (err) {
+      console.error('[DB] Hazır veritabanı kopyalanırken hata, doğrudan kaynak kullanılacak:', err)
+      return toSqliteUrl(foundSeed)
     }
   }
 
-  return toSqliteUrl(defaultPath)
+  // Geliştirme modu fallback (eğer hiçbir veritabanı bulunamazsa)
+  const defaultLocalDb = path.resolve(process.cwd(), 'prisma/dev.db')
+  const dir = path.dirname(defaultLocalDb)
+  if (!fs.existsSync(dir)) {
+    try {
+      fs.mkdirSync(dir, { recursive: true })
+    } catch (e) {}
+  }
+
+  return toSqliteUrl(defaultLocalDb)
 }
 
-const dbUrl = getDatabaseUrl()
+const dbUrl = initializeDatabaseFile()
 process.env.DATABASE_URL = dbUrl
 
 export const prisma = new PrismaClient({
@@ -68,28 +76,33 @@ export const prisma = new PrismaClient({
   },
 })
 
-// Veritabanında tablolar yoksa (yeni/boş dev.db) otomatik olarak şemayı oluştur
-async function ensureDatabaseSchema() {
+// Sadece geliştirme ortamında (npx mevcutken) eksik tablo varsa şemayı oluştur
+async function ensureDevDatabaseSchema() {
+  // Paketli prod ortamında npx çalıştırmayı deneme (npx yoktur)
+  const isPackaged = !process.env.VITE_DEV_SERVER_URL && process.env.NODE_ENV === 'production'
+  if (isPackaged) {
+    return
+  }
+
   try {
     const tables: any[] = await prisma.$queryRawUnsafe(
       "SELECT name FROM sqlite_master WHERE type='table' AND name='Category';"
     )
     if (!tables || tables.length === 0) {
-      console.log('[DB] Veritabanı tabloları bulunamadı. Şema otomatik oluşturuluyor...')
+      console.log('[DB-DEV] Veritabanı tabloları bulunamadı. Şema dev modunda oluşturuluyor...')
 
       const schemaPath = [
         path.resolve(process.cwd(), 'prisma/schema.prisma'),
         path.resolve(__dirname, '../../prisma/schema.prisma'),
-        path.resolve(__dirname, '../../../prisma/schema.prisma'),
       ].find((p) => fs.existsSync(p))
 
       if (schemaPath) {
         try {
-          execSync(`npx prisma db push --schema="${schemaPath}" --skip-generate`, {
+          execSync(`npx prisma db push --schema="${schemaPath}" --skip-generate --accept-data-loss`, {
             stdio: 'pipe',
             env: { ...process.env, DATABASE_URL: dbUrl },
           })
-          console.log('[DB] Veritabanı şeması başarıyla oluşturuldu.')
+          console.log('[DB-DEV] Veritabanı şeması oluşturuldu.')
 
           const seedPath = [
             path.resolve(process.cwd(), 'prisma/seed.ts'),
@@ -97,23 +110,19 @@ async function ensureDatabaseSchema() {
           ].find((p) => fs.existsSync(p))
 
           if (seedPath) {
-            try {
-              execSync(`npx tsx "${seedPath}"`, {
-                stdio: 'pipe',
-                env: { ...process.env, DATABASE_URL: dbUrl },
-              })
-              console.log('[DB] Başlangıç verileri başarıyla yüklendi.')
-            } catch (seedErr) {
-              console.warn('[DB] Seed verisi yüklenirken uyarı:', seedErr)
-            }
+            execSync(`npx tsx "${seedPath}"`, {
+              stdio: 'pipe',
+              env: { ...process.env, DATABASE_URL: dbUrl },
+            })
+            console.log('[DB-DEV] Başlangıç verileri yüklendi.')
           }
-        } catch (pushErr) {
-          console.error('[DB] prisma db push hatası:', pushErr)
+        } catch (e) {
+          console.warn('[DB-DEV] Şema oluşturma uyarısı:', e)
         }
       }
     }
   } catch (err) {
-    console.error('[DB] Tablo kontrolü sırasında hata:', err)
+    console.warn('[DB-DEV] Tablo kontrolü:', err)
   }
 }
 
@@ -125,12 +134,10 @@ export async function initDbPragmas() {
     await prisma.$queryRawUnsafe('PRAGMA synchronous=NORMAL;')
     console.log(`[DB] SQLite WAL modu ve busy_timeout (5000ms) aktifleştirildi. [${dbUrl}]`)
 
-    await ensureDatabaseSchema()
+    await ensureDevDatabaseSchema()
   } catch (err) {
     console.error('[DB] PRAGMA ayarları uygulanırken hata:', err)
   }
 }
 
 initDbPragmas()
-
-

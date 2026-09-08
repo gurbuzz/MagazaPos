@@ -12,6 +12,7 @@ cls
 echo.
 echo  ============================================================
 echo    MagazaPOS - Kasa ve Stok Yonetim Sistemi
+echo    Lufian ^& Jack Jones POS
 echo  ============================================================
 echo.
 
@@ -33,7 +34,7 @@ echo.
 REM --- .env Dosyasi ---
 if not exist ".env" (
     echo  [BILGI] .env dosyasi olusturuluyor...
-    echo DATABASE_URL="file:./dev.db"> ".env"
+    echo DATABASE_URL="file:./prisma/dev.db"> ".env"
     echo PORT=3782>> ".env"
     echo  [OK] .env olusturuldu.
     echo.
@@ -95,38 +96,14 @@ if exist "scripts\copy-public.js" (
     call node scripts\copy-public.js >nul 2>nul
 )
 
-REM --- Masaustu Kisayolu ---
-echo  [BILGI] Masaustu kisayolu olusturuluyor...
-set "VBS_TEMP=%TEMP%\mpos_lnk.vbs"
-set "HEDEF=%~dp0MagazaPosKurulum.bat"
-set "IKON=%~dp0public\icon.ico"
-if exist "release\win-unpacked" (
-    for %%F in ("release\win-unpacked\*.exe") do set "HEDEF=%%~fF"
-)
-for /f "usebackq delims=" %%D in (`powershell -NoProfile -Command "[Environment]::GetFolderPath('Desktop')"`) do set "MASAUSTU=%%D"
-if defined MASAUSTU (
-    echo Set ws = CreateObject^("WScript.Shell"^)> "%VBS_TEMP%"
-    echo Set lnk = ws.CreateShortcut^("%MASAUSTU%\MagazaPOS.lnk"^)>> "%VBS_TEMP%"
-    echo lnk.TargetPath = "%HEDEF%">> "%VBS_TEMP%"
-    echo lnk.WorkingDirectory = "%~dp0">> "%VBS_TEMP%"
-    echo lnk.Description = "MagazaPOS">> "%VBS_TEMP%"
-    echo lnk.WindowStyle = 1>> "%VBS_TEMP%"
-    echo lnk.Save>> "%VBS_TEMP%"
-    cscript //nologo "%VBS_TEMP%" >nul 2>&1
-    del "%VBS_TEMP%" >nul 2>&1
-    echo  [OK] Masaustu kisayolu olusturuldu.
-) else (
-    echo  [UYARI] Masaustu yolu bulunamadi, kisayol olusturulamadi.
-)
-echo.
-
 REM --- Menu ---
+echo.
 echo  ============================================================
 echo    MagazaPOS Hazir! Ne yapmak istiyorsunuz?
 echo  ============================================================
 echo.
-echo    [1] Hizli Baslat (Gelistirici Modu)
-echo    [2] EXE Paketi Olustur (electron-builder)
+echo    [1] Hizli Baslat (Gelistirici Modu - Terminal arkada acik kalir)
+echo    [2] Windows .EXE Olarak Paketle ve Kur (Masaustu Simgesi ile Sifir Terminal)
 echo.
 echo  ============================================================
 echo.
@@ -149,84 +126,87 @@ goto BITIS
 :EXE_PAKETLE
 echo.
 echo  ============================================================
-echo    EXE Paketi Olusturuluyor...
-echo    Bu islem 5-10 dakika surebilir.
+echo    MagazaPOS Windows Paketi Olusturuluyor...
+echo    Lutfen bekleyiniz (Bu islem bir defaya mahsus yapilir)...
 echo  ============================================================
 echo.
 
 REM Code signing devre disi birak (sertifika yok, symlink hatasi onlenir)
 set CSC_IDENTITY_AUTO_DISCOVERY=false
 set WIN_CSC_LINK=
-set DEBUG=electron-builder
 
-REM Sorunlu winCodeSign cache temizle (symlink hatasi kaynagi)
+REM Sorunlu winCodeSign cache temizle
 if exist "%LOCALAPPDATA%\electron-builder\Cache\winCodeSign" (
-    echo  [BILGI] Sorunlu winCodeSign cache temizleniyor...
+    echo  [BILGI] winCodeSign cache temizleniyor...
     rmdir /s /q "%LOCALAPPDATA%\electron-builder\Cache\winCodeSign" >nul 2>&1
-    echo  [OK] Cache temizlendi.
 )
 
-echo  [1/3] TypeScript derleniyor...
+echo  [1/4] Veritabani semasi ve ornek veriler pakete hazirlaniyor...
+call npx prisma generate
+call npx prisma db push --accept-data-loss
+call npx tsx prisma/seed.ts
+if not exist "prisma\dev.db" (
+    if exist "dev.db" copy /y "dev.db" "prisma\dev.db" >nul 2>&1
+)
+echo  [OK] Veritabani pakete hazirlandi.
+
+echo.
+echo  [2/4] TypeScript derleniyor...
 call npx tsc --skipLibCheck
-echo  [2/3] Vite build yapiliyor...
+echo.
+
+echo  [3/4] Arayuz (Vite) derleniyor...
 call npx vite build
 if errorlevel 1 (
+    echo.
     echo  [HATA] Vite build basarisiz!
     pause
     goto BITIS
 )
-echo  [3/3] Electron paketi olusturuluyor (imzasiz)...
+echo.
+
+echo  [4/4] Windows .EXE paketi olusturuluyor...
 call npx electron-builder --win nsis --publish never --config.win.signAndEditExecutable=false
 if errorlevel 1 (
+    echo.
     echo  [HATA] electron-builder basarisiz!
     pause
     goto BITIS
 )
+
 echo.
 echo  ============================================================
-echo    [BASARILI] EXE Paketi Olusturuldu!
+echo    [BASARILI] MagazaPOS Kurulum Paketi Olusturuldu!
 echo  ============================================================
 echo.
 
-REM Masaustunu bul
+REM Setup dosyasini baska PC'lere tasimak icin Masaustune 'MagazaPOS-Kurulum.exe' adiyla kopyala
 for /f "usebackq delims=" %%D in (`powershell -NoProfile -Command "[Environment]::GetFolderPath('Desktop')"`) do set "MASA=%%D"
-
-REM Setup installer'i masaustune kopyala
 if defined MASA (
     for %%F in ("release\*.exe") do (
-        echo  [BILGI] Kurulum dosyasi masaustune kopyalaniyor: %%~nxF
-        copy /y "%%~fF" "%MASA%\%%~nxF" >nul 2>&1
-        echo  [OK] Masaustune kopyalandi: %MASA%\%%~nxF
-    )
-)
-
-REM Masaustu kisayolunu EXE'ye guncelle
-if exist "release\win-unpacked" (
-    for %%F in ("release\win-unpacked\*.exe") do (
-        set "EXE_YOL=%%~fF"
-        if defined MASA (
-            set "VBS2=%TEMP%\mpos_exe_lnk.vbs"
-            echo Set ws = CreateObject^("WScript.Shell"^)> "%TEMP%\mpos_exe_lnk.vbs"
-            echo Set lnk = ws.CreateShortcut^("%MASA%\MagazaPOS.lnk"^)>> "%TEMP%\mpos_exe_lnk.vbs"
-            echo lnk.TargetPath = "%%~fF">> "%TEMP%\mpos_exe_lnk.vbs"
-            echo lnk.WorkingDirectory = "%~dp0">> "%TEMP%\mpos_exe_lnk.vbs"
-            echo lnk.Description = "MagazaPOS Kasa ve Stok Yonetim">> "%TEMP%\mpos_exe_lnk.vbs"
-            echo lnk.WindowStyle = 1>> "%TEMP%\mpos_exe_lnk.vbs"
-            echo lnk.Save>> "%TEMP%\mpos_exe_lnk.vbs"
-            cscript //nologo "%TEMP%\mpos_exe_lnk.vbs" >nul 2>&1
-            del "%TEMP%\mpos_exe_lnk.vbs" >nul 2>&1
-            echo  [OK] Masaustu kisayolu EXE'ye guncellendi.
-        )
-        echo.
-        echo  [BILGI] MagazaPOS simdi baslatiliyor...
-        start "" "%%~fF"
+        copy /y "%%~fF" "%MASA%\MagazaPOS-Kurulum.exe" >nul 2>&1
+        echo  [BILGI] Diger bilgisayarlara kurulum yapmak icin:
+        echo         Masaustune 'MagazaPOS-Kurulum.exe' kopyalandi.
     )
 )
 
 echo.
-echo  Masaustunuzdeki dosyalar:
-echo    - MagazaPOS.lnk   (Kisayol - cift tikla calistir)
-echo    - Setup .exe       (Kurulum dosyasi - baska bilgisayara kurmak icin)
+echo  [BILGI] MagazaPOS simdi bu bilgisayara kuruluyor ve baslatiliyor...
+for %%F in ("release\*.exe") do (
+    start "" "%%~fF"
+    goto KURULUM_SONRASI
+)
+
+:KURULUM_SONRASI
+echo.
+echo  ============================================================
+echo    [TEBRIKLER] Kurulum Tamamlandi!
+echo    
+echo    * Masaustunuzdeki 'MagazaPOS' simgesine cift tiklayarak
+echo      uygulamayi terminal OLMADAN dogrudan acabilirsiniz.
+echo    * Tum verileriniz ve lisansiniz artik kalici olarak
+echo      guvenli sekilde saklanacaktir.
+echo  ============================================================
 echo.
 pause
 goto BITIS

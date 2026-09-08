@@ -3,9 +3,30 @@ import crypto from 'crypto'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
+import { getUserDataDir } from './paths'
 
 export const LICENSE_SECRET = 'MagazaPOS_2026_Secure_License_Key_@Antigravity'
-const LICENSE_FILE_PATH = path.resolve(process.cwd(), 'data/license.json')
+
+function getLicenseFilePath(): string {
+  const dataDir = path.join(getUserDataDir(), 'data')
+  if (!fs.existsSync(dataDir)) {
+    try {
+      fs.mkdirSync(dataDir, { recursive: true })
+    } catch (e) {}
+  }
+  const licensePath = path.join(dataDir, 'license.json')
+
+  // Migration: If legacy license file exists in process.cwd()/data/license.json, copy it over
+  try {
+    const legacyPath = path.resolve(process.cwd(), 'data/license.json')
+    if (legacyPath !== licensePath && fs.existsSync(legacyPath) && !fs.existsSync(licensePath)) {
+      fs.copyFileSync(legacyPath, licensePath)
+      console.log('[License] Migrated existing license file to AppData:', licensePath)
+    }
+  } catch (e) {}
+
+  return licensePath
+}
 
 interface LicenseData {
   deviceId: string
@@ -84,17 +105,11 @@ export function generateActivationKey(deviceId: string): string {
   return numericCode.toString()
 }
 
-function ensureDataDir() {
-  const dir = path.dirname(LICENSE_FILE_PATH)
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true })
-  }
-}
-
 function readLicenseFile(): LicenseData | null {
   try {
-    if (fs.existsSync(LICENSE_FILE_PATH)) {
-      const content = fs.readFileSync(LICENSE_FILE_PATH, 'utf-8')
+    const filePath = getLicenseFilePath()
+    if (fs.existsSync(filePath)) {
+      const content = fs.readFileSync(filePath, 'utf-8')
       return JSON.parse(content)
     }
   } catch (err) {
@@ -142,13 +157,13 @@ export function activateLicense(inputKey: string): { success: boolean; message: 
   }
 
   try {
-    ensureDataDir()
+    const filePath = getLicenseFilePath()
     const data: LicenseData = {
       deviceId: currentDeviceId,
       activationKey: cleanKey,
       activatedAt: new Date().toISOString()
     }
-    fs.writeFileSync(LICENSE_FILE_PATH, JSON.stringify(data, null, 2), 'utf-8')
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8')
     return {
       success: true,
       message: 'MağazaPOS bu cihaza başarıyla tanımlandı ve aktive edildi!'

@@ -5,6 +5,16 @@ import { startServer } from '../server'
 import { getLocalIpAddress } from '../server/utils/network'
 
 // MağazaPOS Main Electron Process & Express Server Entry
+app.setName('MagazaPOS')
+
+try {
+  const userDataPath = app.getPath('userData')
+  process.env.MAGAZAPOS_USER_DATA = userDataPath
+  console.log('[Main] UserData directory configured:', userDataPath)
+} catch (e) {
+  console.warn('[Main] Could not get userData path:', e)
+}
+
 let mainWindow: BrowserWindow | null = null
 
 function createWindow() {
