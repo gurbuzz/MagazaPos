@@ -123,17 +123,10 @@ function initializeDatabaseFile(): string {
   }
 
   // Geliştirme modu fallback veya paketlenmiş uygulamada eksik dev.db
-  logDebug('DB_INIT', 'CRITICAL WARNING: No valid seed DB (dev.db) found! Creating empty fallback DB.')
+  logDebug('DB_INIT', 'CRITICAL WARNING: No valid seed DB (dev.db) found! Creating empty fallback DB in User Data Dir.')
   console.warn('[DB] UYARI: Gecerli bir hazir veritabani (dev.db) bulunamadi! Bos veritabani olusturulacak (Tablolar eksik olabilir).')
-  const defaultLocalDb = path.resolve(process.cwd(), 'prisma/dev.db')
-  const dir = path.dirname(defaultLocalDb)
-  if (!fs.existsSync(dir)) {
-    try {
-      fs.mkdirSync(dir, { recursive: true })
-    } catch (e) {}
-  }
-
-  const fallbackUrl = toSqliteUrl(defaultLocalDb)
+  
+  const fallbackUrl = toSqliteUrl(targetDbPath)
   logDebug('DB_INIT', `Fallback DB URL: ${fallbackUrl}`)
   return fallbackUrl
 }

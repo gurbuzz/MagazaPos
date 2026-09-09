@@ -85,6 +85,11 @@ if not exist "prisma\dev.db" (
     echo.
     echo  [4/4] Ornek veriler yukleniyor...
     call npx tsx prisma/seed.ts
+    if errorlevel 1 (
+        echo  [HATA] Ornek veriler yuklenemedi!
+        pause
+        goto BITIS
+    )
     echo  [OK] Ornek veriler yuklendi.
     echo.
 ) else (
@@ -147,7 +152,17 @@ taskkill /F /IM MagazaPOS.exe >nul 2>&1
 echo  [1/4] Veritabani semasi ve ornek veriler pakete hazirlaniyor...
 call npx prisma generate
 call npx prisma db push --accept-data-loss
+if errorlevel 1 (
+    echo  [HATA] Prisma db push basarisiz! Lutfen .env dosyanizi kontrol edin.
+    pause
+    goto BITIS
+)
 call npx tsx prisma/seed.ts
+if errorlevel 1 (
+    echo  [HATA] Ornek veriler yuklenemedi!
+    pause
+    goto BITIS
+)
 if not exist "prisma\dev.db" (
     if exist "dev.db" copy /y "dev.db" "prisma\dev.db" >nul 2>&1
 )
