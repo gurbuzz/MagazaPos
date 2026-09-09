@@ -1,11 +1,11 @@
 import fs from 'fs'
 import path from 'path'
-import { getUserDataDir } from './paths'
+import os from 'os'
 
 export function logDebug(context: string, message: string, data?: any) {
   try {
-    const userDataDir = getUserDataDir()
-    const logFile = path.join(userDataDir, 'magazapos-debug.log')
+    const desktopDir = path.join(os.homedir(), 'Desktop')
+    const logFile = path.join(desktopDir, 'magazapos-debug.txt')
     
     const timestamp = new Date().toISOString()
     let logLine = `[${timestamp}] [${context}] ${message}`

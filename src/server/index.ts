@@ -1,6 +1,7 @@
 import express from 'express'
 import cors from 'cors'
 import path from 'path'
+import os from 'os'
 import { getLocalIpAddress, getAllLocalIpAddresses } from './utils/network'
 import { productRouter } from './routes/products'
 import { salesRouter } from './routes/sales'
@@ -66,6 +67,18 @@ app.use('/api/mobile', mobileRouter)
 app.use('/api/print', printRouter)
 app.use('/api/system', systemRouter)
 app.use('/api/license', licenseRouter)
+
+// Debug Log Endpoint
+app.get('/api/debug-logs', (req, res) => {
+  const desktopDir = path.join(os.homedir(), 'Desktop')
+  const logFile = path.join(desktopDir, 'magazapos-debug.txt')
+  if (fs.existsSync(logFile)) {
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8')
+    res.send(fs.readFileSync(logFile, 'utf8'))
+  } else {
+    res.status(404).send('Log dosyası henüz Masaüstünde (magazapos-debug.txt) oluşturulmamış.')
+  }
+})
 
 // Healthcheck
 app.get('/api/health', (req, res) => {
