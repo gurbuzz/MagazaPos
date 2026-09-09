@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { prisma } from '../db'
+import { logDebug } from '../utils/logger'
 import { requireAdminPinAuth } from '../utils/security'
 
 export const productRouter = Router()
@@ -31,6 +32,7 @@ productRouter.get('/', async (req, res) => {
     })
     res.json(products.map(formatProduct))
   } catch (error: any) {
+    logDebug('API_ERROR', 'GET /api/products failed', error)
     res.status(500).json({ error: error.message })
   }
 })
@@ -44,6 +46,7 @@ productRouter.get('/categories', async (req, res) => {
     })
     res.json(categories)
   } catch (error: any) {
+    logDebug('API_ERROR', 'GET /api/products/categories failed', error)
     res.status(500).json({ error: error.message })
   }
 })
@@ -63,6 +66,7 @@ productRouter.post('/categories', async (req, res) => {
     })
     res.status(201).json(category)
   } catch (error: any) {
+    logDebug('API_ERROR', 'POST /api/products/categories failed', error)
     if (error.code === 'P2002') {
       res.status(400).json({ error: 'Bu isimde bir kategori zaten mevcut' })
       return
