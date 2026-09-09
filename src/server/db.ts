@@ -9,12 +9,7 @@ import { logDebug } from './utils/logger'
 export function toSqliteUrl(filePath: string): string {
   let normalized = filePath.replace(/\\/g, '/')
   if (!normalized.startsWith('file:')) {
-    // Windows absolute path starting with drive letter needs triple slash
-    if (normalized.match(/^[a-zA-Z]:\//)) {
-      normalized = `file:///${normalized}`
-    } else {
-      normalized = `file:${normalized}`
-    }
+    normalized = `file:${normalized}`
   }
   return normalized
 }
