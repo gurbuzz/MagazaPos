@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import {
   X,
   Settings,
@@ -10,6 +10,7 @@ import {
   Check,
   Database,
   Download,
+  Upload,
   Trash2,
   Percent,
   AlertTriangle,
@@ -19,6 +20,7 @@ import {
   Wifi,
   Globe,
   RefreshCw,
+  Loader2,
 } from 'lucide-react'
 import { usePosStore } from '../../store/usePosStore'
 
@@ -26,6 +28,9 @@ interface SystemSettingsModalProps {
   isOpen: boolean
   onClose: () => void
 }
+
+// Inline PIN Confirmation Dialog types
+type PinDialogAction = 'reset-sales' | 'reset-all' | 'restore-db' | null
 
 export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen, onClose }) => {
   const {
@@ -67,6 +72,24 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
   const [detectedIps, setDetectedIps] = useState<any[]>([])
   const [savedSuccess, setSavedSuccess] = useState(false)
   const [isResetting, setIsResetting] = useState(false)
+
+  // Backup download state
+  const [isDownloading, setIsDownloading] = useState(false)
+  const [downloadStatus, setDownloadStatus] = useState<'idle' | 'success' | 'error'>('idle')
+
+  // Inline PIN Dialog state
+  const [pinDialogAction, setPinDialogAction] = useState<PinDialogAction>(null)
+  const [pinDialogInput, setPinDialogInput] = useState('')
+  const [pinDialogError, setPinDialogError] = useState('')
+  const [pinDialogLoading, setPinDialogLoading] = useState(false)
+  const pinInputRef = useRef<HTMLInputElement>(null)
+
+  // Restore state
+  const [restoreFile, setRestoreFile] = useState<File | null>(null)
+  const [isRestoring, setIsRestoring] = useState(false)
+  const [restoreStatus, setRestoreStatus] = useState<'idle' | 'success' | 'error'>('idle')
+  const [restoreError, setRestoreError] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const fetchNetworkIps = () => {
     fetch('/api/health')
@@ -115,6 +138,13 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
     customIp,
   ])
 
+  // Focus PIN input when dialog opens
+  useEffect(() => {
+    if (pinDialogAction && pinInputRef.current) {
+      setTimeout(() => pinInputRef.current?.focus(), 100)
+    }
+  }, [pinDialogAction])
+
   if (!isOpen) return null
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -153,63 +183,176 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
     }, 1000)
   }
 
-  const handleBackupDb = () => {
-    window.open(`/api/system/backup-db?pin=${encodeURIComponent(pinCode)}`, '_blank')
-  }
-
-  const handleResetSales = async () => {
-    const inputPin = prompt('DİKKAT: Tüm geçmiş satış kayıtları silinecektir! İşlemi onaylamak için 6 Haneli Yönetici PIN şifrenizi girin:')
-    if (!inputPin) return
-
-    setIsResetting(true)
+  // ─── Backup Download (fetch + Blob) ────────────────────────────
+  const handleBackupDb = async () => {
+    setIsDownloading(true)
+    setDownloadStatus('idle')
     try {
-      const res = await fetch('/api/system/reset-sales', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Admin-Pin': inputPin,
-        },
-        body: JSON.stringify({ adminPin: inputPin }),
-      })
-      const data = await res.json()
-      if (res.ok) {
-        alert(data.message || 'Satış geçmişi sıfırlandı.')
-      } else {
-        alert(data.error || 'Yetkisiz erişim veya hata oluştu.')
+      const res = await fetch(`/api/system/backup-db?pin=${encodeURIComponent(pinCode)}`)
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.error || `HTTP ${res.status}`)
       }
+      const blob = await res.blob()
+      const filename = `magazapos_yedek_${new Date().toISOString().slice(0, 10)}.db`
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      setDownloadStatus('success')
+      setTimeout(() => setDownloadStatus('idle'), 3000)
     } catch (err: any) {
-      alert('Sıfırlama hatası: ' + err.message)
+      console.error('Backup download error:', err)
+      setDownloadStatus('error')
+      setTimeout(() => setDownloadStatus('idle'), 4000)
     } finally {
-      setIsResetting(false)
+      setIsDownloading(false)
     }
   }
 
-  const handleResetAll = async () => {
-    const inputPin = prompt('DİKKAT: Tüm stoklar, ürünler ve satışlar silinecektir! İşlemi onaylamak için 6 Haneli Yönetici PIN şifrenizi girin:')
-    if (!inputPin) return
+  // ─── PIN Dialog Helpers ────────────────────────────────────────
+  const openPinDialog = (action: PinDialogAction) => {
+    setPinDialogAction(action)
+    setPinDialogInput('')
+    setPinDialogError('')
+    setPinDialogLoading(false)
+  }
 
-    setIsResetting(true)
+  const closePinDialog = () => {
+    setPinDialogAction(null)
+    setPinDialogInput('')
+    setPinDialogError('')
+    setPinDialogLoading(false)
+  }
+
+  const getPinDialogTitle = (): string => {
+    switch (pinDialogAction) {
+      case 'reset-sales':
+        return '⚠️ Satış Geçmişini Sıfırla'
+      case 'reset-all':
+        return '🔴 Tüm Veritabanını Sıfırla'
+      case 'restore-db':
+        return '📦 Yedekten Geri Yükle'
+      default:
+        return ''
+    }
+  }
+
+  const getPinDialogWarning = (): string => {
+    switch (pinDialogAction) {
+      case 'reset-sales':
+        return 'Tüm geçmiş satış kayıtları ve Z Raporu verileri kalıcı olarak silinecektir! Stoklar ve ürünler korunacaktır.'
+      case 'reset-all':
+        return 'DİKKAT: Tüm ürünler, varyantlar, stoklar ve satış kayıtları kalıcı olarak silinecektir! Bu işlem geri alınamaz!'
+      case 'restore-db':
+        return 'Mevcut veritabanı seçilen yedek dosyası ile değiştirilecektir. Mevcut verilerinizin yedeği otomatik olarak alınacaktır.'
+      default:
+        return ''
+    }
+  }
+
+  const handlePinDialogSubmit = async () => {
+    if (!pinDialogInput || pinDialogInput.length !== 6 || !/^\d{6}$/.test(pinDialogInput)) {
+      setPinDialogError('6 haneli Yönetici PIN şifresi giriniz.')
+      return
+    }
+
+    setPinDialogLoading(true)
+    setPinDialogError('')
+
     try {
-      const res = await fetch('/api/system/reset-all', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Admin-Pin': inputPin,
-        },
-        body: JSON.stringify({ adminPin: inputPin }),
-      })
-      const data = await res.json()
-      if (res.ok) {
-        alert(data.message || 'Tüm veriler tamamen sıfırlandı.')
-        window.location.reload()
-      } else {
-        alert(data.error || 'Yetkisiz erişim veya hata oluştu.')
+      if (pinDialogAction === 'reset-sales') {
+        const res = await fetch('/api/system/reset-sales', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Admin-Pin': pinDialogInput,
+          },
+          body: JSON.stringify({ adminPin: pinDialogInput }),
+        })
+        const data = await res.json()
+        if (res.ok) {
+          closePinDialog()
+          setDownloadStatus('success')
+          setTimeout(() => setDownloadStatus('idle'), 3000)
+          setIsResetting(false)
+        } else {
+          setPinDialogError(data.error || 'Yetkisiz erişim veya hata oluştu.')
+        }
+      } else if (pinDialogAction === 'reset-all') {
+        const res = await fetch('/api/system/reset-all', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Admin-Pin': pinDialogInput,
+          },
+          body: JSON.stringify({ adminPin: pinDialogInput }),
+        })
+        const data = await res.json()
+        if (res.ok) {
+          closePinDialog()
+          window.location.reload()
+        } else {
+          setPinDialogError(data.error || 'Yetkisiz erişim veya hata oluştu.')
+        }
+      } else if (pinDialogAction === 'restore-db') {
+        if (!restoreFile) {
+          setPinDialogError('Lütfen önce bir yedek dosyası seçin.')
+          setPinDialogLoading(false)
+          return
+        }
+
+        setIsRestoring(true)
+        const formData = new FormData()
+        formData.append('dbFile', restoreFile)
+        formData.append('adminPin', pinDialogInput)
+
+        const res = await fetch('/api/system/restore-db', {
+          method: 'POST',
+          headers: {
+            'X-Admin-Pin': pinDialogInput,
+          },
+          body: formData,
+        })
+        const data = await res.json()
+        if (res.ok) {
+          closePinDialog()
+          setRestoreStatus('success')
+          setRestoreFile(null)
+          // Reload after short delay to let user see success
+          setTimeout(() => window.location.reload(), 1500)
+        } else {
+          setPinDialogError(data.error || 'Geri yükleme hatası oluştu.')
+          setIsRestoring(false)
+        }
       }
     } catch (err: any) {
-      alert('Sıfırlama hatası: ' + err.message)
+      setPinDialogError('Sunucu hatası: ' + err.message)
     } finally {
-      setIsResetting(false)
+      setPinDialogLoading(false)
     }
+  }
+
+  // ─── Restore file selection ────────────────────────────────────
+  const handleRestoreFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setRestoreFile(file)
+      setRestoreError('')
+      setRestoreStatus('idle')
+    }
+  }
+
+  const handleRestoreStart = () => {
+    if (!restoreFile) {
+      setRestoreError('Lütfen bir .db yedek dosyası seçin.')
+      return
+    }
+    openPinDialog('restore-db')
   }
 
   const handleAdminPinChange = async () => {
@@ -242,7 +385,6 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
 
       if (res.ok) {
         setAdminPinSaveStatus('success')
-        // Update session with new admin PIN
         sessionStorage.setItem('pos_admin_pin_session', formNewAdminPin)
         localStorage.setItem('pos_admin_pin_session', formNewAdminPin)
         setFormNewAdminPin('')
@@ -671,14 +813,103 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
                   <p className="text-[11px] text-emerald-800 mt-0.5 font-medium">
                     Tüm ürün, stok ve satış geçmişinizi SQLite veritabanı kopyası olarak bilgisayarınıza indirin.
                   </p>
+                  {downloadStatus === 'success' && (
+                    <p className="text-[11px] text-emerald-700 font-bold flex items-center space-x-1 mt-1">
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Yedek başarıyla indirildi!</span>
+                    </p>
+                  )}
+                  {downloadStatus === 'error' && (
+                    <p className="text-[11px] text-rose-600 font-bold mt-1">
+                      ⚠️ Yedek indirilemedi. Lütfen tekrar deneyin.
+                    </p>
+                  )}
                 </div>
                 <button
                   type="button"
                   onClick={handleBackupDb}
-                  className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold rounded transition flex items-center space-x-1 shadow-2xs whitespace-nowrap"
+                  disabled={isDownloading}
+                  className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold rounded transition flex items-center space-x-1 shadow-2xs whitespace-nowrap disabled:opacity-50"
                 >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Yedek İndir</span>
+                  {isDownloading ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>İndiriliyor...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Yedek İndir</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Restore from Backup Card */}
+              <div className="p-3.5 bg-blue-50 border border-blue-200 rounded space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h5 className="font-bold text-blue-900 text-xs flex items-center space-x-1.5">
+                      <Upload className="w-3.5 h-3.5 text-blue-700" />
+                      <span>Yedekten Geri Yükle (.db Yükle)</span>
+                    </h5>
+                    <p className="text-[11px] text-blue-800 mt-0.5 font-medium">
+                      Daha önce indirdiğiniz bir yedek dosyasını (.db) seçerek veritabanını geri yükleyin.
+                      Mevcut verileriniz otomatik olarak yedeklenir.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".db,.sqlite,.sqlite3"
+                    onChange={handleRestoreFileSelect}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded border border-slate-300 transition flex items-center space-x-1.5"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-blue-600" />
+                    <span>{restoreFile ? 'Dosya Değiştir' : 'Yedek Dosyası Seç'}</span>
+                  </button>
+                  {restoreFile && (
+                    <span className="text-[11px] text-slate-700 font-semibold bg-slate-100 px-2 py-1 rounded truncate max-w-[200px]">
+                      📄 {restoreFile.name} ({(restoreFile.size / 1024).toFixed(0)} KB)
+                    </span>
+                  )}
+                </div>
+
+                {restoreError && (
+                  <p className="text-[11px] text-rose-600 font-bold">⚠️ {restoreError}</p>
+                )}
+                {restoreStatus === 'success' && (
+                  <p className="text-[11px] text-emerald-700 font-bold flex items-center space-x-1">
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Veritabanı başarıyla geri yüklendi! Sayfa yenileniyor...</span>
+                  </p>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleRestoreStart}
+                  disabled={!restoreFile || isRestoring}
+                  className="px-3 py-1.5 bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold rounded transition flex items-center space-x-1 shadow-2xs disabled:opacity-40"
+                >
+                  {isRestoring ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Geri Yükleniyor...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Yedeği Geri Yükle</span>
+                    </>
+                  )}
                 </button>
               </div>
 
@@ -696,7 +927,7 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
                 <button
                   type="button"
                   disabled={isResetting}
-                  onClick={handleResetSales}
+                  onClick={() => openPinDialog('reset-sales')}
                   className="px-3 py-1.5 bg-amber-700 hover:bg-amber-800 text-white text-xs font-semibold rounded transition flex items-center space-x-1 shadow-2xs whitespace-nowrap disabled:opacity-50"
                 >
                   <span>Geçmişi Sil</span>
@@ -717,7 +948,7 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
                 <button
                   type="button"
                   disabled={isResetting}
-                  onClick={handleResetAll}
+                  onClick={() => openPinDialog('reset-all')}
                   className="px-3 py-1.5 bg-rose-700 hover:bg-rose-800 text-white text-xs font-bold rounded transition flex items-center space-x-1 shadow-2xs whitespace-nowrap disabled:opacity-50"
                 >
                   <span>Tamamen Sıfırla</span>
@@ -761,6 +992,103 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
           </div>
         </form>
       </div>
+
+      {/* ─── Inline PIN Confirmation Dialog Overlay ─── */}
+      {pinDialogAction && (
+        <div className="fixed inset-0 z-[60] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-lg w-full max-w-sm shadow-2xl overflow-hidden">
+            {/* Dialog Header */}
+            <div className={`px-4 py-3 border-b ${
+              pinDialogAction === 'reset-all' ? 'bg-rose-50 border-rose-200' :
+              pinDialogAction === 'reset-sales' ? 'bg-amber-50 border-amber-200' :
+              'bg-blue-50 border-blue-200'
+            }`}>
+              <h4 className={`font-bold text-sm ${
+                pinDialogAction === 'reset-all' ? 'text-rose-900' :
+                pinDialogAction === 'reset-sales' ? 'text-amber-900' :
+                'text-blue-900'
+              }`}>
+                {getPinDialogTitle()}
+              </h4>
+            </div>
+
+            {/* Dialog Body */}
+            <div className="p-4 space-y-3">
+              <p className={`text-[11px] font-medium p-2.5 rounded border ${
+                pinDialogAction === 'reset-all'
+                  ? 'bg-rose-50 text-rose-800 border-rose-200'
+                  : pinDialogAction === 'reset-sales'
+                  ? 'bg-amber-50 text-amber-800 border-amber-200'
+                  : 'bg-blue-50 text-blue-800 border-blue-200'
+              }`}>
+                {getPinDialogWarning()}
+              </p>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center space-x-1.5">
+                  <Lock className="w-3.5 h-3.5 text-indigo-700" />
+                  <span>6 Haneli Yönetici PIN Şifresi</span>
+                </label>
+                <input
+                  ref={pinInputRef}
+                  type="password"
+                  maxLength={6}
+                  value={pinDialogInput}
+                  onChange={(e) => {
+                    setPinDialogInput(e.target.value.replace(/\D/g, '').slice(0, 6))
+                    setPinDialogError('')
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handlePinDialogSubmit()
+                    if (e.key === 'Escape') closePinDialog()
+                  }}
+                  placeholder="••••••"
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded text-slate-900 font-mono text-base tracking-[0.35em] font-bold focus:ring-2 focus:ring-indigo-500 focus:outline-none text-center"
+                />
+              </div>
+
+              {pinDialogError && (
+                <p className="text-[11px] text-rose-600 font-bold bg-rose-50 px-2.5 py-1.5 rounded border border-rose-200">
+                  ⚠️ {pinDialogError}
+                </p>
+              )}
+            </div>
+
+            {/* Dialog Footer */}
+            <div className="px-4 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-end space-x-2">
+              <button
+                type="button"
+                onClick={closePinDialog}
+                disabled={pinDialogLoading}
+                className="px-3.5 py-1.5 bg-white text-slate-700 text-xs font-semibold rounded hover:bg-slate-100 transition border border-slate-200 disabled:opacity-50"
+              >
+                Vazgeç
+              </button>
+              <button
+                type="button"
+                onClick={handlePinDialogSubmit}
+                disabled={pinDialogLoading || pinDialogInput.length !== 6}
+                className={`px-4 py-1.5 text-white text-xs font-bold rounded transition shadow-2xs disabled:opacity-40 flex items-center space-x-1.5 ${
+                  pinDialogAction === 'reset-all'
+                    ? 'bg-rose-700 hover:bg-rose-800'
+                    : pinDialogAction === 'reset-sales'
+                    ? 'bg-amber-700 hover:bg-amber-800'
+                    : 'bg-blue-700 hover:bg-blue-800'
+                }`}
+              >
+                {pinDialogLoading ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>İşleniyor...</span>
+                  </>
+                ) : (
+                  <span>Onayla ve Çalıştır</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
