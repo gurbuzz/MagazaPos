@@ -15,6 +15,8 @@ import {
   User,
   UserCheck,
   RotateCcw,
+  AlertCircle,
+  CheckCircle2,
 } from 'lucide-react'
 import { usePosStore } from '../../store/usePosStore'
 import { CheckoutModal } from './CheckoutModal'
@@ -54,9 +56,62 @@ export const PosView: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [isEditingTotal, setIsEditingTotal] = useState<boolean>(false)
   const [tempTotalInput, setTempTotalInput] = useState<string>('')
+  const [scanToast, setScanToast] = useState<{
+    type: 'success' | 'error' | 'info'
+    message: string
+    barcode?: string
+  } | null>(null)
 
   const barcodeInputRef = useRef<HTMLInputElement>(null)
   const totalInputRef = useRef<HTMLInputElement>(null)
+  const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Web Audio API feedback for scan events
+  const playAudioNotification = (type: 'success' | 'error') => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
+      if (!AudioCtx) return
+      const ctx = new AudioCtx()
+
+      if (type === 'success') {
+        const osc = ctx.createOscillator()
+        const gain = ctx.createGain()
+        osc.type = 'sine'
+        osc.frequency.setValueAtTime(880, ctx.currentTime) // A5
+        osc.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.08) // E6
+        gain.gain.setValueAtTime(0.12, ctx.currentTime)
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08)
+        osc.connect(gain)
+        gain.connect(ctx.destination)
+        osc.start()
+        osc.stop(ctx.currentTime + 0.08)
+      } else {
+        const osc = ctx.createOscillator()
+        const gain = ctx.createGain()
+        osc.type = 'sawtooth'
+        osc.frequency.setValueAtTime(220, ctx.currentTime) // A3
+        osc.frequency.setValueAtTime(160, ctx.currentTime + 0.08)
+        gain.gain.setValueAtTime(0.15, ctx.currentTime)
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2)
+        osc.connect(gain)
+        gain.connect(ctx.destination)
+        osc.start()
+        osc.stop(ctx.currentTime + 0.2)
+      }
+    } catch {
+      // Audio not permitted or supported; silently ignore
+    }
+  }
+
+  const showToast = (type: 'success' | 'error' | 'info', message: string, barcode?: string) => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current)
+    }
+    setScanToast({ type, message, barcode })
+    toastTimeoutRef.current = setTimeout(() => {
+      setScanToast(null)
+    }, 4500)
+  }
 
   const fetchProducts = async () => {
     setIsLoading(true)
@@ -98,23 +153,90 @@ export const PosView: React.FC = () => {
       window.removeEventListener('pos-data-updated', handleDataUpdate)
       window.removeEventListener('focus', handleDataUpdate)
       clearInterval(syncInterval)
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
     }
   }, [])
 
+  // Safely restore focus to barcode input when app unlocks
   useEffect(() => {
+    let timer: NodeJS.Timeout | null = null
     if (isLocked) {
       setBarcodeInput('')
       barcodeInputRef.current?.blur()
+    } else {
+      timer = setTimeout(() => {
+        barcodeInputRef.current?.focus()
+      }, 100)
+    }
+    return () => {
+      if (timer) clearTimeout(timer)
     }
   }, [isLocked])
+
+  // Core Barcode Lookup Function
+  const processBarcodeScan = async (rawCode: string) => {
+    const code = rawCode.trim()
+    if (!code) return
+
+    try {
+      const res = await fetch(`/api/products/variants/barcode/${encodeURIComponent(code)}`)
+      if (res.ok) {
+        const variant = await res.json()
+        addToCart(variant)
+        playAudioNotification('success')
+        showToast(
+          'success',
+          `✅ "${variant.product?.name || 'Ürün'}" (${variant.attributes?.color || '-'} / ${
+            variant.attributes?.size || '-'
+          }) sepete eklendi.`
+        )
+      } else {
+        playAudioNotification('error')
+        showToast('error', `⚠️ Barkod sistemde bulunamadı: "${code}"`, code)
+      }
+    } catch (err: any) {
+      console.error('Barkod okuma hatası:', err)
+      playAudioNotification('error')
+      showToast('error', `⚠️ Barkod okuma bağlantı hatası: ${err.message || ''}`, code)
+    } finally {
+      setBarcodeInput('')
+      // Always safely restore focus to barcode input without blocking
+      setTimeout(() => {
+        if (
+          !isLocked &&
+          !isCheckoutOpen &&
+          !isCampaignModalOpen &&
+          !isCustomerModalOpen &&
+          !isExchangeModalOpen &&
+          !isEditingTotal
+        ) {
+          const active = document.activeElement
+          if (!active || active === document.body || active === barcodeInputRef.current) {
+            barcodeInputRef.current?.focus()
+          }
+        }
+      }, 60)
+    }
+  }
 
   // Global Barcode Scanner Capture (USB HID Scanner)
   useEffect(() => {
     let barcodeBuffer = ''
     let lastKeyTime = Date.now()
+    let charTimings: number[] = []
 
     const handleGlobalKeyDown = async (e: KeyboardEvent) => {
-      if (isLocked || isCheckoutOpen || isCampaignModalOpen) return
+      // Never intercept when any modal is open or app is locked
+      if (
+        isLocked ||
+        isCheckoutOpen ||
+        isCampaignModalOpen ||
+        isCustomerModalOpen ||
+        isExchangeModalOpen ||
+        isEditingTotal
+      ) {
+        return
+      }
 
       const activeElement = document.activeElement
       const isBarcodeFieldFocused = activeElement === barcodeInputRef.current
@@ -130,80 +252,95 @@ export const PosView: React.FC = () => {
       // Reset buffer if inter-character delay > 120ms
       if (timeDiff > 120) {
         barcodeBuffer = ''
+        charTimings = []
       }
 
       // Handle Enter (Barcode Scanner Suffix)
       if (e.key === 'Enter') {
         const code = barcodeBuffer.trim()
-        // If scanned globally while focus was NOT on the main barcode input field
+        // If focus was NOT on main barcode input (which handles its own form submission)
         if (!isBarcodeFieldFocused && code.length >= 3) {
-          e.preventDefault()
-          try {
-            const res = await fetch(`/api/products/variants/barcode/${encodeURIComponent(code)}`)
-            if (res.ok) {
-              const variant = await res.json()
-              addToCart(variant)
-              setBarcodeInput('')
-            } else {
-              alert(`Barkod sistemde bulunamadı: ${code}`)
-            }
-          } catch (err) {
-            console.error('Global barkod okuma hatası:', err)
-          } finally {
+          const avgTiming =
+            charTimings.length > 0
+              ? charTimings.reduce((a, b) => a + b, 0) / charTimings.length
+              : 999
+          const isRapidScanner = avgTiming < 45
+
+          // Only process as scanner if not in another text input, OR if rapid HW scanner detected
+          if (!isOtherInputFocused || isRapidScanner) {
+            e.preventDefault()
+            e.stopPropagation()
             barcodeBuffer = ''
+            charTimings = []
+            await processBarcodeScan(code)
+            return
           }
-          return
         }
         barcodeBuffer = ''
+        charTimings = []
         return
       }
 
       // Capture single printable character
       if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
-        // Collect if focus is not in another text input, OR if rapid scanning detected (<40ms per char)
         if (!isOtherInputFocused || isBarcodeFieldFocused || timeDiff < 40) {
           barcodeBuffer += e.key
+          charTimings.push(timeDiff)
+          if (charTimings.length > 30) charTimings.shift()
         }
       }
     }
 
     window.addEventListener('keydown', handleGlobalKeyDown)
     return () => window.removeEventListener('keydown', handleGlobalKeyDown)
-  }, [isLocked, isCheckoutOpen, isCampaignModalOpen, addToCart])
+  }, [
+    isLocked,
+    isCheckoutOpen,
+    isCampaignModalOpen,
+    isCustomerModalOpen,
+    isExchangeModalOpen,
+    isEditingTotal,
+    addToCart,
+  ])
 
+  // Periodic Idle Focus Keeper - only focuses barcode input when idle & no modal is open
   useEffect(() => {
     const focusInterval = setInterval(() => {
-      if (!isLocked && !isCheckoutOpen && !isCampaignModalOpen) {
-        if (
-          document.activeElement?.tagName !== 'INPUT' &&
-          document.activeElement?.tagName !== 'TEXTAREA' &&
-          document.activeElement?.tagName !== 'SELECT'
-        ) {
+      if (
+        !isLocked &&
+        !isCheckoutOpen &&
+        !isCampaignModalOpen &&
+        !isCustomerModalOpen &&
+        !isExchangeModalOpen &&
+        !isEditingTotal
+      ) {
+        const active = document.activeElement
+        const isAnyInputFocused =
+          active?.tagName === 'INPUT' ||
+          active?.tagName === 'TEXTAREA' ||
+          active?.tagName === 'SELECT'
+
+        if (!isAnyInputFocused) {
           barcodeInputRef.current?.focus()
         }
       }
     }, 1500)
+
     return () => clearInterval(focusInterval)
-  }, [isLocked, isCheckoutOpen, isCampaignModalOpen])
+  }, [
+    isLocked,
+    isCheckoutOpen,
+    isCampaignModalOpen,
+    isCustomerModalOpen,
+    isExchangeModalOpen,
+    isEditingTotal,
+  ])
 
   const handleBarcodeSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     const code = barcodeInput.trim()
     if (!code) return
-
-    try {
-      const res = await fetch(`/api/products/variants/barcode/${encodeURIComponent(code)}`)
-      if (!res.ok) {
-        alert('Barkod sistemde bulunamadı!')
-        setBarcodeInput('')
-        return
-      }
-      const variant = await res.json()
-      addToCart(variant)
-      setBarcodeInput('')
-    } catch (err) {
-      alert('Barkod okuma hatası')
-    }
+    await processBarcodeScan(code)
   }
 
   const filteredProducts = products.filter((prod) => {
@@ -236,7 +373,41 @@ export const PosView: React.FC = () => {
   const total = getTotal()
 
   return (
-    <div className="h-[calc(100vh-3.5rem)] bg-slate-100 flex overflow-hidden font-sans">
+    <div className="h-[calc(100vh-3.5rem)] bg-slate-100 flex overflow-hidden font-sans relative">
+      {/* Toast Notification Banner */}
+      {scanToast && (
+        <div
+          className={`absolute top-3 left-1/2 -translate-x-1/2 z-50 flex items-center space-x-3 px-4 py-2.5 rounded-xl shadow-2xl border transition-all animate-in fade-in slide-in-from-top-2 duration-150 max-w-lg ${
+            scanToast.type === 'error'
+              ? 'bg-rose-50 border-rose-300 text-rose-950 shadow-rose-900/10'
+              : scanToast.type === 'success'
+              ? 'bg-emerald-50 border-emerald-300 text-emerald-950 shadow-emerald-900/10'
+              : 'bg-blue-50 border-blue-300 text-blue-950 shadow-blue-900/10'
+          }`}
+        >
+          {scanToast.type === 'error' ? (
+            <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+          ) : scanToast.type === 'success' ? (
+            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+          ) : (
+            <Tag className="w-5 h-5 text-blue-600 shrink-0" />
+          )}
+          <div className="text-xs">
+            <p className="font-bold leading-tight">{scanToast.message}</p>
+            {scanToast.type === 'error' && (
+              <p className="text-[11px] text-rose-700 mt-0.5">
+                Yeni ürün veya varyant tanımlamak için <strong>Stok & Varyant</strong> sekmesini kullanabilirsiniz.
+              </p>
+            )}
+          </div>
+          <button
+            onClick={() => setScanToast(null)}
+            className="p-1 hover:bg-black/5 rounded-lg text-slate-400 hover:text-slate-700 transition shrink-0 ml-1"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
       {/* LEFT COLUMN: Product Catalog & Quick Touch Grid */}
       <div className="flex-1 flex flex-col border-r border-slate-200 overflow-hidden">
         {/* Top Search & Barcode Bar */}

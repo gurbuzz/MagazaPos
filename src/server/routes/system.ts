@@ -112,16 +112,17 @@ systemRouter.post('/reset-sales', requireAdminPinAuth, async (req, res) => {
   }
 })
 
-// Protected Route: POST /api/system/reset-all: Clear sales, stock movements, products, and categories (Full Reset)
+// Protected Route: POST /api/system/reset-all: Clear sales, stock movements, products, categories, and customers (Full Reset)
 systemRouter.post('/reset-all', requireAdminPinAuth, async (req, res) => {
   try {
     await prisma.saleItem.deleteMany()
     await prisma.sale.deleteMany()
+    await prisma.customer.deleteMany()
     await prisma.stockMovement.deleteMany()
     await prisma.productVariant.deleteMany()
     await prisma.product.deleteMany()
     await prisma.category.deleteMany()
-    res.json({ success: true, message: 'Tüm veritabanı tamamen sıfırlandı.' })
+    res.json({ success: true, message: 'Tüm veritabanı (satışlar, stoklar, ürünler ve müşteriler) tamamen sıfırlandı.' })
   } catch (err: any) {
     console.error('Reset all error:', err)
     res.status(500).json({ error: 'Veritabanı sıfırlanırken hata oluştu: ' + err.message })

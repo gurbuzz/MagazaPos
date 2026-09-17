@@ -942,7 +942,7 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
                     <span>Tüm Veritabanını Fabrika Ayarlarına Sıfırla</span>
                   </h5>
                   <p className="text-[11px] text-rose-800 mt-0.5 font-medium">
-                    ⚠️ Tüm ürünler, varyantlar, stoklar ve satış kayıtları kalıcı olarak silinir. (PIN Onayı İstenecektir)
+                    ⚠️ Tüm ürünler, varyantlar, stoklar, müşteriler ve satış kayıtları kalıcı olarak silinir. (PIN Onayı İstenecektir)
                   </p>
                 </div>
                 <button

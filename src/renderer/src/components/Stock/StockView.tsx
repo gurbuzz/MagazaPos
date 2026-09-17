@@ -215,7 +215,7 @@ export const StockView: React.FC = () => {
   const handleBarcodeStockSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!foundScannedVariant) {
-      alert('Bu barkoda ait ürün bulunamadı!')
+      setLastScannedResult('⚠️ Bu barkod sistemde kayıtlı değil! Aşağıdaki formu doldurarak yeni ürün olarak sisteme kaydedebilirsiniz.')
       return
     }
 
