@@ -101,8 +101,12 @@ async function runReturnTests() {
       throw new Error('❌ HATA: Stok iade miktarı eşleşmiyor!')
     }
 
-    // 6. Test blocking anonymous sale return
-    console.log('\n6️⃣ Kayıtsız (Anonim) Müşteri Fiş İade Engeli Testi...')
+    // 6. Test anonymous sale return (feature supported with optional customer details)
+    console.log('\n6️⃣ Kayıtsız (Anonim) Müşteri Fiş İadesi Testi...')
+    const preAnonVariantRes = await fetch(`${BASE_URL}/api/products/variants/barcode/${variant.barcode}`)
+    const preAnonVariant: any = await preAnonVariantRes.json()
+    const preAnonStock = preAnonVariant.stockQuantity
+
     const anonSalePayload = {
       items: [{ variantId: variant.id, quantity: 1, unitPrice: variant.salePrice, totalPrice: variant.salePrice }],
       totalAmount: variant.salePrice,
@@ -118,19 +122,33 @@ async function runReturnTests() {
     })
     const anonSale: any = await anonSaleRes.json()
 
-    // Try returning anonymous sale
+    // Try returning anonymous sale with customer name and reason
     const anonReturnRes = await fetch(`${BASE_URL}/api/sales/${anonSale.id}/return`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items: [{ saleItemId: anonSale.items[0].id, returnQuantity: 1 }] })
+      body: JSON.stringify({
+        items: [{ saleItemId: anonSale.items[0].id, returnQuantity: 1 }],
+        customerName: 'Anonim Müşteri Test',
+        phone: '05001112233',
+        reason: 'Hediye beğenilmedi'
+      })
     })
 
-    if (!anonReturnRes.ok) {
-      const err = await anonReturnRes.json()
-      console.log(`   🛡️ GÜVENLİK ENGELİ ÇALIŞTI: ${err.error}`)
-      console.log('   🎉 DOĞRULAMA BAŞARILI: Kayıtsız müşterilerin iadesi başarıyla engellendi!')
+    if (anonReturnRes.ok) {
+      const returnedAnon: any = await anonReturnRes.json()
+      console.log(`   ✅ Kayıtsız müşteri iadesi başarıyla gerçekleşti! Fiş: ${returnedAnon.receiptNo}, Durum: ${returnedAnon.status}`)
+
+      // Verify stock returned to pre-sale level
+      const postAnonVariantRes = await fetch(`${BASE_URL}/api/products/variants/barcode/${variant.barcode}`)
+      const postAnonVariant: any = await postAnonVariantRes.json()
+      if (postAnonVariant.stockQuantity === preAnonStock) {
+        console.log('   🎉 DOĞRULAMA BAŞARILI: Kayıtsız müşteri iadesinde ürün stoğa eksiksiz geri girdi!')
+      } else {
+        throw new Error('❌ HATA: Kayıtsız müşteri iadesi sonrası stok eşleşmedi!')
+      }
     } else {
-      throw new Error('❌ HATA: Kayıtsız müşterinin iadesi engellenmedi!')
+      const err = await anonReturnRes.json()
+      throw new Error(`❌ HATA: Kayıtsız müşteri iadesi gerçekleştirilemedi: ${err.error}`)
     }
 
     console.log('\n====================================================')

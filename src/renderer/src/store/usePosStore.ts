@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { syncCustomerDisplay } from '../utils/customerDisplaySync'
 
 export interface CartItem {
   variantId: string
@@ -50,6 +51,8 @@ interface PosState {
   lowStockThreshold: number
   autoPrintReceipt: boolean
   customIp: string
+  autoOpenCustomerDisplay: boolean
+  customerDisplayMessage: string
 
   unlockApp: (enteredPin: string) => boolean
   lockApp: () => void
@@ -65,6 +68,8 @@ interface PosState {
     lowStockThreshold?: number
     autoPrintReceipt?: boolean
     customIp?: string
+    autoOpenCustomerDisplay?: boolean
+    customerDisplayMessage?: string
   }) => void
 
   cartItems: CartItem[]
@@ -113,8 +118,8 @@ export const usePosStore = create<PosState>((set, get) => ({
   pinCode: localStorage.getItem('pos_pin_code') || '1234',
   storeName: (() => {
     const saved = localStorage.getItem('pos_store_name')
-    if (!saved || saved === 'MağazaPOS Giyim' || saved.includes('MağazaPOS')) {
-      return 'Lufian | Jack & Jones'
+    if (!saved || saved === 'MağazaPOS Giyim' || saved.includes('MağazaPOS') || saved.includes('Lufian')) {
+      return 'JACK & JONES'
     }
     return saved
   })(),
@@ -127,6 +132,8 @@ export const usePosStore = create<PosState>((set, get) => ({
   lowStockThreshold: parseInt(localStorage.getItem('pos_low_stock') || '5', 10),
   autoPrintReceipt: localStorage.getItem('pos_auto_print') === 'true',
   customIp: localStorage.getItem('pos_custom_ip') || '',
+  autoOpenCustomerDisplay: localStorage.getItem('pos_auto_customer_display') !== 'false',
+  customerDisplayMessage: localStorage.getItem('pos_customer_display_msg') || 'JACK & JONES Kalitesiyle Keyifli Alışverişler Dileriz',
 
   unlockApp: (enteredPin) => {
     const currentPin = get().pinCode
@@ -151,6 +158,8 @@ export const usePosStore = create<PosState>((set, get) => ({
     if (settings.lowStockThreshold !== undefined) localStorage.setItem('pos_low_stock', settings.lowStockThreshold.toString())
     if (settings.autoPrintReceipt !== undefined) localStorage.setItem('pos_auto_print', settings.autoPrintReceipt ? 'true' : 'false')
     if (settings.customIp !== undefined) localStorage.setItem('pos_custom_ip', settings.customIp)
+    if (settings.autoOpenCustomerDisplay !== undefined) localStorage.setItem('pos_auto_customer_display', settings.autoOpenCustomerDisplay ? 'true' : 'false')
+    if (settings.customerDisplayMessage !== undefined) localStorage.setItem('pos_customer_display_msg', settings.customerDisplayMessage)
 
     set((state) => ({
       storeName: settings.storeName ?? state.storeName,
@@ -164,6 +173,8 @@ export const usePosStore = create<PosState>((set, get) => ({
       lowStockThreshold: settings.lowStockThreshold ?? state.lowStockThreshold,
       autoPrintReceipt: settings.autoPrintReceipt ?? state.autoPrintReceipt,
       customIp: settings.customIp ?? state.customIp,
+      autoOpenCustomerDisplay: settings.autoOpenCustomerDisplay ?? state.autoOpenCustomerDisplay,
+      customerDisplayMessage: settings.customerDisplayMessage ?? state.customerDisplayMessage,
     }))
   },
 
@@ -201,11 +212,25 @@ export const usePosStore = create<PosState>((set, get) => ({
     let newItems: CartItem[]
 
     if (existingIndex > -1) {
-      newItems = [...cartItems]
-      const item = newItems[existingIndex]
-      item.quantity += 1
-      item.totalPrice = item.quantity * item.unitPrice
+      newItems = cartItems.map((item, idx) =>
+        idx === existingIndex
+          ? {
+              ...item,
+              quantity: item.quantity + 1,
+              totalPrice: (item.quantity + 1) * item.unitPrice,
+            }
+          : item
+      )
     } else {
+      let attrs = variant.attributes || {}
+      if (typeof attrs === 'string') {
+        try {
+          attrs = JSON.parse(attrs)
+        } catch {
+          attrs = {}
+        }
+      }
+
       const newItem: CartItem = {
         variantId: variant.id,
         productId: variant.productId || variant.product?.id,
@@ -213,7 +238,7 @@ export const usePosStore = create<PosState>((set, get) => ({
         brand: variant.product?.brand || '',
         sku: variant.sku,
         barcode: variant.barcode,
-        attributes: variant.attributes || {},
+        attributes: attrs,
         unitPrice: variant.salePrice,
         quantity: 1,
         totalPrice: variant.salePrice,
@@ -312,3 +337,20 @@ export const usePosStore = create<PosState>((set, get) => ({
     return Math.max(0, subtotal - discountAmount)
   },
 }))
+
+// Automatically synchronize POS changes to Customer Display in real-time
+usePosStore.subscribe((state) => {
+  syncCustomerDisplay({
+    status: state.cartItems.length > 0 ? 'cart' : 'idle',
+    storeName: state.storeName,
+    storeAddress: state.storeAddress,
+    storePhone: state.storePhone,
+    cashierName: state.cashierName,
+    cartItems: state.cartItems,
+    subtotal: state.getSubtotal(),
+    discountAmount: state.discountAmount,
+    total: state.getTotal(),
+    activeCampaign: state.activeCampaign,
+    selectedCustomer: state.selectedCustomer,
+  })
+})

@@ -1,7 +1,8 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { X, CreditCard, Banknote, CheckCircle, Printer } from 'lucide-react'
 import { usePosStore } from '../../store/usePosStore'
 import { notifyDataChanged } from '../../utils/events'
+import { syncCustomerDisplay } from '../../utils/customerDisplaySync'
 
 interface CheckoutModalProps {
   isOpen: boolean
@@ -10,7 +11,7 @@ interface CheckoutModalProps {
 }
 
 export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, onSuccess }) => {
-  const { cartItems, discountAmount, getTotal, getSubtotal, cashierName, clearCart, selectedCustomer, storeName } = usePosStore()
+  const { cartItems, discountAmount, getTotal, getSubtotal, cashierName, clearCart, selectedCustomer, storeName, receiptPrefix } = usePosStore()
 
   const [paymentMode, setPaymentMode] = useState<'CASH' | 'CARD' | 'SPLIT'>('CASH')
   const [cashAmount, setCashAmount] = useState<number>(0)
@@ -19,9 +20,46 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
   const [isProcessing, setIsProcessing] = useState(false)
   const [completedSale, setCompletedSale] = useState<any>(null)
 
-  if (!isOpen) return null
-
   const total = getTotal()
+
+  // Sync Customer Display in real-time during checkout and payment
+  useEffect(() => {
+    if (!isOpen) return
+
+    if (completedSale) {
+      syncCustomerDisplay({
+        status: 'completed',
+        cartItems,
+        subtotal: getSubtotal(),
+        discountAmount,
+        total: completedSale.totalAmount,
+        selectedCustomer,
+        paymentInfo: {
+          mode: paymentMode,
+          givenCash: parseFloat(givenCash || '0'),
+          changeDue: Math.max(0, parseFloat(givenCash || '0') - total),
+          receiptNo: completedSale.receiptNo,
+          isFinished: true,
+        },
+      })
+    } else {
+      syncCustomerDisplay({
+        status: 'checkout',
+        cartItems,
+        subtotal: getSubtotal(),
+        discountAmount,
+        total,
+        selectedCustomer,
+        paymentInfo: {
+          mode: paymentMode,
+          givenCash: parseFloat(givenCash || '0'),
+          changeDue: Math.max(0, parseFloat(givenCash || '0') - total),
+        },
+      })
+    }
+  }, [isOpen, paymentMode, givenCash, completedSale, total, cartItems, discountAmount, selectedCustomer, getSubtotal])
+
+  if (!isOpen) return null
 
   const handleModeChange = (mode: 'CASH' | 'CARD' | 'SPLIT') => {
     setPaymentMode(mode)
@@ -32,8 +70,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
       setCashAmount(0)
       setCardAmount(total)
     } else {
-      setCashAmount(Math.round(total / 2))
-      setCardAmount(Math.round(total / 2))
+      const half = Math.round((total / 2) * 100) / 100
+      setCashAmount(half)
+      setCardAmount(Number((total - half).toFixed(2)))
     }
   }
 
@@ -46,6 +85,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
         discountAmount,
         cashierName,
         customerId: selectedCustomer ? selectedCustomer.id : null,
+        receiptPrefix: receiptPrefix || 'FIS',
         paymentType:
           total === 0
             ? { cash: 0, card: 0, note: 'Sıfır Fark Değişim' }
@@ -87,6 +127,23 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
     notifyDataChanged()
   }
 
+  const handleModalClose = () => {
+    if (completedSale) {
+      handleFinish()
+    } else {
+      syncCustomerDisplay({
+        status: cartItems.length > 0 ? 'cart' : 'idle',
+        cartItems,
+        subtotal: getSubtotal(),
+        discountAmount,
+        total,
+        selectedCustomer,
+        paymentInfo: null,
+      })
+      onClose()
+    }
+  }
+
   const handlePrintReceipt = () => {
     if (!completedSale) return
     const custInfo = completedSale.customer || selectedCustomer
@@ -102,7 +159,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
         </head>
         <body>
           <div class="header">
-            <h3>${storeName || 'LUFIAN & JACK & JONES'}</h3>
+            <h3>${storeName || 'JACK & JONES'}</h3>
             <p>Fiş No: ${completedSale.receiptNo}</p>
             ${custInfo ? `<p>Müşteri: ${custInfo.firstName} ${custInfo.lastName}</p>` : ''}
             <p>Tarih: ${new Date().toLocaleString('tr-TR')}</p>
@@ -141,16 +198,16 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
   const changeDue = parseFloat(givenCash || '0') - total
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 font-sans">
-      <div className="bg-white border border-slate-200 rounded-lg w-full max-w-md shadow-xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 font-sans">
+      <div className="glass-modal rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+        <div className="px-5 py-3.5 border-b border-white/50 flex items-center justify-between bg-white/40 backdrop-blur-xs">
           <h2 className="font-bold text-slate-900 text-sm">
             {completedSale ? 'İşlem Tamamlandı' : total === 0 ? 'Sıfır Fark Değişim Onayı' : 'Ödeme ve Tahsilat'}
           </h2>
           <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-slate-700 p-1 rounded hover:bg-slate-200 transition"
+            onClick={handleModalClose}
+            className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-200/60 transition"
           >
             <X className="w-4 h-4" />
           </button>
@@ -160,7 +217,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
         {!completedSale ? (
           <div className="p-5 space-y-4">
             {/* Total Display */}
-            <div className="bg-slate-50 border border-slate-200 rounded p-3.5 text-center">
+            <div className="glass-card rounded-2xl p-4 text-center shadow-xs">
               <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">
                 Ödenecek Toplam Tutar
               </span>
@@ -266,7 +323,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
                           onChange={(e) => {
                             const val = parseFloat(e.target.value) || 0
                             setCashAmount(val)
-                            setCardAmount(Math.max(0, total - val))
+                            setCardAmount(Math.max(0, Number((total - val).toFixed(2))))
                           }}
                           className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded text-xs font-bold text-slate-900"
                         />
@@ -279,7 +336,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
                           onChange={(e) => {
                             const val = parseFloat(e.target.value) || 0
                             setCardAmount(val)
-                            setCashAmount(Math.max(0, total - val))
+                            setCashAmount(Math.max(0, Number((total - val).toFixed(2))))
                           }}
                           className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded text-xs font-bold text-slate-900"
                         />
@@ -342,7 +399,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
 
               <button
                 onClick={handleFinish}
-                className="py-2 px-3 bg-blue-700 hover:bg-blue-800 text-white font-bold rounded transition shadow-2xs text-xs"
+                className="py-2.5 px-3 bg-[#00268A] hover:bg-[#001f70] text-white font-bold rounded-lg transition shadow-sm text-xs"
               >
                 <span>Yeni Satışa Geç</span>
               </button>

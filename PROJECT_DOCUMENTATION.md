@@ -67,7 +67,18 @@ Bu proje, giyim mağazalarının kasa (POS) işlemlerini, stok takibini, renk/be
   * Electron.js `webContents.print()` API'si veya varsayılan thermal printer kütüphaneleri kullanılarak **Sessiz Yazdırma (Silent Print)** gerçekleştirilir.
   * Termal etiket yazıcılarına veri doğrudan RAW formatta veya önceden tanımlanmış etiket şablonları (ZPL / ESC/POS veya HTML-to-Printer) üzerinden arka planda iletilir.
 
+### 3.3. Çift Ekranlı POS Cihazları ve Müşteri Ekranı (Customer Display)
+* **Çalışma Prensibi:** Çift ekranlı POS terminallerinde kasiyere bakan ana dokunmatik ekranın yanı sıra, müşteriye bakan ikinci bir ekran (VGA/HDMI/DisplayPort) bulunur.
+* **Yazılımsal Çözüm:**
+  * **Donanım Algılama:** Electron `screen.getAllDisplays()` API'si ile sisteme bağlı 2. monitör otomatik algılanır.
+  * **Otomatik Yansıtma:** 2. ekran koordinatlarına çerçevesiz, tam ekran ve bağımsız bir pencere açılarak (`#customer-display`) müşteri arayüzü başlatılır.
+  * **Gerçek Zamanlı Senkronizasyon (Zero-Latency IPC + SSE):** Kasiyer barkod okuttukça, indirim/kampanya uyguladıkça veya tahsilat yaparken sepet kalemleri, ara toplam, indirim ve genel toplam anında 2. ekrana aktarılır.
+  * **Bekleme & Kampanya Vitrini:** Kasa boşken Jack & Jones kurumsal hoş geldiniz ekranı, döner kampanya vitrini, saat/tarih ve ödeme yöntemleri gösterilir.
+  * **Tahsilat ve Para Üstü:** Tahsilat sırasında ödeme yöntemi, nakit ödemelerde müşteriye verilecek **Para Üstü** dev boyutlarda gösterilir; işlem bitiminde "Ödemeniz Alındı / Fişiniz Basılıyor" ekranına geçer.
+  * **Kablosuz Tablet Desteği:** İkinci monitörü olmayan işletmeler için `http://<IP>:3782/customer-display` üzerinden Wi-Fi tabletler veya iPad'ler de canlı müşteri ekranı olarak çalışabilir.
+
 ---
+
 
 ## 4. Temel Modüller ve İşlevsel Gereksinimler
 

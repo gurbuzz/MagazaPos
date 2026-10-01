@@ -1,8 +1,28 @@
 import { Request, Response, NextFunction } from 'express'
 import fs from 'fs'
 import path from 'path'
+import { getUserDataDir } from './paths'
 
-const CONFIG_PATH = path.resolve(process.cwd(), 'data/security.json')
+function getSecurityConfigPath(): string {
+  const dataDir = path.join(getUserDataDir(), 'data')
+  if (!fs.existsSync(dataDir)) {
+    try {
+      fs.mkdirSync(dataDir, { recursive: true })
+    } catch (e) {}
+  }
+  const configPath = path.join(dataDir, 'security.json')
+
+  // Migration: If legacy config exists in process.cwd()/data/security.json, copy it over
+  try {
+    const legacyPath = path.resolve(process.cwd(), 'data/security.json')
+    if (legacyPath !== configPath && fs.existsSync(legacyPath) && !fs.existsSync(configPath)) {
+      fs.copyFileSync(legacyPath, configPath)
+      console.log('[Security] Migrated security.json to AppData:', configPath)
+    }
+  } catch (e) {}
+
+  return configPath
+}
 
 interface SecurityConfig {
   pin: string
@@ -10,18 +30,19 @@ interface SecurityConfig {
   updatedAt: string
 }
 
-function ensureConfigDir() {
-  const dir = path.dirname(CONFIG_PATH)
+function ensureConfigDir(filePath: string) {
+  const dir = path.dirname(filePath)
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true })
   }
 }
 
 function readConfig(): Partial<SecurityConfig> {
+  const configPath = getSecurityConfigPath()
   try {
-    ensureConfigDir()
-    if (fs.existsSync(CONFIG_PATH)) {
-      return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'))
+    ensureConfigDir(configPath)
+    if (fs.existsSync(configPath)) {
+      return JSON.parse(fs.readFileSync(configPath, 'utf-8'))
     }
   } catch (err) {
     console.error('Error reading security config:', err)
@@ -30,11 +51,12 @@ function readConfig(): Partial<SecurityConfig> {
 }
 
 function writeConfig(updates: Partial<SecurityConfig>): boolean {
+  const configPath = getSecurityConfigPath()
   try {
-    ensureConfigDir()
+    ensureConfigDir(configPath)
     const existing = readConfig()
     const merged = { ...existing, ...updates, updatedAt: new Date().toISOString() }
-    fs.writeFileSync(CONFIG_PATH, JSON.stringify(merged, null, 2), 'utf-8')
+    fs.writeFileSync(configPath, JSON.stringify(merged, null, 2), 'utf-8')
     return true
   } catch (err) {
     console.error('Error writing security config:', err)

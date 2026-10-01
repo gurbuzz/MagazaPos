@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import {
   X,
   Settings,
@@ -21,6 +22,9 @@ import {
   Globe,
   RefreshCw,
   Loader2,
+  Tv,
+  Monitor,
+  ExternalLink,
 } from 'lucide-react'
 import { usePosStore } from '../../store/usePosStore'
 
@@ -45,11 +49,13 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
     lowStockThreshold,
     autoPrintReceipt,
     customIp,
+    autoOpenCustomerDisplay,
+    customerDisplayMessage,
     updateSystemSettings,
     lockApp,
   } = usePosStore()
 
-  const [activeTab, setActiveTab] = useState<'general' | 'receipt' | 'network' | 'database'>('general')
+  const [activeTab, setActiveTab] = useState<'general' | 'receipt' | 'display' | 'network' | 'database'>('general')
 
   const [formStoreName, setFormStoreName] = useState(storeName)
   const [formStoreAddress, setFormStoreAddress] = useState(storeAddress)
@@ -62,6 +68,19 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
   const [formLowStock, setFormLowStock] = useState(lowStockThreshold)
   const [formAutoPrint, setFormAutoPrint] = useState(autoPrintReceipt)
   const [formCustomIp, setFormCustomIp] = useState(customIp)
+  const [formAutoOpenCustomerDisplay, setFormAutoOpenCustomerDisplay] = useState(autoOpenCustomerDisplay)
+  const [formCustomerDisplayMessage, setFormCustomerDisplayMessage] = useState(customerDisplayMessage)
+
+  const [customerDisplayHardware, setCustomerDisplayHardware] = useState<{
+    isOpen: boolean
+    hasSecondary: boolean
+    displaysCount: number
+    secondaryResolution?: string | null
+  }>({
+    isOpen: false,
+    hasSecondary: false,
+    displaysCount: 1,
+  })
 
   // Admin PIN change fields
   const [formNewAdminPin, setFormNewAdminPin] = useState('')
@@ -114,6 +133,13 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
     setFormLowStock(lowStockThreshold)
     setFormAutoPrint(autoPrintReceipt)
     setFormCustomIp(customIp)
+    setFormAutoOpenCustomerDisplay(autoOpenCustomerDisplay)
+    setFormCustomerDisplayMessage(customerDisplayMessage)
+
+    // Check display hardware
+    if (window.electron?.getCustomerDisplayStatus) {
+      window.electron.getCustomerDisplayStatus().then((s) => setCustomerDisplayHardware(s))
+    }
 
     // Ensure server security PIN is synchronized when settings modal opens
     if (isOpen && pinCode) {
@@ -136,6 +162,8 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
     lowStockThreshold,
     autoPrintReceipt,
     customIp,
+    autoOpenCustomerDisplay,
+    customerDisplayMessage,
   ])
 
   // Focus PIN input when dialog opens
@@ -156,7 +184,7 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
     }
 
     updateSystemSettings({
-      storeName: formStoreName.trim() || 'Lufian | Jack & Jones',
+      storeName: formStoreName.trim() || 'JACK & JONES',
       storeAddress: formStoreAddress.trim(),
       storePhone: formStorePhone.trim(),
       cashierName: formCashierName.trim() || 'Kasiyer 1',
@@ -167,6 +195,8 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
       lowStockThreshold: Number(formLowStock) || 5,
       autoPrintReceipt: formAutoPrint,
       customIp: formCustomIp.trim(),
+      autoOpenCustomerDisplay: formAutoOpenCustomerDisplay,
+      customerDisplayMessage: formCustomerDisplayMessage.trim(),
     })
 
     // Sync PIN to backend security manager
@@ -247,7 +277,7 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
       case 'reset-sales':
         return 'Tüm geçmiş satış kayıtları ve Z Raporu verileri kalıcı olarak silinecektir! Stoklar ve ürünler korunacaktır.'
       case 'reset-all':
-        return 'DİKKAT: Tüm ürünler, varyantlar, stoklar ve satış kayıtları kalıcı olarak silinecektir! Bu işlem geri alınamaz!'
+        return 'DİKKAT: Tüm ürünler, varyantlar, stoklar, müşteriler ve satış kayıtları kalıcı olarak silinecektir! Bu işlem geri alınamaz!'
       case 'restore-db':
         return 'Mevcut veritabanı seçilen yedek dosyası ile değiştirilecektir. Mevcut verilerinizin yedeği otomatik olarak alınacaktır.'
       default:
@@ -406,14 +436,14 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
     lockApp()
   }
 
-  return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 select-none font-sans">
-      <div className="bg-white border border-slate-200 rounded-lg max-w-2xl w-full overflow-hidden shadow-xl space-y-0">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 select-none font-sans">
+      <div className="glass-modal rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl space-y-0">
         {/* Header */}
         <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-          <div className="flex items-center space-x-2.5">
-            <div className="w-8 h-8 rounded bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-700">
-              <Settings className="w-4 h-4" />
+          <div className="flex items-center space-x-3">
+            <div className="bg-white px-2.5 py-1 rounded-md border border-slate-200 shadow-2xs flex items-center">
+              <img src="/org_logo.svg" alt="JACK & JONES" className="h-5 w-auto object-contain" />
             </div>
             <div>
               <h3 className="font-bold text-slate-900 text-sm">Sistem ve Kasa Ayarları</h3>
@@ -450,6 +480,25 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
             }`}
           >
             Fiş & Fatura
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('display')
+              if (window.electron?.getCustomerDisplayStatus) {
+                window.electron.getCustomerDisplayStatus().then((s) => setCustomerDisplayHardware(s))
+              }
+            }}
+            className={`px-3.5 py-1.5 text-xs font-semibold rounded-t transition border-b-2 flex items-center space-x-1.5 ${
+              activeTab === 'display'
+                ? 'bg-white border-blue-700 text-blue-700 shadow-2xs'
+                : 'border-transparent text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <span>Müşteri Ekranı (2. Ekran)</span>
+            {customerDisplayHardware.hasSecondary && (
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            )}
           </button>
 
           <button
@@ -490,8 +539,8 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
                     type="text"
                     value={formStoreName}
                     onChange={(e) => setFormStoreName(e.target.value)}
-                    placeholder="Örn: Lufian | Jack & Jones"
-                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded text-slate-900 text-xs font-semibold focus:ring-1 focus:ring-blue-600 focus:outline-none"
+                    placeholder="Örn: JACK & JONES"
+                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded text-slate-900 text-xs font-semibold focus:ring-1 focus:ring-[#00268A] focus:outline-none"
                   />
                 </div>
 
@@ -695,7 +744,185 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
             </div>
           )}
 
-          {/* TAB 3: Network & Mobile IP */}
+          {/* TAB: Customer Display (Müşteri Ekranı) */}
+          {activeTab === 'display' && (
+            <div className="space-y-4">
+              {/* Hardware Monitor Detection Status */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <Monitor className="w-4 h-4 text-blue-700" />
+                    <h5 className="font-bold text-xs text-slate-800">
+                      Çift Ekran POS Donanım Durumu
+                    </h5>
+                  </div>
+                  {customerDisplayHardware.hasSecondary ? (
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-bold flex items-center space-x-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                      <span>2. Ekran Algılandı (Çift Ekran Aktif ✅)</span>
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200 text-[10px] font-bold">
+                      Tek Monitör (Önizleme Modu)
+                    </span>
+                  )}
+                </div>
+
+                <div className="text-xs text-slate-600 space-y-1">
+                  <p>
+                    {customerDisplayHardware.hasSecondary ? (
+                      <>
+                        Bilgisayarınıza bağlı <strong>{customerDisplayHardware.displaysCount} adet monitör</strong> tespit edildi.
+                        {customerDisplayHardware.secondaryResolution && (
+                          <span className="ml-1 text-slate-500 font-mono">
+                            (2. Ekran Çözünürlüğü: {customerDisplayHardware.secondaryResolution})
+                          </span>
+                        )}
+                        {' '}Müşteri ekranı açıldığında otomatik olarak 2. ekrana çerçevesiz ve tam ekran olarak yansıtılacaktır.
+                      </>
+                    ) : (
+                      <>
+                        Şu anda sisteme bağlı <strong>1 adet ana monitör</strong> görünüyor. Müşteri ekranını açtığınızda test ve önizleme amaçlı bağımsız bir pencerede görüntülenecektir.
+                      </>
+                    )}
+                  </p>
+                </div>
+
+                {/* Instant Actions */}
+                <div className="flex items-center space-x-2 pt-1 border-t border-slate-200">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (window.electron?.openCustomerDisplay) {
+                        const s = await window.electron.openCustomerDisplay()
+                        setCustomerDisplayHardware(s)
+                      } else {
+                        window.open('/#customer-display', 'CustomerDisplay', 'width=1024,height=720')
+                      }
+                    }}
+                    className="px-3 py-1.5 bg-[#00268A] hover:bg-[#001f70] text-white rounded text-xs font-bold transition flex items-center space-x-1.5 shadow-2xs"
+                  >
+                    <Tv className="w-3.5 h-3.5" />
+                    <span>Müşteri Ekranını Şimdi Aç / Test Et</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (window.electron?.closeCustomerDisplay) {
+                        await window.electron.closeCustomerDisplay()
+                        if (window.electron.getCustomerDisplayStatus) {
+                          const s = await window.electron.getCustomerDisplayStatus()
+                          setCustomerDisplayHardware(s)
+                        }
+                      }
+                    }}
+                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-xs font-semibold border border-slate-300 transition"
+                  >
+                    Ekranı Kapat
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (window.electron?.getCustomerDisplayStatus) {
+                        const s = await window.electron.getCustomerDisplayStatus()
+                        setCustomerDisplayHardware(s)
+                      }
+                    }}
+                    className="p-1.5 text-slate-500 hover:text-slate-800 rounded hover:bg-slate-200 transition"
+                    title="Monitörleri Yeniden Algıla"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Startup & Behavior Settings */}
+              <div className="space-y-3 pt-1">
+                <div className="flex items-center space-x-2.5 p-3 bg-white border border-slate-200 rounded-xl shadow-2xs">
+                  <input
+                    type="checkbox"
+                    id="autoOpenDisplay"
+                    checked={formAutoOpenCustomerDisplay}
+                    onChange={(e) => setFormAutoOpenCustomerDisplay(e.target.checked)}
+                    className="w-4 h-4 text-blue-700 rounded focus:ring-blue-600 border-slate-300"
+                  />
+                  <div>
+                    <label htmlFor="autoOpenDisplay" className="text-xs font-bold text-slate-800 cursor-pointer block">
+                      Program Başlatıldığında 2. Ekranı Otomatik Aç
+                    </label>
+                    <p className="text-[11px] text-slate-500 font-medium">
+                      Çift ekranlı POS cihazlarında uygulama açıldığında müşteri ekranı otomatik olarak 2. monitörde başlar.
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Bekleme Modu Karşılama Sloganı:
+                  </label>
+                  <input
+                    type="text"
+                    value={formCustomerDisplayMessage}
+                    onChange={(e) => setFormCustomerDisplayMessage(e.target.value)}
+                    placeholder="Örn: JACK & JONES Kalitesiyle Keyifli Alışverişler Dileriz"
+                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded text-slate-900 text-xs font-semibold focus:ring-1 focus:ring-blue-600 focus:outline-none"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">
+                    Sepet boşken ve kasa beklemedeyken müşteri ekranında bu mesaj görüntülenir.
+                  </span>
+                </div>
+              </div>
+
+              {/* Wireless Wi-Fi Tablet Display Option */}
+              <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <h5 className="font-bold text-blue-950 text-xs flex items-center space-x-1.5">
+                    <Wifi className="w-3.5 h-3.5 text-blue-700" />
+                    <span>Kablosuz Tablet / iPad Müşteri Ekranı Bağlantısı</span>
+                  </h5>
+                  <span className="px-2 py-0.5 bg-blue-200/80 text-blue-900 rounded text-[10px] font-bold">
+                    Wi-Fi Canlı Yansıtma
+                  </span>
+                </div>
+
+                <p className="text-[11px] text-blue-900/80 font-medium">
+                  Kasa tezgahına koyacağınız harici bir Android tablet, iPad veya ikinci bir bilgisayardan bu adresi açarak gerçek zamanlı müşteri ekranı olarak kullanabilirsiniz:
+                </p>
+
+                <div className="p-2.5 bg-white border border-blue-300 rounded flex items-center justify-between">
+                  <code className="font-mono text-blue-950 font-bold text-xs select-all">
+                    http://{formCustomIp || '192.168.1.84'}:3782/customer-display
+                  </code>
+                  <div className="flex items-center space-x-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(`http://${formCustomIp || '192.168.1.84'}:3782/customer-display`)
+                        alert('Kablosuz müşteri ekranı bağlantı adresi kopyalandı!')
+                      }}
+                      className="px-2.5 py-1 bg-blue-700 hover:bg-blue-800 text-white rounded text-xs font-semibold transition shadow-2xs"
+                    >
+                      Adresi Kopyala
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        window.open(`http://${formCustomIp || 'localhost'}:3782/customer-display`, '_blank')
+                      }}
+                      className="p-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded transition border border-slate-300"
+                      title="Tarayıcıda Aç"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: Network & Mobile IP */}
           {activeTab === 'network' && (
             <div className="space-y-3.5">
               <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded space-y-2">
@@ -1089,6 +1316,7 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
           </div>
         </div>
       )}
-    </div>
+    </div>,
+    document.body
   )
 }

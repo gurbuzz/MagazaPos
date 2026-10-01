@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { X, Search, UserPlus, Check, UserCheck, Phone, MapPin, Plus } from 'lucide-react'
 import { usePosStore, Customer } from '../../store/usePosStore'
+import { notifyDataChanged } from '../../utils/events'
 
 interface CustomerSelectModalProps {
   isOpen: boolean
@@ -92,6 +93,7 @@ export const CustomerSelectModal: React.FC<CustomerSelectModalProps> = ({ isOpen
       const newCust = await res.json()
       // Auto select newly created customer
       setSelectedCustomer(newCust)
+      notifyDataChanged()
 
       // Reset form
       setFirstName('')
@@ -159,16 +161,36 @@ export const CustomerSelectModal: React.FC<CustomerSelectModalProps> = ({ isOpen
         {activeTab === 'search' ? (
           <div className="p-4 flex-1 flex flex-col overflow-hidden space-y-3">
             {/* Search Input */}
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="İsim, Soyisim, Telefon, İl veya İlçe ile ara..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium focus:outline-none focus:ring-1 focus:ring-blue-600 shadow-xs"
-                autoFocus
-              />
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+            <div className="flex items-center space-x-2">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  placeholder="İsim, Soyisim, Telefon ile ara..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#00268A] shadow-xs"
+                  autoFocus
+                />
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                {searchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchTerm('')}
+                    className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => fetchCustomers(searchTerm)}
+                className="px-3.5 py-2 bg-[#00268A] hover:bg-[#001f70] text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center space-x-1 shrink-0"
+                title="Müşteri Ara"
+              >
+                <Search className="w-3.5 h-3.5" />
+                <span>Ara</span>
+              </button>
             </div>
 
             {/* Currently Selected Customer Badge if any */}
@@ -215,7 +237,7 @@ export const CustomerSelectModal: React.FC<CustomerSelectModalProps> = ({ isOpen
                       onClick={() => handleSelect(c)}
                       className={`p-3 rounded-lg border cursor-pointer transition flex items-center justify-between ${
                         isSelected
-                          ? 'bg-blue-50/80 border-blue-500 shadow-2xs'
+                          ? 'bg-blue-50/80 border-[#00268A] shadow-sm'
                           : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50'
                       }`}
                     >
@@ -225,7 +247,7 @@ export const CustomerSelectModal: React.FC<CustomerSelectModalProps> = ({ isOpen
                             {c.firstName} {c.lastName}
                           </h4>
                           {isSelected && (
-                            <span className="px-1.5 py-0.2 bg-blue-600 text-white text-[10px] rounded font-semibold">
+                            <span className="px-1.5 py-0.2 bg-[#00268A] text-white text-[10px] rounded font-semibold">
                               Seçili
                             </span>
                           )}
@@ -253,8 +275,8 @@ export const CustomerSelectModal: React.FC<CustomerSelectModalProps> = ({ isOpen
                         }}
                         className={`px-3 py-1 rounded text-xs font-semibold transition ${
                           isSelected
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-700'
+                            ? 'bg-[#00268A] text-white'
+                            : 'bg-slate-100 hover:bg-[#00268A] hover:text-white text-slate-700'
                         }`}
                       >
                         {isSelected ? 'Seçildi' : 'Seç'}
@@ -370,7 +392,7 @@ export const CustomerSelectModal: React.FC<CustomerSelectModalProps> = ({ isOpen
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded transition flex items-center justify-center space-x-1 disabled:opacity-50"
+                className="flex-1 py-2 bg-[#00268A] hover:bg-[#001f70] text-white font-bold text-xs rounded transition flex items-center justify-center space-x-1 disabled:opacity-50"
               >
                 <Plus className="w-4 h-4" />
                 <span>Kaydet ve Alışverişe Seç</span>

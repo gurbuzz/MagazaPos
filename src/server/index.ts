@@ -10,6 +10,7 @@ import { mobileRouter } from './routes/mobile'
 import { printRouter } from './routes/print'
 import { systemRouter } from './routes/system'
 import { licenseRouter } from './routes/license'
+import { customerDisplayRouter } from './routes/customerDisplay'
 
 const app = express()
 const PORT = process.env.PORT || 3782
@@ -47,6 +48,17 @@ app.get('/mobile', (req, res) => {
     res.status(404).send('Mobil sayfa dosyası bulunamadı.')
   }
 })
+
+// Serve customer display static page for Wi-Fi tablets and external screens
+app.get('/customer-display', (req, res) => {
+  const cdHtmlPath = path.join(publicDir, 'customer-display.html')
+  if (fs.existsSync(cdHtmlPath)) {
+    res.sendFile(cdHtmlPath)
+  } else {
+    res.status(404).send('Müşteri Ekranı sayfası bulunamadı.')
+  }
+})
+
 // Ana dizine girildiğinde doğrudan mobil terminale yönlendir
 app.get('/', (_req, res) => {
   res.redirect('/mobile')
@@ -64,9 +76,11 @@ app.use('/api/variants', (req, res, next) => {
 app.use('/api/sales', salesRouter)
 app.use('/api/customers', customersRouter)
 app.use('/api/mobile', mobileRouter)
+app.use('/api/customer-display', customerDisplayRouter)
 app.use('/api/print', printRouter)
 app.use('/api/system', systemRouter)
 app.use('/api/license', licenseRouter)
+
 
 // Debug Log Endpoint
 app.get('/api/debug-logs', (req, res) => {

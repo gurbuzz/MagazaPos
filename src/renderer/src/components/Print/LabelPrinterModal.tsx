@@ -346,7 +346,7 @@ export const LabelPrinterModal: React.FC = () => {
               <button
                 disabled={isPrinting || !selectedVariant}
                 onClick={handlePrintDispatch}
-                className="w-full py-2.5 bg-blue-700 hover:bg-blue-800 text-white font-bold rounded shadow-sm transition flex items-center justify-center space-x-2 text-xs disabled:opacity-50"
+                className="w-full py-2.5 bg-[#00268A] hover:bg-[#001f70] text-white font-bold rounded-lg shadow-sm transition flex items-center justify-center space-x-2 text-xs disabled:opacity-50"
               >
                 <Printer className="w-4 h-4" />
                 <span>{isPrinting ? 'Yazdırılıyor...' : 'Termal Yazıcıya Gönder (Silent Print)'}</span>

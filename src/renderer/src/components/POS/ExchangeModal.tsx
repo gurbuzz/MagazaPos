@@ -39,7 +39,7 @@ export const ExchangeModal: React.FC<ExchangeModalProps> = ({ isOpen, onClose })
       const exact =
         data.find(
           (s: any) => s.receiptNo.toLowerCase() === searchReceipt.trim().toLowerCase()
-        ) || data[0]
+        ) || (data.length === 1 ? data[0] : null)
 
       if (!exact) {
         setErrorMsg(`"${searchReceipt}" numaralı fiş bulunamadı.`)

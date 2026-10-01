@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { X, Tag, Plus, Trash2, Percent, DollarSign, Check, Sparkles } from 'lucide-react'
 import { usePosStore, Campaign } from '../../store/usePosStore'
 
@@ -58,9 +59,9 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({ isOpen, onClose })
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 select-none font-sans">
-      <div className="bg-white border border-slate-200 rounded-lg max-w-xl w-full overflow-hidden shadow-xl space-y-0">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 select-none font-sans">
+      <div className="glass-modal rounded-2xl max-w-xl w-full overflow-hidden shadow-2xl space-y-0">
         {/* Header */}
         <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
           <div className="flex items-center space-x-2.5">
@@ -293,6 +294,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({ isOpen, onClose })
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

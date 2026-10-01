@@ -165,26 +165,52 @@ productRouter.post('/', async (req, res) => {
       return
     }
 
-    const product = await prisma.product.create({
-      data: {
-        code,
-        name,
-        brand,
-        basePrice: parseFloat(basePrice) || 0,
-        description,
-        categoryId: categoryId || null,
-        variants: {
-          create: (variants || []).map((v: any) => ({
-            sku: v.sku,
-            barcode: v.barcode,
-            attributes: typeof v.attributes === 'string' ? v.attributes : JSON.stringify(v.attributes || {}),
-            costPrice: parseFloat(v.costPrice || 0),
-            salePrice: parseFloat(v.salePrice || basePrice || 0),
-            stockQuantity: parseInt(v.stockQuantity || 0)
-          }))
+    const product = await prisma.$transaction(async (tx) => {
+      const p = await tx.product.create({
+        data: {
+          code,
+          name,
+          brand,
+          basePrice: parseFloat(basePrice) || 0,
+          description,
+          categoryId: categoryId || null,
+          variants: {
+            create: (variants || []).map((v: any) => {
+              const attrs = typeof v.attributes === 'string' ? v.attributes : JSON.stringify(v.attributes || {})
+              let parsedAttrs: any = {}
+              try { parsedAttrs = JSON.parse(attrs) } catch (e) {}
+              const clr = (parsedAttrs.color || 'Standart').toUpperCase()
+              const sz = (parsedAttrs.size || 'Standart').toUpperCase()
+              const safeSku = v.sku || `${code}-${clr}-${sz}-${Math.floor(1000 + Math.random() * 9000)}`
+
+              return {
+                sku: safeSku,
+                barcode: v.barcode,
+                attributes: attrs,
+                costPrice: parseFloat(v.costPrice || 0),
+                salePrice: parseFloat(v.salePrice || basePrice || 0),
+                stockQuantity: parseInt(v.stockQuantity || 0)
+              }
+            })
+          }
+        },
+        include: { variants: true }
+      })
+
+      for (const variant of p.variants) {
+        if (variant.stockQuantity > 0) {
+          await tx.stockMovement.create({
+            data: {
+              variantId: variant.id,
+              type: 'INBOUND',
+              quantity: variant.stockQuantity,
+              note: `Ürün ilk kayıt stok girişi (+${variant.stockQuantity} ad)`
+            }
+          })
         }
-      },
-      include: { variants: true }
+      }
+
+      return p
     })
 
     res.status(201).json(formatProduct(product))

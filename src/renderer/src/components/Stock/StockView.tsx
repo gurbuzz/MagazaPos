@@ -263,7 +263,13 @@ export const StockView: React.FC = () => {
     const qtyNum = parseInt(quickQty) || 1
     const costPriceNum = parseFloat(quickCostPrice) || salePriceNum * 0.5
 
-    const code = `PRD-${scannedBarcode.trim().slice(-6)}`
+    const cleanBarcode = scannedBarcode.trim()
+    const barcodeSuffix = cleanBarcode.length >= 6 ? cleanBarcode.slice(-6) : cleanBarcode.padStart(6, '0')
+    const code = `PRD-${barcodeSuffix}-${Date.now().toString().slice(-4)}`
+    const clr = quickColor.trim() || 'Standart'
+    const sz = quickSize.trim() || 'Standart'
+    const sku = `${code}-${clr.toUpperCase()}-${sz.toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`
+
     const payload = {
       code,
       name: quickName.trim(),
@@ -272,9 +278,9 @@ export const StockView: React.FC = () => {
       basePrice: salePriceNum,
       variants: [
         {
-          sku: `${code}-${quickColor.trim().toUpperCase()}-${quickSize.trim().toUpperCase()}`,
-          barcode: scannedBarcode.trim(),
-          attributes: { color: quickColor.trim() || 'Standart', size: quickSize.trim() || 'Standart' },
+          sku,
+          barcode: cleanBarcode,
+          attributes: { color: clr, size: sz },
           costPrice: costPriceNum,
           salePrice: salePriceNum,
           stockQuantity: qtyNum,
@@ -343,7 +349,7 @@ export const StockView: React.FC = () => {
         'Ürün Kodu': 'PNT-101',
         'Ürün Adı': 'Slim Fit Chino Pantolon',
         'Kategori': 'Pantolon',
-        'Marka': 'Lufian',
+        'Marka': 'JACK & JONES',
         'Barkod': '8690001112225',
         'Renk': 'Bej',
         'Beden': '32',
@@ -356,7 +362,7 @@ export const StockView: React.FC = () => {
     const ws = XLSX.utils.json_to_sheet(templateData)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Ürünler')
-    XLSX.writeFile(wb, 'Lufian_JackJones_Urun_Sablonu.xlsx')
+    XLSX.writeFile(wb, 'JackJones_Urun_Sablonu.xlsx')
   }
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -888,8 +894,8 @@ export const StockView: React.FC = () => {
   return (
     <div className="h-[calc(100vh-3.5rem)] bg-slate-100 flex overflow-hidden font-sans">
       {/* Left List: Products */}
-      <div className="w-1/3 border-r border-slate-200 flex flex-col bg-white">
-        <div className="p-3.5 border-b border-slate-200 space-y-2.5 bg-slate-50">
+      <div className="w-1/3 border-r border-white/60 flex flex-col glass-panel shadow-lg">
+        <div className="p-3.5 border-b border-white/40 space-y-2.5 bg-white/40 backdrop-blur-xs">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <h2 className="font-bold text-slate-900 text-xs flex items-center space-x-1.5">
               <Layers className="w-4 h-4 text-blue-700" />
@@ -941,43 +947,54 @@ export const StockView: React.FC = () => {
             </div>
           </div>
 
-          <div className="relative">
-            <input
-              ref={searchInputRef}
-              type="text"
-              placeholder="Ürün Adı, Kod veya Barkod Okutun (Enter)..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  handleBarcodeSearchSubmit(searchTerm)
-                }
-              }}
-              className="w-full pl-8 pr-16 py-1.5 bg-white border border-slate-300 rounded text-slate-900 text-xs placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600 font-medium transition"
-            />
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2" />
-            <div className="absolute right-2 top-1.5 flex items-center space-x-1">
-              {searchTerm && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearchTerm('')
-                    searchInputRef.current?.focus()
-                  }}
-                  className="text-slate-400 hover:text-slate-600 p-0.5"
-                  title="Aramayı Temizle"
+          <div className="flex items-center space-x-2">
+            <div className="relative flex-1">
+              <input
+                ref={searchInputRef}
+                type="text"
+                placeholder="Ürün Adı, Kod veya Barkod Okutun..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    handleBarcodeSearchSubmit(searchTerm)
+                  }
+                }}
+                className="w-full pl-8 pr-16 py-2 bg-white/70 backdrop-blur-xs border border-slate-300/80 rounded-xl text-slate-900 text-xs placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600 font-medium transition"
+              />
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+              <div className="absolute right-2 top-2 flex items-center space-x-1">
+                {searchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchTerm('')
+                      searchInputRef.current?.focus()
+                    }}
+                    className="text-slate-400 hover:text-slate-600 p-0.5"
+                    title="Aramayı Temizle"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                <div
+                  className="flex items-center text-emerald-600 pl-0.5"
+                  title="Barkod okuyucu aktif: Barkodu okutup Enter tuşuna basabilirsiniz."
                 >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-              <div
-                className="flex items-center text-emerald-600 pl-0.5"
-                title="Barkod okuyucu aktif: Barkodu okutup Enter tuşuna basabilirsiniz."
-              >
-                <Barcode className="w-4 h-4" />
+                  <Barcode className="w-4 h-4" />
+                </div>
               </div>
             </div>
+            <button
+              type="button"
+              onClick={() => handleBarcodeSearchSubmit(searchTerm)}
+              className="px-3.5 py-2 bg-[#00268A] hover:bg-[#001f70] text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center space-x-1.5 shrink-0"
+              title="Aramayı Başlat"
+            >
+              <Search className="w-3.5 h-3.5" />
+              <span>Ara</span>
+            </button>
           </div>
 
           {/* Barcode Search Toast / Feedback Notification */}
@@ -1052,7 +1069,7 @@ export const StockView: React.FC = () => {
       </div>
 
       {/* Right Column: Variant & Stock Details */}
-      <div className="flex-1 flex flex-col bg-white overflow-y-auto">
+      <div className="flex-1 flex flex-col glass-panel overflow-y-auto">
         {selectedProduct ? (
           <div className="p-6 space-y-6">
             <div className="border-b border-slate-200 pb-4 flex justify-between items-start">
@@ -1076,7 +1093,7 @@ export const StockView: React.FC = () => {
                   Ürün Kodu: {selectedProduct.code} {selectedProduct.brand ? `| Marka: ${selectedProduct.brand}` : ''}
                 </p>
               </div>
-              <div className="bg-slate-50 border border-slate-200 rounded p-3 text-right">
+              <div className="glass-card rounded-2xl p-3.5 text-right shadow-xs">
                 <span className="text-[11px] text-slate-500 font-semibold block uppercase">Taban Satış Fiyatı</span>
                 <span className="text-xl font-bold text-emerald-700">{selectedProduct.basePrice.toFixed(2)} ₺</span>
               </div>
@@ -1107,7 +1124,7 @@ export const StockView: React.FC = () => {
                 </button>
               </div>
 
-              <div className="border border-slate-200 rounded-lg overflow-hidden">
+              <div className="glass-card rounded-2xl overflow-hidden shadow-xs border border-white/60">
                 <table className="w-full text-left text-xs text-slate-700">
                   <thead className="bg-slate-50 text-slate-600 font-semibold uppercase tracking-wider border-b border-slate-200 text-[11px]">
                     <tr>

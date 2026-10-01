@@ -411,33 +411,73 @@ export const PosView: React.FC = () => {
       {/* LEFT COLUMN: Product Catalog & Quick Touch Grid */}
       <div className="flex-1 flex flex-col border-r border-slate-200 overflow-hidden">
         {/* Top Search & Barcode Bar */}
-        <div className="p-3 bg-white border-b border-slate-200 flex items-center space-x-3 shadow-sm">
-          <form onSubmit={handleBarcodeSubmit} className="flex-1 relative">
-            <input
-              ref={barcodeInputRef}
-              type="text"
-              placeholder="Barkod okutun veya manuel yazıp Enter'a basın..."
-              value={barcodeInput}
-              onChange={(e) => setBarcodeInput(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 font-mono text-xs shadow-inner"
-            />
-            <Barcode className="w-4 h-4 text-blue-600 absolute left-3 top-2.5" />
+        <div className="p-3 glass-panel border-b border-white/50 flex items-center space-x-3 shadow-xs">
+          <form onSubmit={handleBarcodeSubmit} className="flex-1 flex items-center space-x-2">
+            <div className="relative flex-1">
+              <input
+                ref={barcodeInputRef}
+                type="text"
+                placeholder="Barkod okutun veya manuel yazın..."
+                value={barcodeInput}
+                onChange={(e) => setBarcodeInput(e.target.value)}
+                className="w-full pl-9 pr-8 py-2 bg-white/70 backdrop-blur-xs border border-slate-300/80 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#00268A] font-mono text-xs shadow-inner"
+              />
+              <Barcode className="w-4 h-4 text-[#00268A] absolute left-3 top-2.5" />
+              {barcodeInput && (
+                <button
+                  type="button"
+                  onClick={() => setBarcodeInput('')}
+                  className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+            <button
+              type="submit"
+              disabled={!barcodeInput.trim()}
+              className="px-3.5 py-2 bg-[#00268A] hover:bg-[#001f70] disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center space-x-1.5 shrink-0"
+              title="Barkodu Ara / Sepete Ekle"
+            >
+              <Barcode className="w-3.5 h-3.5" />
+              <span>Ekle</span>
+            </button>
           </form>
 
-          <div className="w-60 relative">
-            <input
-              type="text"
-              placeholder="Ürün adı ile ara..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-300 rounded text-slate-900 text-xs placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-600 font-medium"
-            />
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+          <div className="w-64 flex items-center space-x-2">
+            <div className="relative flex-1">
+              <input
+                type="text"
+                placeholder="Ürün adı ile ara..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-8 pr-8 py-2 bg-white/70 backdrop-blur-xs border border-slate-300/80 rounded-xl text-slate-900 text-xs placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#00268A] font-medium"
+              />
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => {}}
+              className="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center space-x-1 shrink-0"
+              title="Ürün Ara"
+            >
+              <Search className="w-3.5 h-3.5" />
+              <span>Ara</span>
+            </button>
           </div>
 
           <button
             onClick={fetchProducts}
-            className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded border border-slate-300 transition"
+            className="p-2 bg-white/80 hover:bg-white text-slate-700 rounded-xl border border-slate-300/80 transition shadow-2xs backdrop-blur-xs"
             title="Yenile"
           >
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
@@ -445,13 +485,13 @@ export const PosView: React.FC = () => {
         </div>
 
         {/* Categories Horizontal Bar */}
-        <div className="px-3 py-2 bg-white/90 border-b border-slate-200 flex items-center space-x-1.5 overflow-x-auto no-scrollbar">
+        <div className="px-3 py-2 glass-subtle border-b border-white/40 flex items-center space-x-1.5 overflow-x-auto no-scrollbar">
           <button
             onClick={() => setSelectedCategory('ALL')}
-            className={`px-3 py-1 rounded text-xs font-semibold whitespace-nowrap transition ${
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
               selectedCategory === 'ALL'
-                ? 'bg-slate-900 text-white shadow-sm'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 border border-slate-200/60'
+                ? 'bg-[#00268A] text-white shadow-sm'
+                : 'bg-white/70 text-slate-700 hover:bg-white hover:text-slate-900 border border-white/80 backdrop-blur-xs'
             }`}
           >
             Tüm Kategoriler
@@ -461,10 +501,10 @@ export const PosView: React.FC = () => {
             <button
               key={cat.id}
               onClick={() => setSelectedCategory(cat.id)}
-              className={`px-3 py-1 rounded text-xs font-semibold whitespace-nowrap transition ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
                 selectedCategory === cat.id
-                  ? 'bg-slate-900 text-white shadow-sm'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 border border-slate-200/60'
+                  ? 'bg-[#00268A] text-white shadow-sm'
+                  : 'bg-white/70 text-slate-700 hover:bg-white hover:text-slate-900 border border-white/80 backdrop-blur-xs'
               }`}
             >
               {cat.name} ({cat._count?.products || 0})
@@ -477,37 +517,37 @@ export const PosView: React.FC = () => {
           {filteredProducts.map((prod) => (
             <div
               key={prod.id}
-              className="bg-white border border-slate-200 rounded-lg p-3 flex flex-col justify-between hover:border-slate-400 shadow-sm transition group"
+              className="glass-card rounded-2xl p-3.5 flex flex-col justify-between hover:shadow-lg transition-all group"
             >
               <div>
-                <span className="text-[10px] font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 uppercase tracking-tight">
+                <span className="text-xs font-bold text-[#00268A] bg-blue-50/80 px-2.5 py-0.5 rounded-full border border-blue-200/60 uppercase tracking-tight backdrop-blur-xs">
                   {prod.category?.name || 'Giyim'}
                 </span>
-                <h3 className="font-bold text-slate-900 text-xs mt-1.5 leading-snug group-hover:text-blue-700 transition">
+                <h3 className="font-extrabold text-slate-900 text-sm mt-1.5 leading-snug group-hover:text-[#00268A] transition-colors">
                   {prod.name}
                 </h3>
-                <p className="text-[11px] text-slate-500 font-mono mt-0.5">{prod.code}</p>
+                <p className="text-xs text-slate-500 font-mono mt-0.5">{prod.code}</p>
               </div>
 
               {/* Variants Quick Add Buttons */}
-              <div className="mt-2.5 pt-2 border-t border-slate-100 space-y-1.5">
-                <span className="text-[10px] font-semibold text-slate-400 uppercase block">Varyantlar:</span>
-                <div className="flex flex-wrap gap-1">
+              <div className="mt-2.5 pt-2 border-t border-slate-200/50 space-y-1.5">
+                <span className="text-xs font-bold text-slate-400 uppercase block">Varyantlar:</span>
+                <div className="flex flex-wrap gap-1.5">
                   {prod.variants?.map((v: any) => (
                     <button
                       key={v.id}
                       onClick={() => addToCart({ ...v, product: prod })}
                       disabled={v.stockQuantity <= 0}
-                      className={`px-2 py-0.5 rounded text-[11px] font-medium border flex items-center space-x-1 transition ${
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold border flex items-center space-x-1.5 transition ${
                         v.stockQuantity <= 0
-                          ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-60'
-                          : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-blue-600 hover:border-blue-600 hover:text-white'
+                          ? 'bg-slate-100/60 text-slate-400 border-slate-200/60 cursor-not-allowed opacity-50'
+                          : 'bg-white/90 border-slate-200/80 text-slate-800 hover:bg-[#00268A] hover:border-[#00268A] hover:text-white shadow-2xs backdrop-blur-xs'
                       }`}
                     >
                       <span>
                         {v.attributes?.color || ''} {v.attributes?.size || ''}
                       </span>
-                      <span className="font-semibold text-emerald-700 group-hover:text-white">
+                      <span className="font-extrabold text-emerald-700 group-hover:text-white">
                         {v.salePrice}₺
                       </span>
                     </button>
@@ -520,23 +560,23 @@ export const PosView: React.FC = () => {
       </div>
 
       {/* RIGHT COLUMN: POS Cart & Checkout (Kasa Sepeti) */}
-      <div className="w-96 bg-white flex flex-col h-full shadow-lg border-l border-slate-200">
+      <div className="w-96 glass-panel flex flex-col h-full shadow-2xl border-l border-white/60">
         {/* Cart Header */}
-        <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+        <div className="px-4 py-3 border-b border-white/40 flex items-center justify-between bg-white/40 backdrop-blur-xs">
           <div className="flex items-center space-x-2">
-            <ShoppingCart className="w-4 h-4 text-blue-700" />
+            <ShoppingCart className="w-4 h-4 text-[#00268A]" />
             <h2 className="font-bold text-slate-900 text-xs tracking-tight">Kasa Sepeti</h2>
           </div>
-          <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-[11px] font-semibold border border-blue-100">
+          <span className="px-2.5 py-0.5 rounded-full bg-blue-100/70 text-[#00268A] text-[11px] font-bold border border-blue-200/80 shadow-2xs">
             {cartItems.reduce((acc, i) => acc + i.quantity, 0)} Kalem
           </span>
         </div>
 
         {/* Customer Selection Banner */}
-        <div className="px-3.5 py-2 border-b border-slate-200 bg-slate-100/70 flex items-center justify-between text-xs">
+        <div className="px-3.5 py-2 border-b border-white/40 bg-white/30 backdrop-blur-xs flex items-center justify-between text-xs">
           {selectedCustomer ? (
             <div className="flex items-center space-x-2 overflow-hidden mr-2">
-              <UserCheck className="w-4 h-4 text-blue-600 shrink-0" />
+              <UserCheck className="w-4 h-4 text-[#00268A] shrink-0" />
               <div className="truncate">
                 <span className="font-bold text-slate-900 truncate">
                   {selectedCustomer.firstName} {selectedCustomer.lastName}
@@ -564,7 +604,7 @@ export const PosView: React.FC = () => {
             </button>
             <button
               onClick={() => setIsCustomerModalOpen(true)}
-              className="px-2.5 py-1 bg-white hover:bg-blue-50 text-blue-700 border border-blue-200 rounded text-[11px] font-semibold transition shadow-2xs"
+              className="px-2.5 py-1 bg-white hover:bg-blue-50 text-[#00268A] border border-blue-200 rounded text-[11px] font-semibold transition shadow-2xs"
             >
               {selectedCustomer ? 'Değiştir' : 'Müşteri Seç'}
             </button>
@@ -583,48 +623,48 @@ export const PosView: React.FC = () => {
             cartItems.map((item) => (
               <div
                 key={item.variantId}
-                className="bg-slate-50/80 border border-slate-200 rounded p-2.5 flex flex-col space-y-1.5 shadow-2xs"
+                className="glass-card rounded-xl p-2.5 flex flex-col space-y-1.5 shadow-xs transition-all hover:bg-white"
               >
                 <div className="flex items-start justify-between">
                   <div>
-                    <h4 className="font-semibold text-slate-900 text-xs leading-snug">{item.productName}</h4>
+                    <h4 className="font-bold text-slate-900 text-sm leading-snug">{item.productName}</h4>
                     <div className="flex items-center space-x-2 mt-0.5">
-                      <span className="px-1 py-0.2 bg-white rounded text-[10px] text-slate-700 font-medium border border-slate-200">
+                      <span className="px-2 py-0.5 bg-white/95 rounded-md text-xs text-slate-800 font-bold border border-slate-200 shadow-2xs">
                         {item.attributes.color || '-'} / {item.attributes.size || '-'}
                       </span>
-                      <span className="text-[10px] text-slate-500 font-mono">{item.barcode}</span>
+                      <span className="text-xs text-slate-500 font-mono">{item.barcode}</span>
                     </div>
                   </div>
                   <button
                     onClick={() => removeFromCart(item.variantId)}
-                    className="text-slate-400 hover:text-rose-600 p-0.5 transition"
+                    className="text-slate-400 hover:text-rose-600 p-1 transition"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
 
-                <div className="flex items-center justify-between pt-1 border-t border-slate-200/80">
-                  <div className="flex items-center space-x-1.5 bg-white border border-slate-300 rounded p-0.5 shadow-2xs">
+                <div className="flex items-center justify-between pt-1.5 border-t border-slate-200/60">
+                  <div className="flex items-center space-x-1.5 bg-white/90 border border-slate-300/80 rounded-xl p-1 shadow-2xs backdrop-blur-xs">
                     <button
                       onClick={() => updateQuantity(item.variantId, item.quantity - 1)}
-                      className="w-5 h-5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-xs"
+                      className="w-6 h-6 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 flex items-center justify-center font-bold text-sm"
                     >
-                      <Minus className="w-3 h-3" />
+                      <Minus className="w-3.5 h-3.5" />
                     </button>
-                    <span className="w-5 text-center font-semibold text-xs text-slate-900">
+                    <span className="w-6 text-center font-extrabold text-sm text-slate-900">
                       {item.quantity}
                     </span>
                     <button
                       onClick={() => updateQuantity(item.variantId, item.quantity + 1)}
-                      className="w-5 h-5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-xs"
+                      className="w-6 h-6 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 flex items-center justify-center font-bold text-sm"
                     >
-                      <Plus className="w-3 h-3" />
+                      <Plus className="w-3.5 h-3.5" />
                     </button>
                   </div>
 
                   <div className="text-right">
-                    <span className="text-[10px] text-slate-500 block">Birim: {item.unitPrice.toFixed(2)}₺</span>
-                    <span className="font-bold text-slate-900 text-xs">{item.totalPrice.toFixed(2)} ₺</span>
+                    <span className="text-xs text-slate-500 font-medium block">Birim: {item.unitPrice.toFixed(2)}₺</span>
+                    <span className="font-extrabold text-slate-900 text-sm">{item.totalPrice.toFixed(2)} ₺</span>
                   </div>
                 </div>
               </div>
@@ -633,7 +673,7 @@ export const PosView: React.FC = () => {
         </div>
 
         {/* Cart Summary & Campaign Motor */}
-        <div className="p-3.5 bg-slate-50 border-t border-slate-200 space-y-2.5">
+        <div className="p-3.5 glass-panel border-t border-white/60 space-y-2.5">
           {/* Campaign Header & Settings Trigger */}
           <div className="flex items-center justify-between">
             <span className="text-slate-700 font-semibold text-xs flex items-center space-x-1">
@@ -743,9 +783,9 @@ export const PosView: React.FC = () => {
           <button
             disabled={cartItems.length === 0}
             onClick={() => setIsCheckoutOpen(true)}
-            className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded shadow-sm transition flex items-center justify-center space-x-2 text-xs tracking-wide disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl shadow-md transition flex items-center justify-center space-x-2.5 text-sm tracking-wide disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
           >
-            <CreditCard className="w-4 h-4" />
+            <CreditCard className="w-5 h-5 stroke-[2.2]" />
             <span>ÖDEME AL / TAHSİLAT</span>
           </button>
         </div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { ShieldAlert, Delete, KeyRound, X } from 'lucide-react'
 
 interface AdminPinModalProps {
@@ -119,10 +120,10 @@ export const AdminPinModal: React.FC<AdminPinModalProps> = ({
 
   if (!isOpen) return null
 
-  return (
-    <div className="fixed inset-0 z-[60] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 select-none font-sans">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 select-none font-sans">
       <div
-        className={`bg-white border border-slate-200 rounded-lg max-w-sm w-full p-6 shadow-xl space-y-5 text-center transform transition-all ${
+        className={`glass-modal rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-5 text-center transform transition-all ${
           shake ? 'animate-bounce' : ''
         }`}
       >
@@ -138,7 +139,7 @@ export const AdminPinModal: React.FC<AdminPinModalProps> = ({
 
         {/* Icon & Title */}
         <div className="space-y-2 -mt-2">
-          <div className="w-12 h-12 rounded bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-700 mx-auto">
+          <div className="w-12 h-12 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-[#00268A] mx-auto shadow-2xs">
             <ShieldAlert className="w-6 h-6 stroke-[2]" />
           </div>
           <div>
@@ -159,7 +160,7 @@ export const AdminPinModal: React.FC<AdminPinModalProps> = ({
                     error
                       ? 'bg-rose-500 border-rose-600 scale-110 shadow-2xs'
                       : isFilled
-                      ? 'bg-indigo-700 border-indigo-700 scale-110 shadow-2xs'
+                      ? 'bg-[#00268A] border-[#00268A] scale-110 shadow-2xs'
                       : 'border-slate-300 bg-slate-100'
                   }`}
                 />
@@ -173,8 +174,8 @@ export const AdminPinModal: React.FC<AdminPinModalProps> = ({
             </p>
           ) : (
             <p className="text-[11px] text-slate-500 font-medium flex items-center justify-center space-x-1">
-              <KeyRound className="w-3.5 h-3.5 text-indigo-600" />
-              <span>6 haneli Yönetici PIN şifresini girin</span>
+              <KeyRound className="w-3.5 h-3.5 text-[#00268A]" />
+              <span>6 haneli Yönetici PIN şifrenizi girin</span>
             </p>
           )}
         </div>
@@ -186,7 +187,7 @@ export const AdminPinModal: React.FC<AdminPinModalProps> = ({
               key={digit}
               onClick={() => handleInput(digit)}
               disabled={isVerifying}
-              className="h-12 rounded bg-slate-50 hover:bg-indigo-50 hover:text-indigo-700 border border-slate-200 text-slate-800 font-bold text-lg flex items-center justify-center shadow-2xs active:scale-95 transition disabled:opacity-50"
+              className="h-12 rounded-xl bg-slate-50 hover:bg-[#00268A] hover:text-white border border-slate-200 text-slate-800 font-bold text-lg flex items-center justify-center shadow-2xs active:scale-95 transition disabled:opacity-50"
             >
               {digit}
             </button>
@@ -195,7 +196,7 @@ export const AdminPinModal: React.FC<AdminPinModalProps> = ({
           <button
             onClick={handleClear}
             disabled={isVerifying}
-            className="h-12 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold text-xs flex items-center justify-center transition border border-slate-200 disabled:opacity-50"
+            className="h-12 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold text-xs flex items-center justify-center transition border border-slate-200 disabled:opacity-50"
           >
             Temizle
           </button>
@@ -203,7 +204,7 @@ export const AdminPinModal: React.FC<AdminPinModalProps> = ({
           <button
             onClick={() => handleInput('0')}
             disabled={isVerifying}
-            className="h-12 rounded bg-slate-50 hover:bg-indigo-50 hover:text-indigo-700 border border-slate-200 text-slate-800 font-bold text-lg flex items-center justify-center shadow-2xs active:scale-95 transition disabled:opacity-50"
+            className="h-12 rounded-xl bg-slate-50 hover:bg-[#00268A] hover:text-white border border-slate-200 text-slate-800 font-bold text-lg flex items-center justify-center shadow-2xs active:scale-95 transition disabled:opacity-50"
           >
             0
           </button>
@@ -211,13 +212,14 @@ export const AdminPinModal: React.FC<AdminPinModalProps> = ({
           <button
             onClick={handleDelete}
             disabled={isVerifying}
-            className="h-12 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold flex items-center justify-center transition border border-slate-200 disabled:opacity-50"
+            className="h-12 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold flex items-center justify-center transition border border-slate-200 disabled:opacity-50"
             title="Sil"
           >
             <Delete className="w-4 h-4" />
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

@@ -3,10 +3,17 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    font-size: 15.5px;
+  }
+
   body {
-    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-weight: 550;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    letter-spacing: -0.012em;
+    color: #0f172a;
   }
 
   input,
@@ -14,21 +21,285 @@
   select {
     -webkit-user-select: text !important;
     user-select: text !important;
+    font-weight: 600;
+  }
+
+  button {
+    font-weight: 650;
+    letter-spacing: -0.01em;
   }
 }
 
-/* Custom scrollbar for dark UI */
+/* POS Terminal Screen Font Scaling & Enhanced Boldness */
+.text-\[10px\] {
+  font-size: 11.5px !important;
+  font-weight: 650 !important;
+}
+
+.text-\[11px\] {
+  font-size: 12.5px !important;
+  font-weight: 600 !important;
+}
+
+.text-xs {
+  font-size: 13.5px !important;
+  line-height: 1.35 !important;
+  font-weight: 600;
+}
+
+.text-sm {
+  font-size: 15px !important;
+  line-height: 1.35 !important;
+  font-weight: 650;
+}
+
+.font-mono {
+  font-weight: 650 !important;
+  letter-spacing: 0.02em;
+}
+
+/* Custom sleek scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #0f172a;
+  background: #f1f5f9;
 }
 ::-webkit-scrollbar-thumb {
-  background: #334155;
-  border-radius: 3px;
+  background: #cbd5e1;
+  border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: #00268A;
 }
+
+/* Corporate Brand Gradient & Glow */
+.bg-corporate-navy {
+  background-color: #00268A;
+}
+
+.text-corporate-navy {
+  color: #00268A;
+}
+
+.border-corporate-navy {
+  border-color: #00268A;
+}
+
+.gradient-corporate {
+  background: linear-gradient(135deg, #00268A 0%, #001859 100%);
+}
+
+/* Static Rich Navy-to-White Multi-stop Gradient */
+.navbar-gradient {
+  background: linear-gradient(
+    105deg,
+    #001138 0%,
+    #001a5e 16%,
+    #00268A 36%,
+    #0e44c2 56%,
+    #2563eb 72%,
+    #93c5fd 85%,
+    #e2edff 93%,
+    #ffffff 100%
+  );
+}
+
+/* Glassmorphism System for Cards & Panels */
+.glass-card {
+  background: rgba(255, 255, 255, 0.76) !important;
+  backdrop-filter: blur(14px) saturate(180%);
+  -webkit-backdrop-filter: blur(14px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.75) !important;
+  box-shadow: 0 4px 18px -2px rgba(0, 38, 138, 0.05), 0 2px 6px -1px rgba(0, 0, 0, 0.03);
+}
+
+.glass-card:hover {
+  background: rgba(255, 255, 255, 0.92) !important;
+  border-color: rgba(0, 38, 138, 0.3) !important;
+  box-shadow: 0 8px 26px -3px rgba(0, 38, 138, 0.1), 0 3px 8px -2px rgba(0, 0, 0, 0.05);
+}
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.82) !important;
+  backdrop-filter: blur(18px) saturate(190%);
+  -webkit-backdrop-filter: blur(18px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.7) !important;
+  box-shadow: 0 10px 30px -4px rgba(0, 38, 138, 0.06);
+}
+
+.glass-modal {
+  background: rgba(255, 255, 255, 0.88) !important;
+  backdrop-filter: blur(24px) saturate(200%);
+  -webkit-backdrop-filter: blur(24px) saturate(200%);
+  border: 1px solid rgba(255, 255, 255, 0.85) !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 38, 138, 0.22);
+}
+
+.glass-subtle {
+  background: rgba(255, 255, 255, 0.62) !important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.6) !important;
+}
+
+.glass-input {
+  background: rgba(255, 255, 255, 0.7) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(203, 213, 225, 0.7) !important;
+}
+
+/* Customer Display Smooth Slow-Motion Transitions */
+@keyframes slowMotionSlideUp {
+  0% {
+    opacity: 0;
+    transform: translateY(22px) scale(0.98);
+    filter: blur(3px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes slowMotionFadeIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes pulseSoftRing {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 16px rgba(59, 130, 246, 0);
+  }
+}
+
+@keyframes pulseEmeraldSoft {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 14px rgba(16, 185, 129, 0);
+  }
+}
+
+/* Slower, Majestic Light Sweep (1.35s - Eye-catching & Deliberate) */
+@keyframes lightSweepSlow {
+  0% {
+    transform: translateX(-160%) skewX(-25deg);
+    opacity: 0;
+  }
+  25% {
+    opacity: 0.95;
+  }
+  65% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: translateX(260%) skewX(-25deg);
+    opacity: 0;
+  }
+}
+
+/* Slower, Stately Split Panel Entrances (1.15s) */
+@keyframes checkoutPanelLeftSlow {
+  0% {
+    transform: translateX(-45px) scale(0.96);
+    opacity: 0;
+    filter: blur(8px);
+  }
+  100% {
+    transform: translateX(0) scale(1);
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+@keyframes checkoutPanelRightSlow {
+  0% {
+    transform: translateX(45px) scale(0.96);
+    opacity: 0;
+    filter: blur(8px);
+  }
+  100% {
+    transform: translateX(0) scale(1);
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+/* Center Transition Portal Card (2.35s - Extra half second hold) */
+@keyframes portalCardIn {
+  0% {
+    transform: scale(0.85);
+    opacity: 0;
+    filter: blur(10px);
+  }
+  12% {
+    transform: scale(1.02);
+    opacity: 1;
+    filter: blur(0);
+  }
+  88% {
+    transform: scale(1);
+    opacity: 1;
+    filter: blur(0);
+  }
+  100% {
+    transform: scale(1.08) translateY(-15px);
+    opacity: 0;
+    filter: blur(8px);
+  }
+}
+
+.animate-slowmotion-enter {
+  animation: slowMotionSlideUp 720ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-slowmotion-fade {
+  animation: slowMotionFadeIn 650ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-soft-ring {
+  animation: pulseSoftRing 2.8s ease-in-out infinite;
+}
+
+.animate-emerald-ring {
+  animation: pulseEmeraldSoft 2.8s ease-in-out infinite;
+}
+
+.animate-light-sweep {
+  animation: lightSweepSlow 2350ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.animate-panel-left {
+  animation: checkoutPanelLeftSlow 1350ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-panel-right {
+  animation: checkoutPanelRightSlow 1350ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-portal-card {
+  animation: portalCardIn 2350ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-halo-pulse {
+  animation: pulseHalo 3.5s ease-in-out infinite;
+}
+
+
+
+
+

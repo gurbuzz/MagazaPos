@@ -24,9 +24,10 @@ import {
 } from 'lucide-react'
 import { usePosStore, Customer } from '../../store/usePosStore'
 import { ReturnModal } from './ReturnModal'
+import { notifyDataChanged } from '../../utils/events'
 
 export const CustomerView: React.FC = () => {
-  const { setSelectedCustomer, setActiveTab } = usePosStore()
+  const { setSelectedCustomer, setActiveTab, storeName, storeAddress, storePhone, receiptFooterNote } = usePosStore()
 
   const [customers, setCustomers] = useState<Customer[]>([])
   const [searchTerm, setSearchTerm] = useState('')
@@ -134,6 +135,7 @@ export const CustomerView: React.FC = () => {
           setSelectedCustomerId(null)
         }
         fetchCustomers(searchTerm)
+        notifyDataChanged()
       } else {
         const err = await res.json()
         alert(`Hata: ${err.error}`)
@@ -184,6 +186,7 @@ export const CustomerView: React.FC = () => {
       setIsSubmitting(false)
       fetchCustomers(searchTerm)
       setSelectedCustomerId(savedCust.id)
+      notifyDataChanged()
     } catch (err: any) {
       setErrorMsg(`Hata: ${err.message}`)
       setIsSubmitting(false)
@@ -208,7 +211,9 @@ export const CustomerView: React.FC = () => {
         </head>
         <body>
           <div class="header">
-            <h3>MAĞAZA POS</h3>
+            <h3>${storeName || 'JACK & JONES'}</h3>
+            ${storeAddress ? `<p>${storeAddress}</p>` : ''}
+            ${storePhone ? `<p>Tel: ${storePhone}</p>` : ''}
             <p>Fiş No: ${sale.receiptNo}</p>
             <p>Müşteri: ${customerDetails?.firstName || ''} ${customerDetails?.lastName || ''}</p>
             <p>Tarih: ${new Date(sale.createdAt).toLocaleString('tr-TR')}</p>
@@ -230,7 +235,7 @@ export const CustomerView: React.FC = () => {
             <div class="item" style="font-size: 14px;"><span>GENEL TOPLAM:</span><span>${sale.totalAmount.toFixed(2)} TL</span></div>
           </div>
           <div class="header" style="border-bottom: none; border-top: 1px dashed #000; margin-top: 10px;">
-            <p>Bizi Tercih Ettiğiniz İçin Teşekkür Ederiz!</p>
+            <p>${receiptFooterNote || 'Bizi Tercih Ettiğiniz İçin Teşekkür Ederiz!'}</p>
           </div>
         </body>
       </html>
@@ -254,16 +259,16 @@ export const CustomerView: React.FC = () => {
   return (
     <div className="h-[calc(100vh-3.5rem)] bg-slate-100 flex overflow-hidden font-sans select-none">
       {/* LEFT PANEL: Customer List & Search */}
-      <div className="w-96 bg-white border-r border-slate-200 flex flex-col h-full shadow-sm">
+      <div className="w-96 glass-panel border-r border-white/60 flex flex-col h-full shadow-lg">
         {/* Header Bar */}
-        <div className="p-3.5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+        <div className="p-3.5 border-b border-white/40 bg-white/40 backdrop-blur-xs flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <Users className="w-5 h-5 text-blue-600" />
+            <Users className="w-5 h-5 text-[#00268A]" />
             <h2 className="font-bold text-slate-900 text-sm">Müşteri Kayıtları</h2>
           </div>
           <button
             onClick={handleOpenAddModal}
-            className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold shadow-2xs transition flex items-center space-x-1"
+            className="px-3 py-1.5 bg-[#00268A] hover:bg-[#001f70] text-white rounded-lg text-xs font-bold shadow-xs transition flex items-center space-x-1"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Yeni Kayıt</span>
@@ -271,17 +276,45 @@ export const CustomerView: React.FC = () => {
         </div>
 
         {/* Search Input */}
-        <div className="p-3 border-b border-slate-200 bg-white">
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Ad, Soyad, Telefon, İl veya İlçe..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-600 font-medium"
-            />
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
-          </div>
+        <div className="p-3 border-b border-white/40 bg-white/30 backdrop-blur-xs">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              fetchCustomers(searchTerm)
+            }}
+            className="flex items-center space-x-2"
+          >
+            <div className="relative flex-1">
+              <input
+                type="text"
+                placeholder="Ad, Soyad, Telefon, İl..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-8 pr-8 py-2 bg-white/70 backdrop-blur-xs border border-slate-300/80 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-blue-600 font-medium"
+              />
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchTerm('')
+                    fetchCustomers('')
+                  }}
+                  className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+            <button
+              type="submit"
+              className="px-3.5 py-2 bg-[#00268A] hover:bg-[#001f70] text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center space-x-1 shrink-0"
+              title="Müşteri Ara"
+            >
+              <Search className="w-3.5 h-3.5" />
+              <span>Ara</span>
+            </button>
+          </form>
         </div>
 
         {/* Customer List Items */}
@@ -371,7 +404,7 @@ export const CustomerView: React.FC = () => {
         ) : (
           <div className="flex-1 flex flex-col overflow-hidden">
             {/* Top Customer Info Header Banner */}
-            <div className="p-4 bg-white border-b border-slate-200 shadow-2xs flex items-center justify-between">
+            <div className="p-4 glass-panel border-b border-white/60 shadow-xs flex items-center justify-between">
               <div className="flex items-center space-x-4">
                 <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-lg border border-blue-200">
                   {customerDetails.firstName[0]}
@@ -432,8 +465,8 @@ export const CustomerView: React.FC = () => {
 
             {/* Metrics Overview Cards */}
             <div className="p-4 grid grid-cols-3 gap-3">
-              <div className="bg-white p-3.5 rounded-lg border border-slate-200 shadow-2xs">
-                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight block">
+              <div className="glass-card p-4 rounded-2xl shadow-xs">
+                <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight block">
                   Toplam Harcama
                 </span>
                 <div className="text-xl font-bold text-slate-900 mt-1">
@@ -441,15 +474,15 @@ export const CustomerView: React.FC = () => {
                 </div>
               </div>
 
-              <div className="bg-white p-3.5 rounded-lg border border-slate-200 shadow-2xs">
-                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight block">
+              <div className="glass-card p-4 rounded-2xl shadow-xs">
+                <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight block">
                   Toplam Alışveriş Sayısı
                 </span>
-                <div className="text-xl font-bold text-blue-600 mt-1">{totalSalesCount} Adet Fiş</div>
+                <div className="text-xl font-bold text-blue-700 mt-1">{totalSalesCount} Adet Fiş</div>
               </div>
 
-              <div className="bg-white p-3.5 rounded-lg border border-slate-200 shadow-2xs">
-                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-tight block">
+              <div className="glass-card p-4 rounded-2xl shadow-xs">
+                <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-tight block">
                   Ortalama Fiş Tutarı
                 </span>
                 <div className="text-xl font-bold text-emerald-700 mt-1">
@@ -488,7 +521,7 @@ export const CustomerView: React.FC = () => {
                     return (
                       <div
                         key={sale.id}
-                        className="bg-white border border-slate-200 rounded-lg p-4 shadow-2xs flex flex-col space-y-3"
+                        className="glass-card rounded-2xl p-4 shadow-xs flex flex-col space-y-3"
                       >
                         {/* Sale Top Header */}
                         <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
@@ -745,7 +778,7 @@ export const CustomerView: React.FC = () => {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded transition disabled:opacity-50"
+                  className="flex-1 py-2 bg-[#00268A] hover:bg-[#001f70] text-white font-bold text-xs rounded-lg transition disabled:opacity-50"
                 >
                   {isSubmitting ? 'Kaydediliyor...' : editingCustomer ? 'Güncelle' : 'Kaydet'}
                 </button>

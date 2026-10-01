@@ -93,15 +93,20 @@ export const LicenseLockModal: React.FC = () => {
     <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/90 backdrop-blur-md select-none p-4 animate-in fade-in duration-200">
       <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col">
         {/* Modal Header */}
-        <div className="bg-gradient-to-r from-amber-600 to-indigo-700 px-6 py-5 text-white flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0 shadow-inner">
-            <Lock className="w-6 h-6 text-white" />
+        <div className="bg-[#00268A] px-6 py-5 text-white flex items-center justify-between border-b border-[#001c66]">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl bg-white/10 backdrop-blur-sm flex items-center justify-center shrink-0 border border-white/20">
+              <Lock className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h2 className="text-xl font-extrabold tracking-tight">JACK & JONES - Cihaz Aktivasyonu</h2>
+              <p className="text-xs text-blue-100 mt-0.5">
+                Bu yazılım tek bir bilgisayara kilitli lisanslanmaktadır
+              </p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-xl font-bold tracking-tight">Lufian & Jack & Jones - Cihaz Aktivasyonu</h2>
-            <p className="text-xs text-amber-100 mt-0.5">
-              Bu yazılım tek bir bilgisayara kilitli lisanslanmaktadır
-            </p>
+          <div className="bg-white px-3 py-1.5 rounded-lg shadow-xs flex items-center justify-center">
+            <img src="/org_logo.svg" alt="JACK & JONES" className="h-6 w-auto object-contain" />
           </div>
         </div>
 
@@ -231,7 +236,7 @@ export const LicenseLockModal: React.FC = () => {
                 <button
                   type="submit"
                   disabled={submitting || activationKey.length !== 6}
-                  className="w-full h-12 mt-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50 disabled:pointer-events-none text-white font-bold text-sm tracking-wide shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 transition-all"
+                  className="w-full h-12 mt-3 rounded-xl bg-[#00268A] hover:bg-[#001f70] active:bg-[#001754] disabled:opacity-50 disabled:pointer-events-none text-white font-bold text-sm tracking-wide shadow-lg shadow-blue-900/20 flex items-center justify-center gap-2 transition-all"
                 >
                   {submitting ? (
                     <span>Doğrulanıyor...</span>
@@ -250,7 +255,7 @@ export const LicenseLockModal: React.FC = () => {
 
         {/* Modal Footer */}
         <div className="bg-slate-50 border-t border-slate-100 px-6 py-3 text-center text-[11px] text-slate-400">
-          Lufian & Jack & Jones Kasa ve Stok Sistemi • Tek Cihaz Lisansı
+          JACK & JONES Kasa ve Stok Sistemi • Tek Cihaz Lisansı
         </div>
       </div>
     </div>

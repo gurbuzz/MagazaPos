@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JACK & JONES - Müşteri Ekranı</title>
+  <link rel="icon" type="image/svg+xml" href="/org_logo.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: 'Plus Jakarta Sans', 'Inter', sans-serif; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    @keyframes slowMotionSlideUp {
+      0% {
+        opacity: 0;
+        transform: translateY(22px) scale(0.98);
+        filter: blur(3px);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        filter: blur(0);
+      }
+    }
+
+    @keyframes slowMotionFadeIn {
+      0% {
+        opacity: 0;
+        transform: scale(0.985);
+      }
+      100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    @keyframes pulseSoftRing {
+      0%, 100% {
+        box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.35);
+      }
+      50% {
+        box-shadow: 0 0 0 16px rgba(59, 130, 246, 0);
+      }
+    }
+
+    @keyframes pulseEmeraldSoft {
+      0%, 100% {
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.35);
+      }
+      50% {
+        box-shadow: 0 0 0 14px rgba(16, 185, 129, 0);
+      }
+    }
+
+    @keyframes lightSweepSlow {
+      0% {
+        transform: translateX(-160%) skewX(-25deg);
+        opacity: 0;
+      }
+      25% {
+        opacity: 0.95;
+      }
+      65% {
+        opacity: 0.85;
+      }
+      100% {
+        transform: translateX(260%) skewX(-25deg);
+        opacity: 0;
+      }
+    }
+
+    @keyframes checkoutPanelLeftSlow {
+      0% {
+        transform: translateX(-45px) scale(0.96);
+        opacity: 0;
+        filter: blur(8px);
+      }
+      100% {
+        transform: translateX(0) scale(1);
+        opacity: 1;
+        filter: blur(0);
+      }
+    }
+
+    @keyframes checkoutPanelRightSlow {
+      0% {
+        transform: translateX(45px) scale(0.96);
+        opacity: 0;
+        filter: blur(8px);
+      }
+      100% {
+        transform: translateX(0) scale(1);
+        opacity: 1;
+        filter: blur(0);
+      }
+    }
+
+    @keyframes portalCardIn {
+      0% {
+        transform: scale(0.85);
+        opacity: 0;
+        filter: blur(10px);
+      }
+      12% {
+        transform: scale(1.02);
+        opacity: 1;
+        filter: blur(0);
+      }
+      88% {
+        transform: scale(1);
+        opacity: 1;
+        filter: blur(0);
+      }
+      100% {
+        transform: scale(1.08) translateY(-15px);
+        opacity: 0;
+        filter: blur(8px);
+      }
+    }
+
+    .animate-slowmotion-enter {
+      animation: slowMotionSlideUp 720ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    .animate-slowmotion-fade {
+      animation: slowMotionFadeIn 650ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    .animate-soft-ring {
+      animation: pulseSoftRing 2.8s ease-in-out infinite;
+    }
+
+    .animate-emerald-ring {
+      animation: pulseEmeraldSoft 2.8s ease-in-out infinite;
+    }
+
+    .animate-light-sweep {
+      animation: lightSweepSlow 2350ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+
+    .animate-panel-left {
+      animation: checkoutPanelLeftSlow 1350ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    .animate-panel-right {
+      animation: checkoutPanelRightSlow 1350ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    .animate-portal-card {
+      animation: portalCardIn 2350ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+  </style>
+</head>
+<body class="h-screen w-screen bg-gradient-to-br from-[#0c1322] via-[#101b33] to-[#0c1424] text-white select-none overflow-hidden flex flex-col relative text-base">
+
+  <!-- Ambient Light (Balanced twilight atmosphere) -->
+  <div class="absolute -top-32 -left-32 w-[420px] h-[420px] bg-blue-600/20 rounded-full blur-[110px] pointer-events-none"></div>
+  <div class="absolute -bottom-32 -right-32 w-[420px] h-[420px] bg-indigo-600/15 rounded-full blur-[110px] pointer-events-none"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[380px] h-[380px] bg-sky-500/10 rounded-full blur-[120px] pointer-events-none"></div>
+
+  <!-- Slower Fullscreen Light Sweep Layer -->
+  <div id="sweepLayer" class="hidden absolute inset-0 pointer-events-none z-50 overflow-hidden">
+    <div class="w-[50%] h-full bg-gradient-to-r from-transparent via-cyan-400/35 via-blue-500/40 to-transparent blur-3xl animate-light-sweep"></div>
+  </div>
+
+  <!-- High-Impact Eye-Catching Transition Portal Card -->
+  <div id="transitionPortal" class="hidden absolute inset-0 z-50 flex flex-col items-center justify-center pointer-events-none animate-portal-card">
+    <div class="relative p-7 rounded-3xl bg-slate-900/90 border border-blue-400/50 shadow-2xl backdrop-blur-2xl flex flex-col items-center space-y-3.5 max-w-sm text-center">
+      <div class="absolute inset-0 rounded-3xl bg-blue-500/20 blur-xl animate-pulse"></div>
+      <div class="relative bg-white h-11 px-7 rounded-2xl shadow-xl border border-white/95 flex items-center justify-center">
+        <img src="/org_logo.svg" alt="JACK & JONES" class="h-6 w-auto max-w-[160px] object-contain select-none" />
+      </div>
+      <div class="relative flex items-center space-x-2 text-blue-300 text-sm font-black tracking-wider uppercase">
+        <span class="w-2.5 h-2.5 rounded-full bg-blue-400 animate-ping"></span>
+        <span id="transitionPortalText">Ödeme Aşaması Aktifleştiriliyor</span>
+      </div>
+      <div class="relative text-xs text-blue-200/80 font-medium">Lütfen Bekleyiniz • Güvenli Terminal Hazırlandı</div>
+    </div>
+  </div>
+
+  <!-- Header: Centered Jack & Jones Logo, No Fullscreen Screen Icon -->
+  <header class="h-16 bg-slate-900/60 backdrop-blur-2xl border-b border-white/10 px-8 flex items-center justify-between z-20 shrink-0 shadow-lg relative">
+    <!-- Left: Customer Greeting or Active Status Pill -->
+    <div class="flex items-center shrink-0 min-w-[200px]">
+      <div id="customerGreeting" class="hidden flex items-center space-x-2.5 bg-white/10 border border-white/15 px-4 py-1.5 rounded-xl backdrop-blur-xl shadow-md"></div>
+      <div id="defaultKasaBadge" class="flex items-center space-x-2 bg-white/[0.05] border border-white/10 px-3.5 py-1.5 rounded-xl text-xs text-blue-200/90 shadow-xs">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span class="font-bold text-[11px] text-blue-100">Kasa Aktif</span>
+      </div>
+    </div>
+
+    <!-- Center: Mathematically Centered Jack & Jones Logo Pill -->
+    <div class="absolute left-1/2 -translate-x-1/2 flex items-center justify-center pointer-events-none">
+      <div class="bg-white h-9 px-6 rounded-xl shadow-xl flex items-center justify-center border border-white/95 shrink-0">
+        <img src="/org_logo.svg" alt="JACK & JONES" class="h-5 w-auto max-w-[150px] object-contain select-none" onerror="this.outerHTML='<span class=\'text-[#00268A] font-black text-sm tracking-wider\'>JACK & JONES</span>'" />
+      </div>
+    </div>
+
+    <!-- Right: Clock & Date Only (Screen Icon Removed) -->
+    <div class="text-right shrink-0 min-w-[200px]">
+      <div id="liveClock" class="text-xl font-black font-mono tracking-wider text-white leading-tight">--:--:--</div>
+      <div id="liveDate" class="text-[11px] font-bold text-blue-300/80 capitalize">--</div>
+    </div>
+  </header>
+
+  <!-- Main View -->
+  <main id="mainContainer" class="flex-1 flex overflow-hidden p-4 md:p-5 z-10 gap-4 md:gap-5 min-h-0">
+    <!-- Populated dynamically by JS -->
+  </main>
+
+  <!-- Footer: Compact height (h-8 = 32px) with safe padding -->
+  <footer class="h-8 bg-slate-900/60 backdrop-blur-2xl border-t border-white/10 px-8 flex items-center justify-between text-xs text-blue-300/80 z-10 shrink-0">
+    <div class="flex items-center space-x-2">
+      <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+      <span class="font-bold text-[11px] text-blue-100">Kasa Aktif & Canlı Bağlantı</span>
+    </div>
+    <div>
+      <span class="text-[10.5px] text-blue-300/60 font-semibold tracking-wider uppercase">
+        Design & Architecture by Atacan Gürbüz
+      </span>
+    </div>
+  </footer>
+
+  <script>
+    let state = {
+      status: 'idle',
+      storeName: 'JACK & JONES',
+      cartItems: [],
+      subtotal: 0,
+      discountAmount: 0,
+      total: 0,
+      activeCampaign: null,
+      selectedCustomer: null,
+      paymentInfo: null
+    };
+
+    let prevStatus = 'idle';
+
+    function triggerTransitionAnimation(text) {
+      const sweep = document.getElementById('sweepLayer');
+      const portal = document.getElementById('transitionPortal');
+      const portalText = document.getElementById('transitionPortalText');
+
+      if (sweep) {
+        sweep.classList.remove('hidden');
+        setTimeout(() => sweep.classList.add('hidden'), 2350);
+      }
+      if (portal && portalText && text) {
+        portalText.textContent = text;
+        portal.classList.remove('hidden');
+        setTimeout(() => portal.classList.add('hidden'), 2350);
+      }
+    }
+
+    function updateClock() {
+      const now = new Date();
+      document.getElementById('liveClock').textContent = now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      document.getElementById('liveDate').textContent = now.toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    const PROMOS = [
+      {
+        badge: 'YENİ SEZON',
+        badgeColor: 'bg-blue-500/20 text-blue-300 border-blue-400/30',
+        iconBg: 'bg-blue-600/80 text-white',
+        icon: '🔥',
+        title: 'Yeni Sezon Denim & Ceket Koleksiyonu',
+        subtitle: 'En trend kesimler ve üstün Jack & Jones kumaş kalitesi sizleri bekliyor.'
+      },
+      {
+        badge: 'KAMPANYA',
+        badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-400/30',
+        iconBg: 'bg-amber-500/80 text-white',
+        icon: '%',
+        title: 'Avantajlı Kampanyalar & İndirimler',
+        subtitle: 'Kasa görevlimizden güncel mağaza indirimleri ve çoklu alım fırsatlarını öğrenin.'
+      },
+      {
+        badge: 'VIP CLUB',
+        badgeColor: 'bg-purple-500/20 text-purple-300 border-purple-400/30',
+        iconBg: 'bg-purple-600/80 text-white',
+        icon: '🎁',
+        title: 'Sadakat & VIP Müşteri Ayrıcalığı',
+        subtitle: 'Telefon numaranızı ileterek size özel indirim ve kampanyalardan anında yararlanın.'
+      },
+      {
+        badge: 'GÜVENLİ ÖDEME',
+        badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30',
+        iconBg: 'bg-emerald-600/80 text-white',
+        icon: '🛡️',
+        title: 'Hızlı & Güvenli Temassız Ödeme',
+        subtitle: 'Tüm banka ve kredi kartları, Troy ve temassız mobil ödemeler geçerlidir.'
+      }
+    ];
+    let promoIdx = 0;
+    setInterval(() => {
+      promoIdx = (promoIdx + 1) % PROMOS.length;
+      if (state.status === 'idle' || (!state.cartItems || state.cartItems.length === 0)) {
+        render();
+      }
+    }, 5000);
+
+    function render() {
+      const main = document.getElementById('mainContainer');
+      const custGreet = document.getElementById('customerGreeting');
+
+      // Check for screen transition from idle
+      if (prevStatus !== state.status) {
+        if (prevStatus === 'idle' && (state.status === 'checkout' || state.status === 'cart')) {
+          triggerTransitionAnimation(state.status === 'checkout' ? 'Ödeme Aşaması Başlatılıyor' : 'Yeni Alışveriş Başlatıldı');
+        } else if (state.status === 'checkout' && prevStatus !== 'checkout') {
+          triggerTransitionAnimation('Ödeme & Tahsilat Aşaması');
+        }
+        prevStatus = state.status;
+      }
+
+      const defaultBadge = document.getElementById('defaultKasaBadge');
+      if (state.selectedCustomer) {
+        custGreet.innerHTML = `
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span class="text-xs text-blue-200 font-medium">Sayın</span>
+          <span class="text-sm font-extrabold text-white">${state.selectedCustomer.firstName} ${state.selectedCustomer.lastName}</span>
+          <span class="px-2 py-0.5 rounded-full bg-blue-500/30 text-blue-200 border border-blue-400/40 text-[10.5px] font-black uppercase ml-1 shadow-2xs">VIP</span>
+        `;
+        custGreet.classList.remove('hidden');
+        if (defaultBadge) defaultBadge.classList.add('hidden');
+      } else {
+        custGreet.innerHTML = '';
+        custGreet.classList.add('hidden');
+        if (defaultBadge) defaultBadge.classList.remove('hidden');
+      }
+
+      // 1. COMPLETED SALE CELEBRATION
+      if (state.status === 'completed') {
+        const changeDue = state.paymentInfo && state.paymentInfo.changeDue ? state.paymentInfo.changeDue : 0;
+        main.innerHTML = `
+          <div class="flex-1 flex flex-col items-center justify-center text-center p-6 bg-slate-900/55 border border-white/15 rounded-3xl backdrop-blur-2xl shadow-2xl animate-slowmotion-enter overflow-y-auto">
+            <div class="w-20 h-20 rounded-full bg-emerald-500/20 border-2 border-emerald-400 flex items-center justify-center mb-4 shadow-xl shadow-emerald-500/30 animate-bounce">
+              <span class="text-4xl text-emerald-400 font-black">✓</span>
+            </div>
+            <span class="px-3.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-xs font-black uppercase tracking-wider mb-2">
+              İşlem Başarılı
+            </span>
+            <h2 class="text-3xl md:text-4xl font-black text-white mb-2 tracking-tight">Ödemeniz Başarıyla Alındı!</h2>
+            ${state.selectedCustomer ? `<div class="text-base text-blue-300 font-bold mb-1">Sayın ${state.selectedCustomer.firstName} ${state.selectedCustomer.lastName}</div>` : ''}
+            <p class="text-sm text-blue-200/90 font-medium max-w-md mb-6">
+              Bizi tercih ettiğiniz için teşekkür eder, ürünlerinizi keyifle kullanmanızı dileriz.
+            </p>
+            <div class="bg-white/[0.06] border border-white/15 rounded-2xl p-5 w-full max-w-md space-y-3 shadow-xl backdrop-blur-xl">
+              ${state.paymentInfo?.receiptNo ? `
+                <div class="flex justify-between items-center text-sm border-b border-white/10 pb-2">
+                  <span class="text-blue-200 font-medium">Fiş Numarası:</span>
+                  <span class="font-mono font-black text-white text-base">${state.paymentInfo.receiptNo}</span>
+                </div>
+              ` : ''}
+              <div class="flex justify-between items-center text-base pt-1">
+                <span class="font-bold text-white">Tahsil Edilen Toplam:</span>
+                <span class="text-2xl font-black text-emerald-400">${Number(state.total).toFixed(2)} ₺</span>
+              </div>
+              ${changeDue > 0 ? `
+                <div class="p-3 bg-emerald-500/20 border border-emerald-400/40 rounded-xl flex justify-between items-center mt-2 animate-emerald-ring">
+                  <span class="text-xs font-black text-emerald-200 uppercase tracking-wide">Para Üstü:</span>
+                  <span class="text-2xl font-black font-mono text-emerald-300">${Number(changeDue).toFixed(2)} ₺</span>
+                </div>
+              ` : ''}
+            </div>
+            <p class="text-xs text-blue-300/80 font-medium mt-4">🧾 Fişiniz basılıyor, lütfen fişinizi almayı unutmayınız.</p>
+          </div>
+        `;
+        return;
+      }
+
+      // 2. CHECKOUT STAGE (WITH SAFE INSET LOGO & NO CALCULATED VAT)
+      if (state.status === 'checkout') {
+        const mode = state.paymentInfo?.mode || 'CARD';
+        const isCash = mode === 'CASH';
+        const given = state.paymentInfo?.givenCash || 0;
+        const change = state.paymentInfo?.changeDue || 0;
+
+        const itemsHtml = (state.cartItems || []).map(item => `
+          <div class="flex items-center justify-between p-2 rounded-xl bg-white/[0.04] border border-white/[0.08] text-xs">
+            <div class="flex-1 min-w-0 pr-2">
+              <div class="font-bold text-white truncate">${item.productName}</div>
+              <div class="text-[11px] text-blue-300/70">${item.quantity} Adet × ${Number(item.unitPrice).toFixed(2)} ₺</div>
+            </div>
+            <span class="font-black font-mono text-white shrink-0">${Number(item.totalPrice).toFixed(2)} ₺</span>
+          </div>
+        `).join('');
+
+        main.innerHTML = `
+          <div class="flex-1 flex overflow-hidden gap-4 md:gap-5 min-h-0">
+            <!-- Left 58%: Translucent Interactive Payment Stage with Left Entrance -->
+            <div class="flex-[3] flex flex-col bg-slate-900/55 border border-white/15 rounded-3xl overflow-hidden backdrop-blur-2xl shadow-2xl min-h-0 animate-panel-left">
+              <div class="px-6 py-3.5 border-b border-white/10 bg-white/[0.04] flex items-center justify-between shrink-0">
+                <div class="flex items-center space-x-3">
+                  <div class="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-lg font-black text-lg">
+                    💳
+                  </div>
+                  <div>
+                    <span class="text-[10px] font-black text-blue-300 uppercase tracking-widest block">GÜVENLİ İŞLEM</span>
+                    <h2 class="text-base font-black text-white tracking-tight">Ödeme & Tahsilat Aşaması</h2>
+                  </div>
+                </div>
+                <div class="flex items-center space-x-2">
+                  <span class="w-2.5 h-2.5 rounded-full bg-blue-400 animate-ping"></span>
+                  <span class="px-3.5 py-1 rounded-full bg-blue-500/25 text-blue-200 border border-blue-400/40 text-xs font-black uppercase">
+                    ${isCash ? 'Nakit Ödeme' : mode === 'CARD' ? 'Kart / Temassız' : 'Parçalı Ödeme'}
+                  </span>
+                </div>
+              </div>
+
+              <div class="flex-1 flex flex-col items-center justify-center p-6 text-center overflow-y-auto">
+                ${isCash ? `
+                  <div class="w-full max-w-lg space-y-4">
+                    <div class="relative mx-auto w-24 h-24 flex items-center justify-center">
+                      <div class="absolute inset-0 rounded-3xl bg-amber-500/20 animate-emerald-ring"></div>
+                      <div class="w-20 h-20 rounded-3xl bg-amber-500/20 border-2 border-amber-400/50 flex items-center justify-center text-3xl shadow-xl">
+                        🪙
+                      </div>
+                    </div>
+                    <div>
+                      <h3 class="text-2xl font-black text-white tracking-tight">Nakit Tahsilat Yapılıyor</h3>
+                      <p class="text-sm text-blue-200/80 font-medium mt-1">Lütfen nakit ödemenizi kasa görevlisine iletiniz.</p>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3 pt-2">
+                      <div class="bg-white/[0.05] border border-white/10 p-4 rounded-2xl">
+                        <span class="text-xs font-bold text-blue-200 uppercase tracking-wider block">Alınan Tutar</span>
+                        <span class="text-2xl font-black font-mono text-white mt-1 block">${Number(given).toFixed(2)} ₺</span>
+                      </div>
+                      <div class="bg-emerald-500/20 border-2 border-emerald-400/60 p-4 rounded-2xl animate-emerald-ring">
+                        <span class="text-xs font-black text-emerald-200 uppercase tracking-wider block">Para Üstü</span>
+                        <span class="text-2xl font-black font-mono text-emerald-300 mt-1 block">${Number(change).toFixed(2)} ₺</span>
+                      </div>
+                    </div>
+                  </div>
+                ` : `
+                  <div class="w-full max-w-lg space-y-5">
+                    <div class="relative mx-auto w-28 h-28 flex items-center justify-center">
+                      <div class="absolute inset-0 rounded-full bg-blue-500/20 animate-soft-ring"></div>
+                      <div class="absolute -inset-2 rounded-full border border-blue-400/30 animate-ping duration-1000"></div>
+                      <div class="w-20 h-20 rounded-3xl bg-gradient-to-br from-blue-600 to-blue-800 border-2 border-blue-400 flex items-center justify-center text-white text-3xl shadow-2xl shadow-blue-900/50">
+                        📶
+                      </div>
+                    </div>
+                    <div class="space-y-1.5">
+                      <span class="px-3 py-0.5 rounded-full bg-blue-500/20 text-blue-200 border border-blue-400/40 text-xs font-extrabold uppercase inline-block">
+                        TEMASSIZ VEYA ÇİPLİ İŞLEM
+                      </span>
+                      <h3 class="text-2xl md:text-3xl font-black text-white tracking-tight">
+                        Lütfen Kartınızı POS Cihazına Yaklaştırınız
+                      </h3>
+                      <p class="text-sm text-blue-200/80 font-medium max-w-sm mx-auto">
+                        Kartınızı terminale yaklaştırabilir veya çipli olarak cihaza yerleştirebilirsiniz.
+                      </p>
+                    </div>
+                    ${state.selectedCustomer ? `
+                      <div class="bg-white/[0.08] border border-white/15 p-3 rounded-2xl inline-flex items-center space-x-2 text-sm text-white font-bold backdrop-blur-md shadow-lg">
+                        <span>✨ Sayın ${state.selectedCustomer.firstName} ${state.selectedCustomer.lastName} • İyi Günlerde Kullanınız</span>
+                      </div>
+                    ` : ''}
+                    <div class="pt-2 flex flex-wrap items-center justify-center gap-2">
+                      <span class="px-3 py-1 rounded-xl bg-white/[0.06] border border-white/15 text-xs font-bold text-white">Temassız</span>
+                      <span class="px-3 py-1 rounded-xl bg-white/[0.06] border border-white/15 text-xs font-bold text-white">Troy</span>
+                      <span class="px-3 py-1 rounded-xl bg-white/[0.06] border border-white/15 text-xs font-bold text-white">Visa</span>
+                      <span class="px-3 py-1 rounded-xl bg-white/[0.06] border border-white/15 text-xs font-bold text-white">Mastercard</span>
+                      <span class="px-3 py-1 rounded-xl bg-white/[0.06] border border-white/15 text-xs font-bold text-white">Apple / Mobil Pay</span>
+                    </div>
+                  </div>
+                `}
+              </div>
+
+              <div class="px-6 py-2.5 bg-white/[0.03] border-t border-white/10 text-xs text-blue-300/80 font-medium flex items-center justify-between shrink-0">
+                <span>🛡️ 256-bit Uçtan Uca Şifreli Güvenli Tahsilat</span>
+                <span class="font-semibold text-white">${state.cartItems.reduce((acc, i) => acc + i.quantity, 0)} Ürün</span>
+              </div>
+            </div>
+
+            <!-- Right 42%: Order Summary & Giant Amount Due Card with Right Entrance -->
+            <div class="flex-[2] flex flex-col justify-between space-y-3 min-h-0 animate-panel-right">
+              <div class="bg-slate-900/55 border border-white/15 rounded-3xl p-4 backdrop-blur-2xl shadow-xl flex-1 flex flex-col min-h-0">
+                <div class="flex items-center justify-between pb-2 border-b border-white/10 mb-2 shrink-0">
+                  <span class="text-xs font-black text-blue-200 uppercase tracking-wider">🧾 Sipariş Özeti</span>
+                  <span class="text-xs font-bold text-blue-300/80">${state.cartItems.length} Kalem</span>
+                </div>
+                <div class="flex-1 overflow-y-auto space-y-2 pr-1 min-h-0 no-scrollbar">
+                  ${itemsHtml}
+                </div>
+                <div class="pt-2 border-t border-white/10 space-y-1 text-xs shrink-0">
+                  <div class="flex justify-between text-blue-200/80">
+                    <span>Ara Toplam:</span>
+                    <span class="font-bold text-white">${Number(state.subtotal).toFixed(2)} ₺</span>
+                  </div>
+                  ${state.discountAmount > 0 ? `
+                    <div class="flex justify-between text-amber-300 font-bold">
+                      <span>İndirim Tutarı:</span>
+                      <span>-${Number(state.discountAmount).toFixed(2)} ₺</span>
+                    </div>
+                  ` : ''}
+                </div>
+              </div>
+
+              <div class="bg-gradient-to-br from-[#00268A]/90 via-[#0a359e]/80 to-[#1e3a8a]/70 border-2 border-blue-400/60 rounded-2xl p-5 text-center shadow-2xl backdrop-blur-xl text-white shrink-0">
+                <span class="text-xs font-black text-blue-200 uppercase tracking-widest block mb-1">ÖDENECEK TOPLAM TUTAR</span>
+                <div class="text-5xl md:text-6xl font-black text-white tracking-tight drop-shadow-md">
+                  ${Number(state.total).toFixed(2)} <span class="text-3xl text-blue-200 font-bold">₺</span>
+                </div>
+                <div class="text-[11px] text-blue-200 font-semibold mt-2">Net Tutar</div>
+              </div>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      // 3. ACTIVE CART (NO CALCULATED VAT)
+      if (state.cartItems && state.cartItems.length > 0) {
+        const itemsHtml = state.cartItems.map((item, idx) => {
+          const isLast = idx === state.cartItems.length - 1;
+          const color = item.attributes?.color || '';
+          const size = item.attributes?.size || '';
+          return `
+            <div class="p-3 rounded-2xl border flex items-center justify-between transition-all ${isLast ? 'bg-blue-500/20 border-blue-400/60 shadow-lg ring-1 ring-blue-400/40' : 'bg-white/[0.04] border-white/10 hover:bg-white/[0.08]'}">
+              <div class="flex-1 mr-3 min-w-0">
+                <div class="flex items-center space-x-2">
+                  <h3 class="text-base font-extrabold text-white truncate">${item.productName}</h3>
+                  ${isLast ? '<span class="px-2 py-0.5 rounded-full bg-blue-500/40 text-blue-100 border border-blue-400/50 text-[10px] font-black uppercase shrink-0 shadow-2xs">Yeni Eklendi</span>' : ''}
+                </div>
+                <div class="flex items-center space-x-2 mt-1 text-xs text-blue-200/80">
+                  ${(color || size) ? `<span class="px-2.5 py-0.5 rounded-md bg-white/10 text-white font-bold border border-white/15">${color} / ${size}</span>` : ''}
+                  ${item.barcode ? `<span class="font-mono text-blue-300 font-semibold text-[11px]">${item.barcode}</span>` : ''}
+                </div>
+              </div>
+              <div class="text-right flex items-center space-x-4 shrink-0">
+                <div class="text-center bg-white/10 px-3 py-1.5 rounded-xl border border-white/15 min-w-[50px]">
+                  <span class="text-[10px] text-blue-200 uppercase block font-bold">Adet</span>
+                  <span class="text-xl font-black text-white">${item.quantity}</span>
+                </div>
+                <div class="text-right min-w-[95px]">
+                  <span class="text-[11px] text-blue-200/80 block font-medium">Birim: ${Number(item.unitPrice).toFixed(2)} ₺</span>
+                  <span class="text-xl font-black text-white">${Number(item.totalPrice).toFixed(2)} ₺</span>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        let campaignHtml = '';
+        if (state.activeCampaign) {
+          campaignHtml = `
+            <div class="bg-amber-500/20 border border-amber-400/40 rounded-2xl p-3 flex items-center justify-between backdrop-blur-xl shadow-md mb-2.5 shrink-0">
+              <div class="flex items-center space-x-2.5">
+                <span class="p-2 rounded-xl bg-amber-500/30 text-amber-300 border border-amber-400/40 text-sm">🏷️</span>
+                <div>
+                  <span class="text-[10px] font-black text-amber-300 uppercase tracking-wide block">Kampanya</span>
+                  <span class="text-sm font-black text-white">${state.activeCampaign.name}</span>
+                </div>
+              </div>
+              ${state.discountAmount > 0 ? `<span class="text-sm font-black text-amber-200 bg-amber-400/30 px-3 py-1 rounded-xl border border-amber-400/40">-${Number(state.discountAmount).toFixed(2)} ₺</span>` : ''}
+            </div>
+          `;
+        }
+
+        main.innerHTML = `
+          <div class="flex-1 flex overflow-hidden gap-4 md:gap-5 min-h-0">
+            <div class="flex-[3] flex flex-col bg-slate-900/55 border border-white/15 rounded-3xl overflow-hidden backdrop-blur-2xl shadow-2xl min-h-0 animate-panel-left">
+              <div class="px-5 py-3 border-b border-white/10 bg-white/[0.04] flex items-center justify-between shrink-0">
+                <div class="flex items-center space-x-2.5">
+                  <span class="text-lg">🛍️</span>
+                  <h2 class="text-base font-black text-white tracking-wide">Alışveriş Sepetiniz</h2>
+                </div>
+                <span class="px-3 py-0.5 rounded-full bg-blue-500/25 text-blue-200 border border-blue-400/40 text-xs font-extrabold">
+                  ${state.cartItems.reduce((acc, i) => acc + i.quantity, 0)} Kalem
+                </span>
+              </div>
+              <div class="flex-1 overflow-y-auto p-3.5 space-y-2.5 min-h-0 no-scrollbar" id="itemsScrollBox">
+                ${itemsHtml}
+              </div>
+              <div class="px-5 py-2 bg-white/[0.03] border-t border-white/10 text-[11px] text-blue-300/80 font-medium flex items-center justify-between shrink-0">
+                <span>Fişinizle 14 gün içinde değişim yapılabilir.</span>
+                <span class="text-blue-300/90 font-semibold">Keyifli Alışverişler Dileriz</span>
+              </div>
+            </div>
+
+            <div class="flex-[2] flex flex-col justify-between space-y-3 min-h-0 overflow-y-auto animate-panel-right">
+              ${campaignHtml}
+              <div class="bg-slate-900/55 border border-white/15 rounded-3xl p-5 backdrop-blur-2xl space-y-3.5 shadow-2xl flex-1 flex flex-col justify-between">
+                <div class="space-y-2 pb-3 border-b border-white/10 shrink-0">
+                  <div class="flex justify-between items-center text-sm">
+                    <span class="text-blue-200 font-semibold">Ara Toplam</span>
+                    <span class="font-extrabold text-white text-base">${Number(state.subtotal).toFixed(2)} ₺</span>
+                  </div>
+                  ${state.discountAmount > 0 ? `
+                    <div class="flex justify-between items-center text-sm text-amber-300 font-extrabold">
+                      <span>İndirim Tutarı</span>
+                      <span class="text-base">-${Number(state.discountAmount).toFixed(2)} ₺</span>
+                    </div>
+                  ` : ''}
+                </div>
+
+                <div class="bg-gradient-to-br from-[#00268A]/90 via-[#0a359e]/80 to-[#1e3a8a]/70 border-2 border-blue-400/60 rounded-2xl p-4 md:p-5 text-center shadow-2xl backdrop-blur-xl text-white shrink-0">
+                  <span class="text-xs font-black text-blue-200 uppercase tracking-widest block mb-1">ÖDENECEK TOPLAM TUTAR</span>
+                  <div class="text-5xl md:text-6xl font-black text-white tracking-tight drop-shadow-md">
+                    ${Number(state.total).toFixed(2)} <span class="text-3xl text-blue-200 font-bold">₺</span>
+                  </div>
+                </div>
+
+                <div class="text-center space-y-1.5 shrink-0 pt-1">
+                  <span class="text-[11px] text-blue-200/80 block font-semibold">Kredi Kartı, Temassız veya Nakit Ödeme Kabul Edilir</span>
+                  <div class="flex items-center justify-center space-x-2 text-xs">
+                    <span class="px-2.5 py-0.5 rounded-lg bg-white/10 border border-white/15 text-white font-bold text-[11px]">Temassız</span>
+                    <span class="px-2.5 py-0.5 rounded-lg bg-white/10 border border-white/15 text-white font-bold text-[11px]">Troy</span>
+                    <span class="px-2.5 py-0.5 rounded-lg bg-white/10 border border-white/15 text-white font-bold text-[11px]">Visa / Mastercard</span>
+                    <span class="px-2.5 py-0.5 rounded-lg bg-white/10 border border-white/15 text-white font-bold text-[11px]">Nakit</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+
+        setTimeout(() => {
+          const box = document.getElementById('itemsScrollBox');
+          if (box) box.scrollTop = box.scrollHeight;
+        }, 50);
+        return;
+      }
+
+      // 4. STANDBY / IDLE STATE (SAFE 13.3" HEIGHT - LOGO NEVER CLIPPED)
+      const p = PROMOS[promoIdx];
+      main.innerHTML = `
+        <div class="flex-1 flex flex-col items-center justify-around p-4 md:p-5 bg-slate-900/55 border border-white/15 rounded-3xl backdrop-blur-2xl shadow-2xl relative overflow-y-auto animate-slowmotion-fade">
+          <div class="text-center space-y-2 z-10 max-w-xl shrink-0">
+            <div>
+              <span class="px-3.5 py-1 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30 text-[11px] font-black tracking-widest uppercase inline-block shadow-xs">
+                PREMIUM RETAIL EXPERIENCE
+              </span>
+            </div>
+            <h2 class="text-3xl md:text-4xl font-black text-white tracking-tight leading-tight">Hoş Geldiniz</h2>
+            <p class="text-sm text-blue-200/90 font-medium">Yeni sezon koleksiyonumuz ve ayrıcalıklı alışveriş deneyimi için buradayız.</p>
+          </div>
+
+          <div class="w-full max-w-xl my-1 z-10 shrink-0">
+            <div class="bg-gradient-to-r from-blue-950/40 via-slate-900/50 to-indigo-950/40 border border-white/15 rounded-2xl p-4 backdrop-blur-xl shadow-xl transition-all duration-500">
+              <div class="flex items-start space-x-4">
+                <div class="p-3 rounded-xl ${p.iconBg} shadow-lg text-2xl shrink-0 border border-white/15">
+                  ${p.icon}
+                </div>
+                <div class="flex-1 space-y-1">
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border inline-block ${p.badgeColor}">${p.badge}</span>
+                  <h3 class="text-xl font-black text-white tracking-tight">${p.title}</h3>
+                  <p class="text-xs text-blue-200/90 font-medium leading-relaxed">${p.subtitle}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="w-full max-w-lg z-10 grid grid-cols-2 gap-3 pt-1 border-t border-white/10 text-xs shrink-0">
+            <div class="bg-white/[0.04] border border-white/10 p-3 rounded-xl text-center backdrop-blur-md">
+              <span class="text-blue-300 block text-[10px] font-bold uppercase mb-0.5">Ödeme Yöntemleri</span>
+              <span class="font-extrabold text-white text-xs">Nakit & Tüm Banka Kartları</span>
+            </div>
+            <div class="bg-white/[0.04] border border-white/10 p-3 rounded-xl text-center backdrop-blur-md">
+              <span class="text-blue-300 block text-[10px] font-bold uppercase mb-0.5">Değişim Kolaylığı</span>
+              <span class="font-extrabold text-white text-xs">Fiş ile 14 Gün İçinde Değişim</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    render();
+
+    // SSE Realtime Sync
+    try {
+      const evt = new EventSource('/api/customer-display/events');
+      evt.onmessage = (e) => {
+        try {
+          const payload = JSON.parse(e.data);
+          state = { ...state, ...payload };
+          render();
+        } catch (err) {
+          console.error('SSE JSON error', err);
+        }
+      };
+    } catch (err) {
+      console.warn('SSE connect fail', err);
+    }
+
+    // BroadcastChannel Realtime Sync
+    try {
+      const bc = new BroadcastChannel('pos_customer_display');
+      bc.onmessage = (ev) => {
+        if (ev.data) {
+          state = { ...state, ...ev.data };
+          render();
+        }
+      };
+    } catch (e) {}
+
+    // Polling fallback
+    setInterval(async () => {
+      try {
+        const res = await fetch('/api/customer-display/state');
+        if (res.ok) {
+          const data = await res.json();
+          if (JSON.stringify(data) !== JSON.stringify(state)) {
+            state = { ...state, ...data };
+            render();
+          }
+        }
+      } catch (e) {}
+    }, 2000);
+  </script>
+</body>
+</html>

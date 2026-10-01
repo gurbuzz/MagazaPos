@@ -21,16 +21,46 @@ function formatSale(s: any) {
   return { ...s, paymentType: pay, items }
 }
 
-// GET /api/sales - Sales history with optional date-time range filters
+// GET /api/sales - Sales history with optional date-time range filters and search
 salesRouter.get('/', async (req, res) => {
   try {
-    const { startDate, endDate, limit } = req.query
+    const { startDate, endDate, limit, search } = req.query
     const where: any = {}
 
     if (startDate || endDate) {
       where.createdAt = {}
       if (startDate) where.createdAt.gte = new Date(startDate as string)
       if (endDate) where.createdAt.lte = new Date(endDate as string)
+    }
+
+    if (search && typeof search === 'string' && search.trim() !== '') {
+      const query = search.trim()
+      where.OR = [
+        { receiptNo: { contains: query } },
+        { cashierName: { contains: query } },
+        {
+          customer: {
+            OR: [
+              { firstName: { contains: query } },
+              { lastName: { contains: query } },
+              { phone: { contains: query } },
+            ]
+          }
+        },
+        {
+          items: {
+            some: {
+              variant: {
+                OR: [
+                  { barcode: { contains: query } },
+                  { sku: { contains: query } },
+                  { product: { name: { contains: query } } }
+                ]
+              }
+            }
+          }
+        }
+      ]
     }
 
     const sales = await prisma.sale.findMany({
@@ -57,14 +87,15 @@ salesRouter.get('/', async (req, res) => {
 // POST /api/sales - Create & Checkout POS Sale
 salesRouter.post('/', async (req, res) => {
   try {
-    const { items, totalAmount, discountAmount, paymentType, cashierName, customerId } = req.body
+    const { items, totalAmount, discountAmount, paymentType, cashierName, customerId, receiptPrefix } = req.body
 
     if (!items || items.length === 0) {
       res.status(400).json({ error: 'Sepette ürün bulunmamaktadır.' })
       return
     }
 
-    const receiptNo = `FIS-${Date.now().toString().slice(-8)}`
+    const prefix = typeof receiptPrefix === 'string' && receiptPrefix.trim() ? receiptPrefix.trim().replace(/[-_]+$/, '') : 'FIS'
+    const receiptNo = `${prefix}-${Date.now().toString().slice(-6)}${Math.floor(100 + Math.random() * 900)}`
 
     // Transaction to create sale, items, update stock and log movements atomically
     const result = await prisma.$transaction(async (tx) => {

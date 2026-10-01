@@ -78,24 +78,32 @@ export const PinLockModal: React.FC = () => {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 select-none font-sans">
+    <div className="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-md flex items-center justify-center p-4 select-none font-sans">
       <div
-        className={`bg-white border border-slate-200 rounded-lg max-w-sm w-full p-6 shadow-xl space-y-5 text-center transform transition-all ${
+        className={`glass-modal rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-5 text-center transform transition-all ${
           shake ? 'animate-bounce' : ''
         }`}
       >
         {/* Top Logo & Lock Icon */}
-        <div className="space-y-2">
-          <div className="w-12 h-12 rounded bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-700 mx-auto">
-            <Lock className="w-6 h-6 stroke-[2]" />
+        <div className="space-y-3">
+          <div className="glass-card p-3 rounded-2xl shadow-sm flex items-center justify-center max-w-[200px] mx-auto">
+            <img
+              src="/org_logo.svg"
+              alt="JACK & JONES"
+              className="h-9 w-auto object-contain select-none"
+              onError={(e) => {
+                const target = e.target as HTMLElement
+                target.style.display = 'none'
+              }}
+            />
           </div>
           <div>
-            <span className="text-[10px] font-semibold text-blue-700 uppercase tracking-wider bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
-              {storeName}
+            <span className="text-[10px] font-bold text-[#00268A] uppercase tracking-wider bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-100">
+              {storeName || 'JACK & JONES'}
             </span>
-            <h2 className="text-lg font-bold text-slate-900 mt-1.5">Kasa Güvenlik Girişi</h2>
+            <h2 className="text-lg font-extrabold text-slate-900 mt-1.5">Kasa Güvenlik Girişi</h2>
             <p className="text-xs text-slate-500 font-medium mt-0.5">
-              Aktif Personel: <strong className="text-slate-800 font-semibold">{cashierName}</strong>
+              Aktif Kasiyer: <strong className="text-[#00268A] font-bold">{cashierName}</strong>
             </p>
           </div>
         </div>
@@ -112,7 +120,7 @@ export const PinLockModal: React.FC = () => {
                     error
                       ? 'bg-rose-500 border-rose-600 scale-110 shadow-2xs'
                       : isFilled
-                      ? 'bg-blue-700 border-blue-700 scale-110 shadow-2xs'
+                      ? 'bg-[#00268A] border-[#00268A] scale-110 shadow-sm'
                       : 'border-slate-300 bg-slate-100'
                   }`}
                 />
@@ -126,7 +134,7 @@ export const PinLockModal: React.FC = () => {
             </p>
           ) : (
             <p className="text-[11px] text-slate-500 font-medium flex items-center justify-center space-x-1">
-              <KeyRound className="w-3.5 h-3.5 text-blue-600" />
+              <KeyRound className="w-3.5 h-3.5 text-[#00268A]" />
               <span>Lütfen 4 haneli Kasa PIN şifrenizi girin</span>
             </p>
           )}
@@ -138,7 +146,7 @@ export const PinLockModal: React.FC = () => {
             <button
               key={digit}
               onClick={() => handleInput(digit)}
-              className="h-12 rounded bg-slate-50 hover:bg-blue-50 hover:text-blue-700 border border-slate-200 text-slate-800 font-bold text-lg flex items-center justify-center shadow-2xs active:scale-95 transition"
+              className="h-12 rounded-xl bg-slate-50 hover:bg-[#00268A] hover:text-white border border-slate-200 text-slate-800 font-bold text-lg flex items-center justify-center shadow-xs active:scale-95 transition"
             >
               {digit}
             </button>
@@ -146,21 +154,21 @@ export const PinLockModal: React.FC = () => {
 
           <button
             onClick={handleClear}
-            className="h-12 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold text-xs flex items-center justify-center transition border border-slate-200"
+            className="h-12 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold text-xs flex items-center justify-center transition border border-slate-200"
           >
             Temizle
           </button>
 
           <button
             onClick={() => handleInput('0')}
-            className="h-12 rounded bg-slate-50 hover:bg-blue-50 hover:text-blue-700 border border-slate-200 text-slate-800 font-bold text-lg flex items-center justify-center shadow-2xs active:scale-95 transition"
+            className="h-12 rounded-xl bg-slate-50 hover:bg-[#00268A] hover:text-white border border-slate-200 text-slate-800 font-bold text-lg flex items-center justify-center shadow-xs active:scale-95 transition"
           >
             0
           </button>
 
           <button
             onClick={handleDelete}
-            className="h-12 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold flex items-center justify-center transition border border-slate-200"
+            className="h-12 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold flex items-center justify-center transition border border-slate-200"
             title="Sil"
           >
             <Delete className="w-4 h-4" />
