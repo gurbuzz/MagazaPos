@@ -183,7 +183,7 @@
   </div>
 
   <!-- Header: Centered Jack & Jones Logo, No Fullscreen Screen Icon -->
-  <header class="h-16 bg-slate-900/60 backdrop-blur-2xl border-b border-white/10 px-8 flex items-center justify-between z-20 shrink-0 shadow-lg relative">
+  <header class="h-18 bg-slate-900/60 backdrop-blur-2xl border-b border-white/10 px-8 flex items-center justify-between z-20 shrink-0 shadow-lg relative">
     <!-- Left: Customer Greeting or Active Status Pill -->
     <div class="flex items-center shrink-0 min-w-[200px]">
       <div id="customerGreeting" class="hidden flex items-center space-x-2.5 bg-white/10 border border-white/15 px-4 py-1.5 rounded-xl backdrop-blur-xl shadow-md"></div>
@@ -193,10 +193,10 @@
       </div>
     </div>
 
-    <!-- Center: Mathematically Centered Jack & Jones Logo Pill -->
+    <!-- Center: Mathematically Centered Jack & Jones Logo Pill (Enlarged) -->
     <div class="absolute left-1/2 -translate-x-1/2 flex items-center justify-center pointer-events-none">
-      <div class="bg-white h-9 px-6 rounded-xl shadow-xl flex items-center justify-center border border-white/95 shrink-0">
-        <img src="/org_logo.svg" alt="JACK & JONES" class="h-5 w-auto max-w-[150px] object-contain select-none" onerror="this.outerHTML='<span class=\'text-[#00268A] font-black text-sm tracking-wider\'>JACK & JONES</span>'" />
+      <div class="bg-white h-12 md:h-13 px-8 rounded-2xl shadow-2xl flex items-center justify-center border border-white/95 shrink-0 transition-transform">
+        <img src="/org_logo.svg" alt="JACK & JONES" class="h-7 md:h-8 w-auto max-w-[220px] object-contain select-none" onerror="this.outerHTML='<span class=\'text-[#00268A] font-black text-lg md:text-xl tracking-wider\'>JACK & JONES</span>'" />
       </div>
     </div>
 
@@ -685,43 +685,54 @@
         return;
       }
 
-      // 4. STANDBY / IDLE STATE (SAFE 13.3" HEIGHT - LOGO NEVER CLIPPED)
+      // 4. STANDBY / IDLE STATE (SAFE 13.3" HEIGHT - LOGO NEVER CLIPPED) - WITH CUSTOMER BACKGROUND & HIGH TRANSPARENCY
       const p = PROMOS[promoIdx];
       main.innerHTML = `
-        <div class="flex-1 flex flex-col items-center justify-around p-4 md:p-5 bg-slate-900/55 border border-white/15 rounded-3xl backdrop-blur-2xl shadow-2xl relative overflow-y-auto animate-slowmotion-fade">
-          <div class="text-center space-y-2 z-10 max-w-xl shrink-0">
+        <div class="flex-1 flex flex-col items-center justify-around p-4 md:p-6 border border-white/25 rounded-3xl shadow-2xl relative overflow-hidden animate-slowmotion-fade">
+          <!-- Cinematic Store Atmosphere Background Image -->
+          <div class="absolute inset-0 z-0">
+            <img
+              src="/customerbackground.jpg"
+              alt="Karşılama Arka Planı"
+              class="w-full h-full object-cover object-center scale-100 filter brightness-[0.92] contrast-[1.05]"
+            />
+            <!-- High-transparency subtle gradient overlay so the background image is clearly visible -->
+            <div class="absolute inset-0 bg-gradient-to-t from-[#060c1c]/65 via-[#0c1a38]/20 to-[#060c1c]/40"></div>
+          </div>
+
+          <div class="text-center space-y-2.5 z-10 max-w-xl shrink-0">
             <div>
-              <span class="px-3.5 py-1 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30 text-[11px] font-black tracking-widest uppercase inline-block shadow-xs">
+              <span class="px-4 py-1.5 rounded-full bg-blue-500/25 text-blue-200 border border-blue-400/40 text-[11px] font-black tracking-widest uppercase inline-block shadow-md backdrop-blur-md">
                 PREMIUM RETAIL EXPERIENCE
               </span>
             </div>
-            <h2 class="text-3xl md:text-4xl font-black text-white tracking-tight leading-tight">Hoş Geldiniz</h2>
-            <p class="text-sm text-blue-200/90 font-medium">Yeni sezon koleksiyonumuz ve ayrıcalıklı alışveriş deneyimi için buradayız.</p>
+            <h2 class="text-4xl md:text-5xl font-black text-white tracking-tight leading-tight drop-shadow-lg">Hoş Geldiniz</h2>
+            <p class="text-sm md:text-base text-blue-100 font-semibold drop-shadow-md">Yeni sezon koleksiyonumuz ve ayrıcalıklı alışveriş deneyimi için buradayız.</p>
           </div>
 
           <div class="w-full max-w-xl my-1 z-10 shrink-0">
-            <div class="bg-gradient-to-r from-blue-950/40 via-slate-900/50 to-indigo-950/40 border border-white/15 rounded-2xl p-4 backdrop-blur-xl shadow-xl transition-all duration-500">
+            <div class="bg-slate-900/35 border border-white/25 rounded-2xl p-4 md:p-5 backdrop-blur-md shadow-2xl transition-all duration-500">
               <div class="flex items-start space-x-4">
-                <div class="p-3 rounded-xl ${p.iconBg} shadow-lg text-2xl shrink-0 border border-white/15">
+                <div class="p-3 rounded-xl ${p.iconBg} shadow-lg text-2xl shrink-0 border border-white/20">
                   ${p.icon}
                 </div>
                 <div class="flex-1 space-y-1">
                   <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border inline-block ${p.badgeColor}">${p.badge}</span>
-                  <h3 class="text-xl font-black text-white tracking-tight">${p.title}</h3>
-                  <p class="text-xs text-blue-200/90 font-medium leading-relaxed">${p.subtitle}</p>
+                  <h3 class="text-xl font-black text-white tracking-tight drop-shadow-sm">${p.title}</h3>
+                  <p class="text-xs text-blue-100 font-medium leading-relaxed drop-shadow-xs">${p.subtitle}</p>
                 </div>
               </div>
             </div>
           </div>
 
-          <div class="w-full max-w-lg z-10 grid grid-cols-2 gap-3 pt-1 border-t border-white/10 text-xs shrink-0">
-            <div class="bg-white/[0.04] border border-white/10 p-3 rounded-xl text-center backdrop-blur-md">
+          <div class="w-full max-w-lg z-10 grid grid-cols-2 gap-3 pt-1 border-t border-white/15 text-xs shrink-0">
+            <div class="bg-slate-900/30 border border-white/20 p-3.5 rounded-xl text-center backdrop-blur-md shadow-lg">
               <span class="text-blue-300 block text-[10px] font-bold uppercase mb-0.5">Ödeme Yöntemleri</span>
-              <span class="font-extrabold text-white text-xs">Nakit & Tüm Banka Kartları</span>
+              <span class="font-extrabold text-white text-xs drop-shadow-xs">Nakit & Tüm Banka Kartları</span>
             </div>
-            <div class="bg-white/[0.04] border border-white/10 p-3 rounded-xl text-center backdrop-blur-md">
+            <div class="bg-slate-900/30 border border-white/20 p-3.5 rounded-xl text-center backdrop-blur-md shadow-lg">
               <span class="text-blue-300 block text-[10px] font-bold uppercase mb-0.5">Değişim Kolaylığı</span>
-              <span class="font-extrabold text-white text-xs">Fiş ile 14 Gün İçinde Değişim</span>
+              <span class="font-extrabold text-white text-xs drop-shadow-xs">Fiş ile 14 Gün İçinde Değişim</span>
             </div>
           </div>
         </div>

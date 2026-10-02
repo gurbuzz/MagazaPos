@@ -172,6 +172,18 @@ export const CustomerDisplayView: React.FC = () => {
 
   return (
     <div className="h-screen w-screen bg-gradient-to-br from-[#0c1322] via-[#101b33] to-[#0c1424] text-white flex flex-col font-sans select-none overflow-hidden relative">
+      {/* Ambient Fullscreen Background for Idle State */}
+      {!hasCart && !isCheckout && !isCompleted && (
+        <div className="absolute inset-0 z-0 pointer-events-none transition-opacity duration-1000 ease-in-out opacity-45">
+          <img
+            src="/customerbackground.jpg"
+            alt="Ambient Background"
+            className="w-full h-full object-cover object-center filter brightness-[0.88] contrast-[1.05] scale-105"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-[#060c1c]/40 via-transparent to-[#060c1c]/50" />
+        </div>
+      )}
+
       {/* Balanced translucent ambient glows (Soft twilight atmosphere) */}
       <div className="absolute -top-32 -left-32 w-[420px] h-[420px] bg-blue-600/20 rounded-full blur-[110px] pointer-events-none" />
       <div className="absolute -bottom-32 -right-32 w-[420px] h-[420px] bg-indigo-600/15 rounded-full blur-[110px] pointer-events-none" />
@@ -209,7 +221,7 @@ export const CustomerDisplayView: React.FC = () => {
       )}
 
       {/* TOP HEADER: Centered Jack & Jones Logo & No Screen/Fullscreen Icon */}
-      <header className="h-16 bg-slate-900/60 backdrop-blur-2xl border-b border-white/10 px-8 flex items-center justify-between z-20 shrink-0 shadow-lg relative">
+      <header className="h-18 bg-slate-900/60 backdrop-blur-2xl border-b border-white/10 px-8 flex items-center justify-between z-20 shrink-0 shadow-lg relative">
         {/* Left: Customer Recognition Badge or Active Status */}
         <div className="flex items-center shrink-0 min-w-[200px]">
           {data.selectedCustomer ? (
@@ -231,20 +243,20 @@ export const CustomerDisplayView: React.FC = () => {
           )}
         </div>
 
-        {/* Center: Mathematically Centered Jack & Jones Logo Pill */}
+        {/* Center: Mathematically Centered Jack & Jones Logo Pill (Enlarged) */}
         <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center pointer-events-none">
-          <div className="bg-white h-9 px-6 rounded-xl shadow-xl flex items-center justify-center border border-white/95 shrink-0">
+          <div className="bg-white h-12 md:h-13 px-8 rounded-2xl shadow-2xl flex items-center justify-center border border-white/95 shrink-0 transition-transform">
             <img
               src="/org_logo.svg"
               alt="JACK & JONES"
-              className="h-5 w-auto max-w-[150px] object-contain select-none"
+              className="h-7 md:h-8 w-auto max-w-[220px] object-contain select-none"
               onError={(e) => {
                 const target = e.target as HTMLElement
                 target.style.display = 'none'
                 const parent = target.parentElement
                 if (parent) {
                   parent.innerHTML =
-                    '<span class="text-[#00268A] font-black text-sm tracking-wider">JACK & JONES</span>'
+                    '<span class="text-[#00268A] font-black text-lg md:text-xl tracking-wider">JACK & JONES</span>'
                 }
               }}
             />
@@ -824,31 +836,42 @@ export const CustomerDisplayView: React.FC = () => {
             </div>
           </div>
         ) : (
-          /* CASE 4: STANDBY / IDLE STATE (EMPTY CART) - FULLY 13.3" BALANCED (NEVER CLIPS LOGO) */
-          <div className="flex-1 flex flex-col items-center justify-around p-4 md:p-5 bg-slate-900/55 border border-white/15 rounded-3xl backdrop-blur-2xl shadow-2xl relative overflow-y-auto animate-slowmotion-fade">
-            {/* Top Standby Welcome (No duplicate in-scene logo, brand logo is centered in top navbar) */}
-            <div className="text-center space-y-2 z-10 max-w-xl shrink-0">
+          /* CASE 4: STANDBY / IDLE STATE (EMPTY CART) - WITH CUSTOMER BACKGROUND & HIGH TRANSPARENCY */
+          <div className="flex-1 flex flex-col items-center justify-around p-4 md:p-6 border border-white/25 rounded-3xl shadow-2xl relative overflow-hidden animate-slowmotion-fade">
+            {/* Cinematic Store Atmosphere Background Image */}
+            <div className="absolute inset-0 z-0">
+              <img
+                src="/customerbackground.jpg"
+                alt="Karşılama Arka Planı"
+                className="w-full h-full object-cover object-center scale-100 filter brightness-[0.92] contrast-[1.05]"
+              />
+              {/* High-transparency subtle gradient overlay so the background image is clearly visible */}
+              <div className="absolute inset-0 bg-gradient-to-t from-[#060c1c]/65 via-[#0c1a38]/20 to-[#060c1c]/40" />
+            </div>
+
+            {/* Top Standby Welcome */}
+            <div className="text-center space-y-2.5 z-10 max-w-xl shrink-0">
               <div>
-                <span className="px-3.5 py-1 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30 text-[11px] font-black tracking-widest uppercase inline-block shadow-xs">
+                <span className="px-4 py-1.5 rounded-full bg-blue-500/25 text-blue-200 border border-blue-400/40 text-[11px] font-black tracking-widest uppercase inline-block shadow-md backdrop-blur-md">
                   PREMIUM RETAIL EXPERIENCE
                 </span>
               </div>
 
-              <h2 className="text-3xl md:text-4xl font-black text-white tracking-tight leading-tight">
+              <h2 className="text-4xl md:text-5xl font-black text-white tracking-tight leading-tight drop-shadow-lg">
                 Hoş Geldiniz
               </h2>
 
-              <p className="text-sm text-blue-200/90 font-medium">
+              <p className="text-sm md:text-base text-blue-100 font-semibold drop-shadow-md">
                 Yeni sezon koleksiyonumuz ve ayrıcalıklı alışveriş deneyimi için buradayız.
               </p>
             </div>
 
-            {/* Center: Dynamic Auto-Rotating Campaign Banner (Compact 13.3" Height) */}
+            {/* Center: Dynamic Auto-Rotating Campaign Banner (High Transparency Frosted Glass) */}
             <div className="w-full max-w-xl my-1 z-10 shrink-0">
-              <div className="bg-gradient-to-r from-blue-950/40 via-slate-900/50 to-indigo-950/40 border border-white/15 rounded-2xl p-4 backdrop-blur-xl shadow-xl transition-all duration-500">
+              <div className="bg-slate-900/35 border border-white/25 rounded-2xl p-4 md:p-5 backdrop-blur-md shadow-2xl transition-all duration-500">
                 <div className="flex items-start space-x-4">
                   <div
-                    className={`p-3 rounded-xl ${PROMO_SLIDES[currentSlide].iconBg} shadow-lg shrink-0 border border-white/15`}
+                    className={`p-3 rounded-xl ${PROMO_SLIDES[currentSlide].iconBg} shadow-lg shrink-0 border border-white/20`}
                   >
                     <SlideIcon className="w-6 h-6" />
                   </div>
@@ -859,10 +882,10 @@ export const CustomerDisplayView: React.FC = () => {
                     >
                       {PROMO_SLIDES[currentSlide].badge}
                     </span>
-                    <h3 className="text-xl font-black text-white tracking-tight">
+                    <h3 className="text-xl font-black text-white tracking-tight drop-shadow-sm">
                       {PROMO_SLIDES[currentSlide].title}
                     </h3>
-                    <p className="text-xs text-blue-200/90 font-medium leading-relaxed">
+                    <p className="text-xs text-blue-100 font-medium leading-relaxed drop-shadow-xs">
                       {PROMO_SLIDES[currentSlide].subtitle}
                     </p>
                   </div>
@@ -876,8 +899,8 @@ export const CustomerDisplayView: React.FC = () => {
                       onClick={() => setCurrentSlide(idx)}
                       className={`h-1.5 rounded-full transition-all ${
                         idx === currentSlide
-                          ? 'w-7 bg-blue-400'
-                          : 'w-1.5 bg-white/20 hover:bg-white/40'
+                          ? 'w-7 bg-blue-400 shadow-xs'
+                          : 'w-1.5 bg-white/30 hover:bg-white/50'
                       }`}
                     />
                   ))}
@@ -885,22 +908,22 @@ export const CustomerDisplayView: React.FC = () => {
               </div>
             </div>
 
-            {/* Bottom Standby Cards (Compact & Safe) */}
-            <div className="w-full max-w-lg z-10 grid grid-cols-2 gap-3 pt-1 border-t border-white/10 text-xs shrink-0">
-              <div className="bg-white/[0.04] border border-white/10 p-3 rounded-xl text-center backdrop-blur-md">
+            {/* Bottom Standby Cards (Translucent Frosted Glass) */}
+            <div className="w-full max-w-lg z-10 grid grid-cols-2 gap-3 pt-1 border-t border-white/15 text-xs shrink-0">
+              <div className="bg-slate-900/30 border border-white/20 p-3.5 rounded-xl text-center backdrop-blur-md shadow-lg">
                 <span className="text-blue-300 block text-[10px] font-bold uppercase mb-0.5">
                   Ödeme Yöntemleri
                 </span>
-                <span className="font-extrabold text-white text-xs">
+                <span className="font-extrabold text-white text-xs drop-shadow-xs">
                   Nakit & Tüm Banka Kartları
                 </span>
               </div>
 
-              <div className="bg-white/[0.04] border border-white/10 p-3 rounded-xl text-center backdrop-blur-md">
+              <div className="bg-slate-900/30 border border-white/20 p-3.5 rounded-xl text-center backdrop-blur-md shadow-lg">
                 <span className="text-blue-300 block text-[10px] font-bold uppercase mb-0.5">
                   Değişim Kolaylığı
                 </span>
-                <span className="font-extrabold text-white text-xs">
+                <span className="font-extrabold text-white text-xs drop-shadow-xs">
                   Fiş ile 14 Gün İçinde Değişim
                 </span>
               </div>
