@@ -88,7 +88,22 @@ export const CustomerView: React.FC = () => {
 
   useEffect(() => {
     fetchCustomers(searchTerm)
-  }, [searchTerm])
+
+    const handleDataUpdate = () => {
+      fetchCustomers(searchTerm)
+      if (selectedCustomerId) {
+        fetchCustomerDetails(selectedCustomerId)
+      }
+    }
+
+    window.addEventListener('pos-data-updated', handleDataUpdate)
+    window.addEventListener('focus', handleDataUpdate)
+
+    return () => {
+      window.removeEventListener('pos-data-updated', handleDataUpdate)
+      window.removeEventListener('focus', handleDataUpdate)
+    }
+  }, [searchTerm, selectedCustomerId])
 
   useEffect(() => {
     if (selectedCustomerId) {
@@ -219,20 +234,20 @@ export const CustomerView: React.FC = () => {
             <p>Tarih: ${new Date(sale.createdAt).toLocaleString('tr-TR')}</p>
           </div>
           <div style="margin-top: 10px;">
-            ${sale.items
+            ${(sale.items || [])
               .map(
                 (item: any) => `
               <div class="item">
                 <span>${item.variant?.product?.name || 'Ürün'} (${item.variant?.attributes?.color || ''} ${item.variant?.attributes?.size || ''}) x${item.quantity}</span>
-                <span>${item.totalPrice.toFixed(2)} TL</span>
+                <span>${(Number(item.totalPrice) || 0).toFixed(2)} TL</span>
               </div>
             `
               )
               .join('')}
           </div>
           <div class="total">
-            <div class="item"><span>İndirim:</span><span>-${sale.discountAmount.toFixed(2)} TL</span></div>
-            <div class="item" style="font-size: 14px;"><span>GENEL TOPLAM:</span><span>${sale.totalAmount.toFixed(2)} TL</span></div>
+            <div class="item"><span>İndirim:</span><span>-${(Number(sale.discountAmount) || 0).toFixed(2)} TL</span></div>
+            <div class="item" style="font-size: 14px;"><span>GENEL TOPLAM:</span><span>${(Number(sale.totalAmount) || 0).toFixed(2)} TL</span></div>
           </div>
           <div class="header" style="border-bottom: none; border-top: 1px dashed #000; margin-top: 10px;">
             <p>${receiptFooterNote || 'Bizi Tercih Ettiğiniz İçin Teşekkür Ederiz!'}</p>
@@ -552,7 +567,7 @@ export const CustomerView: React.FC = () => {
                             <div className="text-right">
                               <span className="text-[10px] text-slate-400 block font-medium">Toplam</span>
                               <span className="font-bold text-sm text-slate-900">
-                                {sale.totalAmount.toFixed(2)} ₺
+                                {(Number(sale.totalAmount) || 0).toFixed(2)} ₺
                               </span>
                             </div>
 
@@ -610,9 +625,9 @@ export const CustomerView: React.FC = () => {
                                   </div>
                                   <div className="flex items-center space-x-4">
                                     <span className="text-slate-500 font-mono">
-                                      {item.quantity} ad x {item.unitPrice.toFixed(2)}₺
+                                      {item.quantity} ad x {(Number(item.unitPrice) || 0).toFixed(2)}₺
                                     </span>
-                                    <span className="font-bold text-slate-900">{item.totalPrice.toFixed(2)} ₺</span>
+                                    <span className="font-bold text-slate-900">{(Number(item.totalPrice) || 0).toFixed(2)} ₺</span>
                                   </div>
                                 </div>
                               )
@@ -645,7 +660,7 @@ export const CustomerView: React.FC = () => {
 
                           {sale.discountAmount > 0 && (
                             <span className="text-amber-700 font-semibold">
-                              Uygulanan İndirim: -{sale.discountAmount.toFixed(2)} ₺
+                              Uygulanan İndirim: -{(Number(sale.discountAmount) || 0).toFixed(2)} ₺
                             </span>
                           )}
                         </div>

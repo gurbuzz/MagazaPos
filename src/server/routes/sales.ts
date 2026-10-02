@@ -28,9 +28,18 @@ salesRouter.get('/', async (req, res) => {
     const where: any = {}
 
     if (startDate || endDate) {
-      where.createdAt = {}
-      if (startDate) where.createdAt.gte = new Date(startDate as string)
-      if (endDate) where.createdAt.lte = new Date(endDate as string)
+      const createdAtFilter: any = {}
+      if (startDate) {
+        const sDate = new Date(startDate as string)
+        if (!isNaN(sDate.getTime())) createdAtFilter.gte = sDate
+      }
+      if (endDate) {
+        const eDate = new Date(endDate as string)
+        if (!isNaN(eDate.getTime())) createdAtFilter.lte = eDate
+      }
+      if (Object.keys(createdAtFilter).length > 0) {
+        where.createdAt = createdAtFilter
+      }
     }
 
     if (search && typeof search === 'string' && search.trim() !== '') {
@@ -100,20 +109,22 @@ salesRouter.post('/', async (req, res) => {
     // Transaction to create sale, items, update stock and log movements atomically
     const result = await prisma.$transaction(async (tx) => {
       // 1. Create Sale record
+      const parsedTotal = parseFloat(totalAmount) || 0
+      const parsedDiscount = parseFloat(discountAmount || 0) || 0
       const sale = await tx.sale.create({
         data: {
           receiptNo,
           customerId: customerId || null,
-          totalAmount: parseFloat(totalAmount),
-          discountAmount: parseFloat(discountAmount || 0),
-          paymentType: typeof paymentType === 'string' ? paymentType : JSON.stringify(paymentType || { cash: totalAmount }),
+          totalAmount: parsedTotal,
+          discountAmount: parsedDiscount,
+          paymentType: typeof paymentType === 'string' ? paymentType : JSON.stringify(paymentType || { cash: parsedTotal }),
           cashierName: cashierName || 'Kasiyer 1',
           items: {
             create: items.map((item: any) => ({
               variantId: item.variantId,
-              quantity: parseInt(item.quantity),
-              unitPrice: parseFloat(item.unitPrice),
-              totalPrice: parseFloat(item.totalPrice)
+              quantity: parseInt(item.quantity) || 1,
+              unitPrice: parseFloat(item.unitPrice) || 0,
+              totalPrice: parseFloat(item.totalPrice) || 0
             }))
           }
         },

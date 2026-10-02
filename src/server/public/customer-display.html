@@ -219,7 +219,7 @@
       <span class="font-bold text-[11px] text-blue-100">Kasa Aktif & Canlı Bağlantı</span>
     </div>
     <div>
-      <span class="text-[10.5px] text-blue-300/60 font-semibold tracking-wider uppercase">
+      <span class="text-[9px] text-blue-300/60 font-semibold tracking-wider uppercase">
         Design & Architecture by Atacan Gürbüz
       </span>
     </div>
@@ -235,7 +235,8 @@
       total: 0,
       activeCampaign: null,
       selectedCustomer: null,
-      paymentInfo: null
+      paymentInfo: null,
+      hidePrices: localStorage.getItem('pos_stock_only_mode') === 'true'
     };
 
     let prevStatus = 'idle';
@@ -347,7 +348,7 @@
             <span class="px-3.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-xs font-black uppercase tracking-wider mb-2">
               İşlem Başarılı
             </span>
-            <h2 class="text-3xl md:text-4xl font-black text-white mb-2 tracking-tight">Ödemeniz Başarıyla Alındı!</h2>
+            <h2 class="text-3xl md:text-4xl font-black text-white mb-2 tracking-tight">${state.hidePrices ? 'İşleminiz Başarıyla Tamamlandı!' : 'Ödemeniz Başarıyla Alındı!'}</h2>
             ${state.selectedCustomer ? `<div class="text-base text-blue-300 font-bold mb-1">Sayın ${state.selectedCustomer.firstName} ${state.selectedCustomer.lastName}</div>` : ''}
             <p class="text-sm text-blue-200/90 font-medium max-w-md mb-6">
               Bizi tercih ettiğiniz için teşekkür eder, ürünlerinizi keyifle kullanmanızı dileriz.
@@ -359,16 +360,23 @@
                   <span class="font-mono font-black text-white text-base">${state.paymentInfo.receiptNo}</span>
                 </div>
               ` : ''}
-              <div class="flex justify-between items-center text-base pt-1">
-                <span class="font-bold text-white">Tahsil Edilen Toplam:</span>
-                <span class="text-2xl font-black text-emerald-400">${Number(state.total).toFixed(2)} ₺</span>
-              </div>
-              ${changeDue > 0 ? `
-                <div class="p-3 bg-emerald-500/20 border border-emerald-400/40 rounded-xl flex justify-between items-center mt-2 animate-emerald-ring">
-                  <span class="text-xs font-black text-emerald-200 uppercase tracking-wide">Para Üstü:</span>
-                  <span class="text-2xl font-black font-mono text-emerald-300">${Number(changeDue).toFixed(2)} ₺</span>
+              ${!state.hidePrices ? `
+                <div class="flex justify-between items-center text-base pt-1">
+                  <span class="font-bold text-white">Tahsil Edilen Toplam:</span>
+                  <span class="text-2xl font-black text-emerald-400">${Number(state.total).toFixed(2)} ₺</span>
                 </div>
-              ` : ''}
+                ${changeDue > 0 ? `
+                  <div class="p-3 bg-emerald-500/20 border border-emerald-400/40 rounded-xl flex justify-between items-center mt-2 animate-emerald-ring">
+                    <span class="text-xs font-black text-emerald-200 uppercase tracking-wide">Para Üstü:</span>
+                    <span class="text-2xl font-black font-mono text-emerald-300">${Number(changeDue).toFixed(2)} ₺</span>
+                  </div>
+                ` : ''}
+              ` : `
+                <div class="flex justify-between items-center text-base pt-1">
+                  <span class="font-bold text-white">Teslim Edilen Toplam:</span>
+                  <span class="text-2xl font-black text-emerald-400">${(state.cartItems || []).reduce((acc, i) => acc + i.quantity, 0)} Adet Ürün</span>
+                </div>
+              `}
             </div>
             <p class="text-xs text-blue-300/80 font-medium mt-4">🧾 Fişiniz basılıyor, lütfen fişinizi almayı unutmayınız.</p>
           </div>
@@ -387,9 +395,9 @@
           <div class="flex items-center justify-between p-2 rounded-xl bg-white/[0.04] border border-white/[0.08] text-xs">
             <div class="flex-1 min-w-0 pr-2">
               <div class="font-bold text-white truncate">${item.productName}</div>
-              <div class="text-[11px] text-blue-300/70">${item.quantity} Adet × ${Number(item.unitPrice).toFixed(2)} ₺</div>
+              ${!state.hidePrices ? `<div class="text-[11px] text-blue-300/70">${item.quantity} Adet × ${Number(item.unitPrice).toFixed(2)} ₺</div>` : `<div class="text-[11px] text-blue-300/70">${item.quantity} Adet</div>`}
             </div>
-            <span class="font-black font-mono text-white shrink-0">${Number(item.totalPrice).toFixed(2)} ₺</span>
+            ${!state.hidePrices ? `<span class="font-black font-mono text-white shrink-0">${Number(item.totalPrice).toFixed(2)} ₺</span>` : ''}
           </div>
         `).join('');
 
@@ -428,16 +436,18 @@
                       <h3 class="text-2xl font-black text-white tracking-tight">Nakit Tahsilat Yapılıyor</h3>
                       <p class="text-sm text-blue-200/80 font-medium mt-1">Lütfen nakit ödemenizi kasa görevlisine iletiniz.</p>
                     </div>
-                    <div class="grid grid-cols-2 gap-3 pt-2">
-                      <div class="bg-white/[0.05] border border-white/10 p-4 rounded-2xl">
-                        <span class="text-xs font-bold text-blue-200 uppercase tracking-wider block">Alınan Tutar</span>
-                        <span class="text-2xl font-black font-mono text-white mt-1 block">${Number(given).toFixed(2)} ₺</span>
+                    ${!state.hidePrices ? `
+                      <div class="grid grid-cols-2 gap-3 pt-2">
+                        <div class="bg-white/[0.05] border border-white/10 p-4 rounded-2xl">
+                          <span class="text-xs font-bold text-blue-200 uppercase tracking-wider block">Alınan Tutar</span>
+                          <span class="text-2xl font-black font-mono text-white mt-1 block">${Number(given).toFixed(2)} ₺</span>
+                        </div>
+                        <div class="bg-emerald-500/20 border-2 border-emerald-400/60 p-4 rounded-2xl animate-emerald-ring">
+                          <span class="text-xs font-black text-emerald-200 uppercase tracking-wider block">Para Üstü</span>
+                          <span class="text-2xl font-black font-mono text-emerald-300 mt-1 block">${Number(change).toFixed(2)} ₺</span>
+                        </div>
                       </div>
-                      <div class="bg-emerald-500/20 border-2 border-emerald-400/60 p-4 rounded-2xl animate-emerald-ring">
-                        <span class="text-xs font-black text-emerald-200 uppercase tracking-wider block">Para Üstü</span>
-                        <span class="text-2xl font-black font-mono text-emerald-300 mt-1 block">${Number(change).toFixed(2)} ₺</span>
-                      </div>
-                    </div>
+                    ` : ''}
                   </div>
                 ` : `
                   <div class="w-full max-w-lg space-y-5">
@@ -491,26 +501,35 @@
                 <div class="flex-1 overflow-y-auto space-y-2 pr-1 min-h-0 no-scrollbar">
                   ${itemsHtml}
                 </div>
-                <div class="pt-2 border-t border-white/10 space-y-1 text-xs shrink-0">
-                  <div class="flex justify-between text-blue-200/80">
-                    <span>Ara Toplam:</span>
-                    <span class="font-bold text-white">${Number(state.subtotal).toFixed(2)} ₺</span>
-                  </div>
-                  ${state.discountAmount > 0 ? `
-                    <div class="flex justify-between text-amber-300 font-bold">
-                      <span>İndirim Tutarı:</span>
-                      <span>-${Number(state.discountAmount).toFixed(2)} ₺</span>
+                ${!state.hidePrices ? `
+                  <div class="pt-2 border-t border-white/10 space-y-1 text-xs shrink-0">
+                    <div class="flex justify-between text-blue-200/80">
+                      <span>Ara Toplam:</span>
+                      <span class="font-bold text-white">${Number(state.subtotal).toFixed(2)} ₺</span>
                     </div>
-                  ` : ''}
-                </div>
+                    ${state.discountAmount > 0 ? `
+                      <div class="flex justify-between text-amber-300 font-bold">
+                        <span>İndirim Tutarı:</span>
+                        <span>-${Number(state.discountAmount).toFixed(2)} ₺</span>
+                      </div>
+                    ` : ''}
+                  </div>
+                ` : `
+                  <div class="pt-2 border-t border-white/10 text-xs shrink-0 flex justify-between text-blue-200/80">
+                    <span>Toplam Parça:</span>
+                    <span class="font-bold text-white">${state.cartItems.reduce((acc, i) => acc + i.quantity, 0)} Adet</span>
+                  </div>
+                `}
               </div>
 
               <div class="bg-gradient-to-br from-[#00268A]/90 via-[#0a359e]/80 to-[#1e3a8a]/70 border-2 border-blue-400/60 rounded-2xl p-5 text-center shadow-2xl backdrop-blur-xl text-white shrink-0">
-                <span class="text-xs font-black text-blue-200 uppercase tracking-widest block mb-1">ÖDENECEK TOPLAM TUTAR</span>
+                <span class="text-xs font-black text-blue-200 uppercase tracking-widest block mb-1">
+                  ${!state.hidePrices ? 'ÖDENECEK TOPLAM TUTAR' : 'TOPLAM ÜRÜN ADEDİ'}
+                </span>
                 <div class="text-5xl md:text-6xl font-black text-white tracking-tight drop-shadow-md">
-                  ${Number(state.total).toFixed(2)} <span class="text-3xl text-blue-200 font-bold">₺</span>
+                  ${!state.hidePrices ? `${Number(state.total).toFixed(2)} <span class="text-3xl text-blue-200 font-bold">₺</span>` : `${state.cartItems.reduce((acc, i) => acc + i.quantity, 0)} <span class="text-2xl text-blue-200 font-bold">ADET</span>`}
                 </div>
-                <div class="text-[11px] text-blue-200 font-semibold mt-2">Net Tutar</div>
+                <div class="text-[11px] text-blue-200 font-semibold mt-2">${!state.hidePrices ? 'Net Tutar' : 'Stok Çıkış Listesi'}</div>
               </div>
             </div>
           </div>
@@ -541,17 +560,19 @@
                   <span class="text-[10px] text-blue-200 uppercase block font-bold">Adet</span>
                   <span class="text-xl font-black text-white">${item.quantity}</span>
                 </div>
-                <div class="text-right min-w-[95px]">
-                  <span class="text-[11px] text-blue-200/80 block font-medium">Birim: ${Number(item.unitPrice).toFixed(2)} ₺</span>
-                  <span class="text-xl font-black text-white">${Number(item.totalPrice).toFixed(2)} ₺</span>
-                </div>
+                ${!state.hidePrices ? `
+                  <div class="text-right min-w-[95px]">
+                    <span class="text-[11px] text-blue-200/80 block font-medium">Birim: ${Number(item.unitPrice).toFixed(2)} ₺</span>
+                    <span class="text-xl font-black text-white">${Number(item.totalPrice).toFixed(2)} ₺</span>
+                  </div>
+                ` : ''}
               </div>
             </div>
           `;
         }).join('');
 
         let campaignHtml = '';
-        if (state.activeCampaign) {
+        if (!state.hidePrices && state.activeCampaign) {
           campaignHtml = `
             <div class="bg-amber-500/20 border border-amber-400/40 rounded-2xl p-3 flex items-center justify-between backdrop-blur-xl shadow-md mb-2.5 shrink-0">
               <div class="flex items-center space-x-2.5">
@@ -565,6 +586,70 @@
             </div>
           `;
         }
+
+        const rightPanelHtml = state.hidePrices ? `
+          <div class="bg-slate-900/55 border border-white/15 rounded-3xl p-6 backdrop-blur-2xl space-y-5 shadow-2xl flex-1 flex flex-col justify-between">
+            <div class="space-y-3">
+              <div class="flex items-center space-x-2 text-rose-300 border-b border-white/10 pb-3">
+                <span class="text-lg">🛍️</span>
+                <span class="text-sm font-black uppercase tracking-wider">Ürün & Stok Bilgisi</span>
+              </div>
+              <div class="space-y-2 text-sm text-blue-100">
+                <div class="flex justify-between items-center bg-white/[0.04] p-3 rounded-xl border border-white/10">
+                  <span class="text-blue-200 font-semibold">Toplam Çeşit:</span>
+                  <span class="font-black text-white text-base">${state.cartItems.length} Kalem</span>
+                </div>
+                <div class="flex justify-between items-center bg-white/[0.04] p-3 rounded-xl border border-white/10">
+                  <span class="text-blue-200 font-semibold">Toplam Ürün Adedi:</span>
+                  <span class="font-black text-white text-base">${state.cartItems.reduce((acc, i) => acc + i.quantity, 0)} Adet</span>
+                </div>
+              </div>
+            </div>
+            <div class="bg-gradient-to-br from-[#00268A]/90 via-[#0a359e]/80 to-[#1e3a8a]/70 border-2 border-blue-400/60 rounded-2xl p-5 text-center shadow-2xl backdrop-blur-xl text-white shrink-0">
+              <span class="text-xs font-black text-blue-200 uppercase tracking-widest block mb-1">SEPETTEKİ TOPLAM ÜRÜN</span>
+              <div class="text-5xl md:text-6xl font-black text-white tracking-tight drop-shadow-md">
+                ${state.cartItems.reduce((acc, i) => acc + i.quantity, 0)} <span class="text-2xl text-blue-200 font-bold">ADET</span>
+              </div>
+              <div class="text-xs text-blue-200 font-semibold mt-2">Stok Çıkış Listesi</div>
+            </div>
+            <div class="text-center text-xs text-blue-200/80 font-medium pt-1">
+              <span>Keyifli Alışverişler Dileriz</span>
+            </div>
+          </div>
+        ` : `
+          ${campaignHtml}
+          <div class="bg-slate-900/55 border border-white/15 rounded-3xl p-5 backdrop-blur-2xl space-y-3.5 shadow-2xl flex-1 flex flex-col justify-between">
+            <div class="space-y-2 pb-3 border-b border-white/10 shrink-0">
+              <div class="flex justify-between items-center text-sm">
+                <span class="text-blue-200 font-semibold">Ara Toplam</span>
+                <span class="font-extrabold text-white text-base">${Number(state.subtotal).toFixed(2)} ₺</span>
+              </div>
+              ${state.discountAmount > 0 ? `
+                <div class="flex justify-between items-center text-sm text-amber-300 font-extrabold">
+                  <span>İndirim Tutarı</span>
+                  <span class="text-base">-${Number(state.discountAmount).toFixed(2)} ₺</span>
+                </div>
+              ` : ''}
+            </div>
+
+            <div class="bg-gradient-to-br from-[#00268A]/90 via-[#0a359e]/80 to-[#1e3a8a]/70 border-2 border-blue-400/60 rounded-2xl p-4 md:p-5 text-center shadow-2xl backdrop-blur-xl text-white shrink-0">
+              <span class="text-xs font-black text-blue-200 uppercase tracking-widest block mb-1">ÖDENECEK TOPLAM TUTAR</span>
+              <div class="text-5xl md:text-6xl font-black text-white tracking-tight drop-shadow-md">
+                ${Number(state.total).toFixed(2)} <span class="text-3xl text-blue-200 font-bold">₺</span>
+              </div>
+            </div>
+
+            <div class="text-center space-y-1.5 shrink-0 pt-1">
+              <span class="text-[11px] text-blue-200/80 block font-semibold">Kredi Kartı, Temassız veya Nakit Ödeme Kabul Edilir</span>
+              <div class="flex items-center justify-center space-x-2 text-xs">
+                <span class="px-2.5 py-0.5 rounded-lg bg-white/10 border border-white/15 text-white font-bold text-[11px]">Temassız</span>
+                <span class="px-2.5 py-0.5 rounded-lg bg-white/10 border border-white/15 text-white font-bold text-[11px]">Troy</span>
+                <span class="px-2.5 py-0.5 rounded-lg bg-white/10 border border-white/15 text-white font-bold text-[11px]">Visa / Mastercard</span>
+                <span class="px-2.5 py-0.5 rounded-lg bg-white/10 border border-white/15 text-white font-bold text-[11px]">Nakit</span>
+              </div>
+            </div>
+          </div>
+        `;
 
         main.innerHTML = `
           <div class="flex-1 flex overflow-hidden gap-4 md:gap-5 min-h-0">
@@ -588,38 +673,7 @@
             </div>
 
             <div class="flex-[2] flex flex-col justify-between space-y-3 min-h-0 overflow-y-auto animate-panel-right">
-              ${campaignHtml}
-              <div class="bg-slate-900/55 border border-white/15 rounded-3xl p-5 backdrop-blur-2xl space-y-3.5 shadow-2xl flex-1 flex flex-col justify-between">
-                <div class="space-y-2 pb-3 border-b border-white/10 shrink-0">
-                  <div class="flex justify-between items-center text-sm">
-                    <span class="text-blue-200 font-semibold">Ara Toplam</span>
-                    <span class="font-extrabold text-white text-base">${Number(state.subtotal).toFixed(2)} ₺</span>
-                  </div>
-                  ${state.discountAmount > 0 ? `
-                    <div class="flex justify-between items-center text-sm text-amber-300 font-extrabold">
-                      <span>İndirim Tutarı</span>
-                      <span class="text-base">-${Number(state.discountAmount).toFixed(2)} ₺</span>
-                    </div>
-                  ` : ''}
-                </div>
-
-                <div class="bg-gradient-to-br from-[#00268A]/90 via-[#0a359e]/80 to-[#1e3a8a]/70 border-2 border-blue-400/60 rounded-2xl p-4 md:p-5 text-center shadow-2xl backdrop-blur-xl text-white shrink-0">
-                  <span class="text-xs font-black text-blue-200 uppercase tracking-widest block mb-1">ÖDENECEK TOPLAM TUTAR</span>
-                  <div class="text-5xl md:text-6xl font-black text-white tracking-tight drop-shadow-md">
-                    ${Number(state.total).toFixed(2)} <span class="text-3xl text-blue-200 font-bold">₺</span>
-                  </div>
-                </div>
-
-                <div class="text-center space-y-1.5 shrink-0 pt-1">
-                  <span class="text-[11px] text-blue-200/80 block font-semibold">Kredi Kartı, Temassız veya Nakit Ödeme Kabul Edilir</span>
-                  <div class="flex items-center justify-center space-x-2 text-xs">
-                    <span class="px-2.5 py-0.5 rounded-lg bg-white/10 border border-white/15 text-white font-bold text-[11px]">Temassız</span>
-                    <span class="px-2.5 py-0.5 rounded-lg bg-white/10 border border-white/15 text-white font-bold text-[11px]">Troy</span>
-                    <span class="px-2.5 py-0.5 rounded-lg bg-white/10 border border-white/15 text-white font-bold text-[11px]">Visa / Mastercard</span>
-                    <span class="px-2.5 py-0.5 rounded-lg bg-white/10 border border-white/15 text-white font-bold text-[11px]">Nakit</span>
-                  </div>
-                </div>
-              </div>
+              ${rightPanelHtml}
             </div>
           </div>
         `;

@@ -240,7 +240,7 @@ export const ExchangeModal: React.FC<ExchangeModalProps> = ({ isOpen, onClose })
                     <span>Sıfır Fark Değişim Kuralı</span>
                   </div>
                   <p className="text-[11px] text-emerald-700">
-                    Seçilen ürün stoğa geri alınacak ve <strong>{foundSale.items.find((i: any) => i.id === selectedItemId)?.unitPrice.toFixed(2)} ₺</strong> tutarındaki bedel sepete indirim/mahsup olarak yansıtılacaktır.
+                    Seçilen ürün stoğa geri alınacak ve <strong>{(foundSale.items.find((i: any) => i.id === selectedItemId)?.unitPrice ?? 0).toFixed(2)} ₺</strong> tutarındaki bedel sepete indirim/mahsup olarak yansıtılacaktır.
                   </p>
                 </div>
               )}

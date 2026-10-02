@@ -21,7 +21,7 @@ import { SystemSettingsModal } from './Security/SystemSettingsModal'
 import { AdminPinModal } from './Security/AdminPinModal'
 
 export const Header: React.FC = () => {
-  const { activeTab, setActiveTab, setLocalIp, lockApp } = usePosStore()
+  const { activeTab, setActiveTab, setLocalIp, lockApp, isStockOnlyMode, toggleStockOnlyMode } = usePosStore()
   const { isOpen: isKeyboardOpen, toggleKeyboard } = useKeyboardStore()
   const [isCampaignModalOpen, setIsCampaignModalOpen] = useState(false)
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false)
@@ -207,18 +207,20 @@ export const Header: React.FC = () => {
           <span>Etiket Basımı</span>
         </button>
 
-        <button
-          onClick={() => handleProtectedAction('sales')}
-          className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-sm font-extrabold transition-all ${
-            activeTab === 'sales'
-              ? 'bg-white text-[#00268A] shadow-md scale-[1.02]'
-              : 'text-blue-100 hover:text-white hover:bg-white/10'
-          }`}
-        >
-          <Receipt className="w-4 h-4 stroke-[2.2]" />
-          <span>Ciro & Satış Raporları</span>
-          <Lock className="w-3.5 h-3.5 text-blue-200 stroke-[2.2]" />
-        </button>
+        {!isStockOnlyMode && (
+          <button
+            onClick={() => handleProtectedAction('sales')}
+            className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-sm font-extrabold transition-all ${
+              activeTab === 'sales'
+                ? 'bg-white text-[#00268A] shadow-md scale-[1.02]'
+                : 'text-blue-100 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            <Receipt className="w-4 h-4 stroke-[2.2]" />
+            <span>Ciro & Satış Raporları</span>
+            <Lock className="w-3.5 h-3.5 text-blue-200 stroke-[2.2]" />
+          </button>
+        )}
       </nav>
 
       {/* Campaign & Settings Controls */}
@@ -254,6 +256,23 @@ export const Header: React.FC = () => {
           {customerDisplayStatus.isOpen && (
             <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full animate-pulse" />
           )}
+        </button>
+
+        {/* Fiyatsız Stok / Gizlilik Modu Butonu (Açık Kırmızı, Simgesiz) */}
+        <button
+          onClick={toggleStockOnlyMode}
+          className={`w-9 h-9 rounded-xl border transition-all shadow-xs flex items-center justify-center relative ${
+            isStockOnlyMode
+              ? 'bg-rose-500 hover:bg-rose-600 border-rose-600 shadow-sm ring-2 ring-rose-300'
+              : 'bg-rose-100 hover:bg-rose-200 border-rose-200 hover:border-rose-300'
+          }`}
+          title={isStockOnlyMode ? 'Stok Modundan Çık (Fiyatları Göster)' : 'Stok Moduna Geç (Fiyatları Gizle)'}
+        >
+          <span
+            className={`w-2.5 h-2.5 rounded-full transition-colors ${
+              isStockOnlyMode ? 'bg-white shadow-xs' : 'bg-rose-400'
+            }`}
+          />
         </button>
 
         {/* On-Screen Touch Virtual Keyboard Toggle */}

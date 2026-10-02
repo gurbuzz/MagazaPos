@@ -38,6 +38,10 @@ interface PosState {
   activeTab: 'pos' | 'stock' | 'sales' | 'labels' | 'customers'
   setActiveTab: (tab: 'pos' | 'stock' | 'sales' | 'labels' | 'customers') => void
 
+  // Stock Only / Privacy Mode (Fiyatsız Gizlilik Modu)
+  isStockOnlyMode: boolean
+  toggleStockOnlyMode: () => void
+
   // Lock Screen & System Settings
   isLocked: boolean
   pinCode: string
@@ -146,6 +150,19 @@ export const usePosStore = create<PosState>((set, get) => ({
 
   lockApp: () => set({ isLocked: true }),
 
+  isStockOnlyMode: localStorage.getItem('pos_stock_only_mode') === 'true',
+  toggleStockOnlyMode: () => {
+    const next = !get().isStockOnlyMode
+    localStorage.setItem('pos_stock_only_mode', next ? 'true' : 'false')
+    set({ isStockOnlyMode: next })
+    if (next && get().activeTab === 'sales') {
+      set({ activeTab: 'pos' })
+    }
+    syncCustomerDisplay({
+      hidePrices: next,
+    })
+  },
+
   updateSystemSettings: (settings) => {
     if (settings.storeName !== undefined) localStorage.setItem('pos_store_name', settings.storeName)
     if (settings.storeAddress !== undefined) localStorage.setItem('pos_store_address', settings.storeAddress)
@@ -217,7 +234,7 @@ export const usePosStore = create<PosState>((set, get) => ({
           ? {
               ...item,
               quantity: item.quantity + 1,
-              totalPrice: (item.quantity + 1) * item.unitPrice,
+              totalPrice: Math.round((item.quantity + 1) * item.unitPrice * 100) / 100,
             }
           : item
       )
@@ -231,6 +248,7 @@ export const usePosStore = create<PosState>((set, get) => ({
         }
       }
 
+      const unitPrice = Math.round((Number(variant.salePrice) || 0) * 100) / 100
       const newItem: CartItem = {
         variantId: variant.id,
         productId: variant.productId || variant.product?.id,
@@ -239,9 +257,9 @@ export const usePosStore = create<PosState>((set, get) => ({
         sku: variant.sku,
         barcode: variant.barcode,
         attributes: attrs,
-        unitPrice: variant.salePrice,
+        unitPrice,
         quantity: 1,
-        totalPrice: variant.salePrice,
+        totalPrice: unitPrice,
       }
       newItems = [...cartItems, newItem]
     }
@@ -272,7 +290,7 @@ export const usePosStore = create<PosState>((set, get) => ({
 
     const newItems = get().cartItems.map((item) =>
       item.variantId === variantId
-        ? { ...item, quantity, totalPrice: quantity * item.unitPrice }
+        ? { ...item, quantity, totalPrice: Math.round(quantity * item.unitPrice * 100) / 100 }
         : item
     )
     set({ cartItems: newItems, customTotal: null })
@@ -283,7 +301,7 @@ export const usePosStore = create<PosState>((set, get) => ({
     }
   },
 
-  applyDiscount: (amount) => set({ discountAmount: Math.max(0, amount), activeCampaign: null, customTotal: null }),
+  applyDiscount: (amount) => set({ discountAmount: Math.max(0, Math.round(amount * 100) / 100), activeCampaign: null, customTotal: null }),
 
   setCustomTotal: (amount) => {
     if (amount === null) {
@@ -291,8 +309,8 @@ export const usePosStore = create<PosState>((set, get) => ({
       return
     }
     const subtotal = get().getSubtotal()
-    const val = Math.max(0, amount)
-    const discount = subtotal > val ? subtotal - val : 0
+    const val = Math.max(0, Math.round(amount * 100) / 100)
+    const discount = subtotal > val ? Math.round((subtotal - val) * 100) / 100 : 0
     set({
       customTotal: val,
       discountAmount: discount,
@@ -316,7 +334,7 @@ export const usePosStore = create<PosState>((set, get) => ({
     }
 
     set({
-      discountAmount: Math.min(subtotal, Math.max(0, discount)),
+      discountAmount: Math.round(Math.min(subtotal, Math.max(0, discount)) * 100) / 100,
       activeCampaign: campaign,
       customTotal: null,
     })
@@ -325,7 +343,8 @@ export const usePosStore = create<PosState>((set, get) => ({
   clearCart: () => set({ cartItems: [], discountAmount: 0, activeCampaign: null, customTotal: null, selectedCustomer: null }),
 
   getSubtotal: () => {
-    return get().cartItems.reduce((sum, item) => sum + item.totalPrice, 0)
+    const raw = get().cartItems.reduce((sum, item) => sum + (Number(item.totalPrice) || 0), 0)
+    return Math.round(raw * 100) / 100
   },
 
   getTotal: () => {
@@ -334,12 +353,26 @@ export const usePosStore = create<PosState>((set, get) => ({
       return customTotal
     }
     const subtotal = get().getSubtotal()
-    return Math.max(0, subtotal - discountAmount)
+    const raw = Math.max(0, subtotal - (Number(discountAmount) || 0))
+    return Math.round(raw * 100) / 100
   },
 }))
 
-// Automatically synchronize POS changes to Customer Display in real-time
+// Automatically synchronize POS changes to Customer Display when relevant state changes
+let prevSyncedState = ''
 usePosStore.subscribe((state) => {
+  const syncKey = JSON.stringify({
+    items: state.cartItems.map((i) => ({ id: i.variantId, q: i.quantity, p: i.totalPrice })),
+    discount: state.discountAmount,
+    campaign: state.activeCampaign?.id,
+    customer: state.selectedCustomer?.id,
+    stockMode: state.isStockOnlyMode,
+    store: state.storeName,
+  })
+
+  if (syncKey === prevSyncedState) return
+  prevSyncedState = syncKey
+
   syncCustomerDisplay({
     status: state.cartItems.length > 0 ? 'cart' : 'idle',
     storeName: state.storeName,
@@ -352,5 +385,6 @@ usePosStore.subscribe((state) => {
     total: state.getTotal(),
     activeCampaign: state.activeCampaign,
     selectedCustomer: state.selectedCustomer,
+    hidePrices: state.isStockOnlyMode,
   })
 })

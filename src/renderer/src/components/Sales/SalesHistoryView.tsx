@@ -51,6 +51,18 @@ export const SalesHistoryView: React.FC = () => {
 
   useEffect(() => {
     fetchSales()
+
+    const handleDataUpdate = () => {
+      fetchSales()
+    }
+
+    window.addEventListener('pos-data-updated', handleDataUpdate)
+    window.addEventListener('focus', handleDataUpdate)
+
+    return () => {
+      window.removeEventListener('pos-data-updated', handleDataUpdate)
+      window.removeEventListener('focus', handleDataUpdate)
+    }
   }, [startDate, endDate])
 
   // Helper date functions for quick presets
@@ -119,9 +131,9 @@ export const SalesHistoryView: React.FC = () => {
   })
 
   // Calculate Revenue KPIs based on filtered set
-  const filteredTotalRevenue = filteredSales.reduce((sum, s) => sum + s.totalAmount, 0)
-  const filteredTotalCash = filteredSales.reduce((sum, s) => sum + (s.paymentType?.cash || 0), 0)
-  const filteredTotalCard = filteredSales.reduce((sum, s) => sum + (s.paymentType?.card || 0), 0)
+  const filteredTotalRevenue = filteredSales.reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0)
+  const filteredTotalCash = filteredSales.reduce((sum, s) => sum + (Number(s.paymentType?.cash) || 0), 0)
+  const filteredTotalCard = filteredSales.reduce((sum, s) => sum + (Number(s.paymentType?.card) || 0), 0)
   const avgReceiptAmount = filteredSales.length > 0 ? filteredTotalRevenue / filteredSales.length : 0
 
   const handlePrintReceipt = (sale: any) => {

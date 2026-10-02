@@ -187,6 +187,10 @@ customersRouter.delete('/:id', async (req, res) => {
 
     res.json({ message: 'Müşteri başarıyla silindi.' })
   } catch (error: any) {
+    if (error.code === 'P2025') {
+      res.status(404).json({ error: 'Müşteri bulunamadı.' })
+      return
+    }
     res.status(500).json({ error: error.message })
   }
 })

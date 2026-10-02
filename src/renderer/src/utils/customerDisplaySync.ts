@@ -18,10 +18,13 @@ export interface CustomerDisplayPayload {
     isFinished?: boolean
   } | null
   lastItemAdded?: any
+  hidePrices?: boolean
+  force?: boolean
   updatedAt?: string
 }
 
 let broadcastChannel: BroadcastChannel | null = null
+let completionLockUntil = 0
 
 try {
   if (typeof BroadcastChannel !== 'undefined') {
@@ -34,7 +37,18 @@ try {
 /**
  * Broadcasts customer display updates simultaneously via Electron IPC, BroadcastChannel, and Express API.
  */
-export function syncCustomerDisplay(payload: Partial<CustomerDisplayPayload>) {
+export function syncCustomerDisplay(payload: Partial<CustomerDisplayPayload & { force?: boolean }>) {
+  const now = Date.now()
+
+  if (payload.status === 'completed') {
+    completionLockUntil = now + 3500
+  } else if (payload.force) {
+    completionLockUntil = 0
+  } else if (payload.status === 'idle' && now < completionLockUntil) {
+    // Retain completion screen; ignore premature idle triggers (e.g. from clearCart)
+    return
+  }
+
   const fullPayload: CustomerDisplayPayload = {
     status: payload.status || (payload.cartItems && payload.cartItems.length > 0 ? 'cart' : 'idle'),
     storeName: payload.storeName || localStorage.getItem('pos_store_name') || 'JACK & JONES',
@@ -49,6 +63,7 @@ export function syncCustomerDisplay(payload: Partial<CustomerDisplayPayload>) {
     selectedCustomer: payload.selectedCustomer || null,
     paymentInfo: payload.paymentInfo || null,
     lastItemAdded: payload.lastItemAdded || null,
+    hidePrices: payload.hidePrices ?? (localStorage.getItem('pos_stock_only_mode') === 'true'),
     updatedAt: new Date().toISOString(),
   }
 

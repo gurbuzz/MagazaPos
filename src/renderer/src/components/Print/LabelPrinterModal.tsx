@@ -100,7 +100,7 @@ export const LabelPrinterModal: React.FC = () => {
             <div class="attr">SKU: ${selectedVariant.sku}</div>
             <div class="attr">Renk: ${selectedVariant.attributes?.color || ''} | Beden: ${selectedVariant.attributes?.size || ''}</div>
             <div class="barcode-box">|||||| |||| ||||||<br>${selectedVariant.barcode}</div>
-            <div class="price">${selectedVariant.salePrice.toFixed(2)} TL</div>
+            <div class="price">${(Number(selectedVariant.salePrice) || 0).toFixed(2)} TL</div>
           </body>
         </html>
       `

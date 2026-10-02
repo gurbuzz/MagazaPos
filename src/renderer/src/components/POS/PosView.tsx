@@ -17,12 +17,15 @@ import {
   RotateCcw,
   AlertCircle,
   CheckCircle2,
+  PackageMinus,
 } from 'lucide-react'
 import { usePosStore } from '../../store/usePosStore'
 import { CheckoutModal } from './CheckoutModal'
 import { CampaignModal } from './CampaignModal'
 import { CustomerSelectModal } from '../Customer/CustomerSelectModal'
 import { ExchangeModal } from './ExchangeModal'
+import { notifyDataChanged } from '../../utils/events'
+import { syncCustomerDisplay } from '../../utils/customerDisplaySync'
 
 export const PosView: React.FC = () => {
   const {
@@ -42,6 +45,10 @@ export const PosView: React.FC = () => {
     isLocked,
     selectedCustomer,
     clearSelectedCustomer,
+    isStockOnlyMode,
+    cashierName,
+    receiptPrefix,
+    clearCart,
   } = usePosStore()
 
   const [products, setProducts] = useState<any[]>([])
@@ -111,6 +118,74 @@ export const PosView: React.FC = () => {
     toastTimeoutRef.current = setTimeout(() => {
       setScanToast(null)
     }, 4500)
+  }
+
+  // Direct Stock Deduction in Stock-Only Mode (Processed as Cash in Background)
+  const handleDirectStockDeduction = async () => {
+    if (cartItems.length === 0 || isLoading) return
+    setIsLoading(true)
+    try {
+      const totalAmount = getTotal()
+      const payload = {
+        items: cartItems,
+        totalAmount,
+        discountAmount,
+        cashierName: cashierName || 'Kasiyer 1',
+        customerId: selectedCustomer ? selectedCustomer.id : null,
+        receiptPrefix: receiptPrefix || 'FIS',
+        paymentType: { cash: totalAmount, card: 0 },
+      }
+
+      const res = await fetch('/api/sales', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      if (!res.ok) {
+        const err = await res.json()
+        showToast('error', `Hata: ${err.error}`)
+        setIsLoading(false)
+        return
+      }
+
+      const saleData = await res.json()
+
+      // Broadcast completion to customer display without showing prices
+      syncCustomerDisplay({
+        status: 'completed',
+        cartItems,
+        subtotal: getSubtotal(),
+        discountAmount,
+        total: totalAmount,
+        hidePrices: true,
+        paymentInfo: {
+          mode: 'CASH',
+          receiptNo: saleData.receiptNo,
+          isFinished: true,
+        },
+      })
+
+      clearCart()
+      await fetchProducts()
+      notifyDataChanged()
+      playAudioNotification('success')
+      showToast('success', 'Ürünler stoktan başarıyla düşüldü.')
+
+      // Reset customer display after brief thank you note
+      setTimeout(() => {
+        syncCustomerDisplay({
+          status: 'idle',
+          cartItems: [],
+          force: true,
+          hidePrices: isStockOnlyMode,
+        })
+      }, 3500)
+    } catch (err: any) {
+      showToast('error', `İşlem hatası: ${err.message}`)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const fetchProducts = async () => {
@@ -547,9 +622,11 @@ export const PosView: React.FC = () => {
                       <span>
                         {v.attributes?.color || ''} {v.attributes?.size || ''}
                       </span>
-                      <span className="font-extrabold text-emerald-700 group-hover:text-white">
-                        {v.salePrice}₺
-                      </span>
+                      {!isStockOnlyMode && (
+                        <span className="font-extrabold text-emerald-700 group-hover:text-white">
+                          {v.salePrice}₺
+                        </span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -567,9 +644,24 @@ export const PosView: React.FC = () => {
             <ShoppingCart className="w-4 h-4 text-[#00268A]" />
             <h2 className="font-bold text-slate-900 text-xs tracking-tight">Kasa Sepeti</h2>
           </div>
-          <span className="px-2.5 py-0.5 rounded-full bg-blue-100/70 text-[#00268A] text-[11px] font-bold border border-blue-200/80 shadow-2xs">
-            {cartItems.reduce((acc, i) => acc + i.quantity, 0)} Kalem
-          </span>
+          <div className="flex items-center space-x-2">
+            {cartItems.length > 0 && (
+              <button
+                onClick={() => {
+                  if (confirm('Sepetteki tüm ürünler temizlensin mi?')) {
+                    clearCart()
+                  }
+                }}
+                className="text-[11px] text-rose-600 hover:text-rose-800 hover:bg-rose-50 px-2 py-0.5 rounded transition font-semibold"
+                title="Sepeti Temizle"
+              >
+                Temizle
+              </button>
+            )}
+            <span className="px-2.5 py-0.5 rounded-full bg-blue-100/70 text-[#00268A] text-[11px] font-bold border border-blue-200/80 shadow-2xs">
+              {cartItems.reduce((acc, i) => acc + i.quantity, 0)} Kalem
+            </span>
+          </div>
         </div>
 
         {/* Customer Selection Banner */}
@@ -630,7 +722,7 @@ export const PosView: React.FC = () => {
                     <h4 className="font-bold text-slate-900 text-sm leading-snug">{item.productName}</h4>
                     <div className="flex items-center space-x-2 mt-0.5">
                       <span className="px-2 py-0.5 bg-white/95 rounded-md text-xs text-slate-800 font-bold border border-slate-200 shadow-2xs">
-                        {item.attributes.color || '-'} / {item.attributes.size || '-'}
+                        {item.attributes?.color || '-'} / {item.attributes?.size || '-'}
                       </span>
                       <span className="text-xs text-slate-500 font-mono">{item.barcode}</span>
                     </div>
@@ -662,132 +754,170 @@ export const PosView: React.FC = () => {
                     </button>
                   </div>
 
-                  <div className="text-right">
-                    <span className="text-xs text-slate-500 font-medium block">Birim: {item.unitPrice.toFixed(2)}₺</span>
-                    <span className="font-extrabold text-slate-900 text-sm">{item.totalPrice.toFixed(2)} ₺</span>
-                  </div>
+                  {!isStockOnlyMode && (
+                    <div className="text-right">
+                      <span className="text-xs text-slate-500 font-medium block">
+                        Birim: {(item.unitPrice || 0).toFixed(2)}₺
+                      </span>
+                      <span className="font-extrabold text-slate-900 text-sm">
+                        {(item.totalPrice || 0).toFixed(2)} ₺
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             ))
           )}
         </div>
 
-        {/* Cart Summary & Campaign Motor */}
+        {/* Cart Summary & Action Area */}
         <div className="p-3.5 glass-panel border-t border-white/60 space-y-2.5">
-          {/* Campaign Header & Settings Trigger */}
-          <div className="flex items-center justify-between">
-            <span className="text-slate-700 font-semibold text-xs flex items-center space-x-1">
-              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              <span>Kampanya & İndirim</span>
-            </span>
+          {isStockOnlyMode ? (
+            /* Stock Only Mode - No Money / Clean Item Counter */
+            <div className="p-3.5 bg-rose-50/70 border border-rose-200/80 rounded-2xl flex items-center justify-between">
+              <div>
+                <span className="text-[11px] font-bold text-rose-700 uppercase tracking-wider block">
+                  Stok Çıkış Özeti
+                </span>
+                <span className="text-xs text-slate-600 font-medium">
+                  {cartItems.length} Kalem Ürün
+                </span>
+              </div>
+              <div className="text-right">
+                <span className="text-lg font-black text-rose-800">
+                  {cartItems.reduce((acc, i) => acc + i.quantity, 0)} Adet
+                </span>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Campaign Header & Settings Trigger */}
+              <div className="flex items-center justify-between">
+                <span className="text-slate-700 font-semibold text-xs flex items-center space-x-1">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Kampanya & İndirim</span>
+                </span>
 
-            <button
-              onClick={() => setIsCampaignModalOpen(true)}
-              className="px-2 py-0.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded text-[11px] font-medium transition flex items-center space-x-1"
-            >
-              <Settings2 className="w-3 h-3" />
-              <span>Ayarla</span>
-            </button>
-          </div>
-
-          {/* Preset Campaign Buttons Grid */}
-          <div className="flex flex-wrap gap-1">
-            {campaigns.map((camp) => {
-              const isActive = activeCampaign?.id === camp.id
-              return (
                 <button
-                  key={camp.id}
-                  onClick={() => {
-                    if (isActive) {
-                      applyCampaign(null)
-                    } else {
-                      applyCampaign(camp)
-                    }
-                  }}
-                  className={`px-2 py-0.5 rounded text-[11px] font-semibold border transition ${
-                    isActive
-                      ? 'bg-amber-600 text-white border-amber-700 shadow-2xs'
-                      : 'bg-white text-slate-700 border-slate-200 hover:border-amber-300 hover:bg-amber-50/50'
-                  }`}
+                  onClick={() => setIsCampaignModalOpen(true)}
+                  className="px-2 py-0.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded text-[11px] font-medium transition flex items-center space-x-1"
                 >
-                  {camp.name}
+                  <Settings2 className="w-3 h-3" />
+                  <span>Ayarla</span>
                 </button>
-              )
-            })}
-          </div>
-
-          {/* Active Campaign Badge Notice */}
-          {activeCampaign && (
-            <div className="bg-amber-50 border border-amber-200 rounded p-1.5 flex items-center justify-between text-xs text-amber-800 font-medium">
-              <div className="flex items-center space-x-1.5">
-                <Tag className="w-3.5 h-3.5 text-amber-600" />
-                <span>Kampanya: {activeCampaign.name}</span>
               </div>
-              <button
-                onClick={() => applyCampaign(null)}
-                className="text-amber-600 hover:text-amber-900 p-0.5"
-                title="Kampanyayı İptal Et"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
 
-          {/* Totals Summary */}
-          <div className="space-y-1 text-xs text-slate-700 pt-1 border-t border-slate-200">
-            <div className="flex justify-between">
-              <span className="text-slate-500 font-medium">Ara Toplam</span>
-              <span className="font-semibold">{subtotal.toFixed(2)} ₺</span>
-            </div>
-            {discountAmount > 0 && (
-              <div className="flex justify-between text-amber-700 font-semibold">
-                <span>İndirim Tutarı</span>
-                <span>-{discountAmount.toFixed(2)} ₺</span>
+              {/* Preset Campaign Buttons Grid */}
+              <div className="flex flex-wrap gap-1">
+                {campaigns.map((camp) => {
+                  const isActive = activeCampaign?.id === camp.id
+                  return (
+                    <button
+                      key={camp.id}
+                      onClick={() => {
+                        if (isActive) {
+                          applyCampaign(null)
+                        } else {
+                          applyCampaign(camp)
+                        }
+                      }}
+                      className={`px-2 py-0.5 rounded text-[11px] font-semibold border transition ${
+                        isActive
+                          ? 'bg-amber-600 text-white border-amber-700 shadow-2xs'
+                          : 'bg-white text-slate-700 border-slate-200 hover:border-amber-300 hover:bg-amber-50/50'
+                      }`}
+                    >
+                      {camp.name}
+                    </button>
+                  )
+                })}
               </div>
-            )}
-            <div className="flex items-center justify-between text-sm font-bold text-slate-900 pt-1.5 border-t border-slate-200">
-              <span>GENEL TOPLAM</span>
 
-              {isEditingTotal ? (
-                <form onSubmit={handleCustomTotalSubmit} className="flex items-center space-x-1">
-                  <input
-                    ref={totalInputRef}
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={tempTotalInput}
-                    onChange={(e) => setTempTotalInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape') setIsEditingTotal(false)
-                    }}
-                    onBlur={handleCustomTotalSubmit}
-                    className="w-24 px-2 py-0.5 border-2 border-emerald-500 rounded text-right font-bold text-base text-emerald-700 focus:outline-none bg-emerald-50 shadow-inner"
-                    autoFocus
-                  />
-                  <span className="text-emerald-700 text-base font-bold">₺</span>
-                </form>
-              ) : (
-                <div
-                  onDoubleClick={handleStartEditTotal}
-                  className="cursor-pointer hover:bg-emerald-50 hover:scale-[1.02] px-2 py-0.5 rounded transition-all select-none"
-                >
-                  <span className="text-emerald-700 text-lg font-bold">
-                    {total.toFixed(2)} ₺
-                  </span>
+              {/* Active Campaign Badge Notice */}
+              {activeCampaign && (
+                <div className="bg-amber-50 border border-amber-200 rounded p-1.5 flex items-center justify-between text-xs text-amber-800 font-medium">
+                  <div className="flex items-center space-x-1.5">
+                    <Tag className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Kampanya: {activeCampaign.name}</span>
+                  </div>
+                  <button
+                    onClick={() => applyCampaign(null)}
+                    className="text-amber-600 hover:text-amber-900 p-0.5"
+                    title="Kampanyayı İptal Et"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               )}
-            </div>
-          </div>
 
-          {/* Checkout Trigger */}
-          <button
-            disabled={cartItems.length === 0}
-            onClick={() => setIsCheckoutOpen(true)}
-            className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl shadow-md transition flex items-center justify-center space-x-2.5 text-sm tracking-wide disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
-          >
-            <CreditCard className="w-5 h-5 stroke-[2.2]" />
-            <span>ÖDEME AL / TAHSİLAT</span>
-          </button>
+              {/* Totals Summary */}
+              <div className="space-y-1 text-xs text-slate-700 pt-1 border-t border-slate-200">
+                <div className="flex justify-between">
+                  <span className="text-slate-500 font-medium">Ara Toplam</span>
+                  <span className="font-semibold">{subtotal.toFixed(2)} ₺</span>
+                </div>
+                {discountAmount > 0 && (
+                  <div className="flex justify-between text-amber-700 font-semibold">
+                    <span>İndirim Tutarı</span>
+                    <span>-{discountAmount.toFixed(2)} ₺</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between text-sm font-bold text-slate-900 pt-1.5 border-t border-slate-200">
+                  <span>GENEL TOPLAM</span>
+
+                  {isEditingTotal ? (
+                    <form onSubmit={handleCustomTotalSubmit} className="flex items-center space-x-1">
+                      <input
+                        ref={totalInputRef}
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={tempTotalInput}
+                        onChange={(e) => setTempTotalInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape') setIsEditingTotal(false)
+                        }}
+                        onBlur={handleCustomTotalSubmit}
+                        className="w-24 px-2 py-0.5 border-2 border-emerald-500 rounded text-right font-bold text-base text-emerald-700 focus:outline-none bg-emerald-50 shadow-inner"
+                        autoFocus
+                      />
+                      <span className="text-emerald-700 text-base font-bold">₺</span>
+                    </form>
+                  ) : (
+                    <div
+                      onDoubleClick={handleStartEditTotal}
+                      className="cursor-pointer hover:bg-emerald-50 hover:scale-[1.02] px-2 py-0.5 rounded transition-all select-none"
+                    >
+                      <span className="text-emerald-700 text-lg font-bold">
+                        {total.toFixed(2)} ₺
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Checkout or Direct Stock Deduction Trigger */}
+          {isStockOnlyMode ? (
+            <button
+              disabled={cartItems.length === 0 || isLoading}
+              onClick={handleDirectStockDeduction}
+              className="w-full py-3.5 bg-rose-600 hover:bg-rose-700 text-white font-black rounded-xl shadow-md transition flex items-center justify-center space-x-2.5 text-sm tracking-wide disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
+            >
+              <PackageMinus className="w-5 h-5 stroke-[2.2]" />
+              <span>STOKTAN DÜŞ</span>
+            </button>
+          ) : (
+            <button
+              disabled={cartItems.length === 0}
+              onClick={() => setIsCheckoutOpen(true)}
+              className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl shadow-md transition flex items-center justify-center space-x-2.5 text-sm tracking-wide disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
+            >
+              <CreditCard className="w-5 h-5 stroke-[2.2]" />
+              <span>ÖDEME AL / TAHSİLAT</span>
+            </button>
+          )}
         </div>
       </div>
 

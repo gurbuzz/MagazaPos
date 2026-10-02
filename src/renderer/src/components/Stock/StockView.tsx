@@ -1059,7 +1059,7 @@ export const StockView: React.FC = () => {
                     >
                       {totalStock} Adet
                     </span>
-                    <span className="block text-xs font-bold text-slate-900 mt-1">{prod.basePrice.toFixed(2)} ₺</span>
+                    <span className="block text-xs font-bold text-slate-900 mt-1">{(Number(prod.basePrice) || 0).toFixed(2)} ₺</span>
                   </div>
                 </div>
               </div>
@@ -1095,7 +1095,7 @@ export const StockView: React.FC = () => {
               </div>
               <div className="glass-card rounded-2xl p-3.5 text-right shadow-xs">
                 <span className="text-[11px] text-slate-500 font-semibold block uppercase">Taban Satış Fiyatı</span>
-                <span className="text-xl font-bold text-emerald-700">{selectedProduct.basePrice.toFixed(2)} ₺</span>
+                <span className="text-xl font-bold text-emerald-700">{(Number(selectedProduct.basePrice) || 0).toFixed(2)} ₺</span>
               </div>
             </div>
 
@@ -1168,7 +1168,7 @@ export const StockView: React.FC = () => {
                               {v.barcode}
                             </span>
                           </td>
-                          <td className="px-5 py-3 font-bold text-emerald-700">{v.salePrice.toFixed(2)} ₺</td>
+                          <td className="px-5 py-3 font-bold text-emerald-700">{(Number(v.salePrice) || 0).toFixed(2)} ₺</td>
                           <td className="px-5 py-3">
                             <span
                               className={`px-2 py-0.5 rounded text-[11px] font-semibold border ${
@@ -1297,7 +1297,7 @@ export const StockView: React.FC = () => {
                         <div className="text-right">
                           <span className="text-[10px] text-slate-500 block font-semibold">Mevcut Stok</span>
                           <span className="text-sm font-bold text-slate-900">{foundScannedVariant.stockQuantity} Adet</span>
-                          <span className="block text-xs font-bold text-emerald-700 mt-0.5">{foundScannedVariant.salePrice.toFixed(2)} ₺</span>
+                          <span className="block text-xs font-bold text-emerald-700 mt-0.5">{(Number(foundScannedVariant.salePrice) || 0).toFixed(2)} ₺</span>
                         </div>
                       </div>
 
@@ -2025,7 +2025,7 @@ export const StockView: React.FC = () => {
                           <td className="px-3 py-1">
                             {row.color} / {row.size}
                           </td>
-                          <td className="px-3 py-1 text-emerald-700 font-semibold">{row.salePrice.toFixed(2)} ₺</td>
+                          <td className="px-3 py-1 text-emerald-700 font-semibold">{(Number(row.salePrice) || 0).toFixed(2)} ₺</td>
                           <td className="px-3 py-1 text-right font-bold text-slate-900">+{row.quantity}</td>
                         </tr>
                       ))}

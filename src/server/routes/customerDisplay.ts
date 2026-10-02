@@ -16,6 +16,7 @@ let currentState: any = {
   activeCampaign: null,
   selectedCustomer: null,
   paymentInfo: null,
+  hidePrices: false,
   updatedAt: new Date().toISOString(),
 }
 
