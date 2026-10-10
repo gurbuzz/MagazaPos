@@ -86,15 +86,17 @@ export const PinLockModal: React.FC = () => {
       >
         {/* Top Logo & Lock Icon */}
         <div className="space-y-3">
-          <div className="glass-card p-3 rounded-2xl shadow-sm flex items-center justify-center max-w-[200px] mx-auto">
+          <div className="glass-card p-2.5 rounded-2xl shadow-sm flex items-center justify-center space-x-2.5 max-w-[220px] mx-auto bg-white/90">
             <img
               src="/lufian-og.png"
               alt="LUFIAN"
-              className="h-8 w-auto max-w-[140px] object-contain select-none"
-              onError={(e) => {
-                const target = e.target as HTMLElement
-                target.style.display = 'none'
-              }}
+              className="h-6 w-auto max-w-[85px] object-contain select-none"
+            />
+            <div className="h-4 w-px bg-slate-300" />
+            <img
+              src="/org_logo.svg"
+              alt="JACK & JONES"
+              className="h-3.5 w-auto max-w-[95px] object-contain select-none"
             />
           </div>
           <div>

@@ -20,6 +20,7 @@ import { CampaignModal } from './POS/CampaignModal'
 import { SystemSettingsModal } from './Security/SystemSettingsModal'
 import { AdminPinModal } from './Security/AdminPinModal'
 import lufianLogo from '../assets/lufian-og.png'
+import jackJonesLogo from '../assets/org_logo.svg'
 
 export const Header: React.FC = () => {
   const { activeTab, setActiveTab, setLocalIp, lockApp, isStockOnlyMode, toggleStockOnlyMode } = usePosStore()
@@ -138,14 +139,14 @@ export const Header: React.FC = () => {
 
   return (
     <header className="h-16 navbar-gradient border-b border-blue-200/50 px-2.5 sm:px-4 lg:px-5 flex items-center justify-between gap-1.5 sm:gap-2 select-none shadow-md z-20 transition-all overflow-hidden">
-      {/* Brand Logo */}
+      {/* Brand Logos: LUFIAN & JACK & JONES */}
       <div className="flex items-center shrink-0">
         {/* Logo Container: Crisp White Pill */}
-        <div className="bg-white px-2.5 sm:px-3 py-1 rounded-xl shadow-xs flex items-center justify-center h-9 sm:h-10 border border-white/40 transition-transform hover:scale-[1.02] shrink-0">
+        <div className="bg-white px-2 sm:px-2.5 py-1 rounded-xl shadow-xs flex items-center justify-center space-x-1.5 sm:space-x-2 h-9 sm:h-10 border border-white/50 transition-transform hover:scale-[1.02] shrink-0">
           <img
             src={lufianLogo}
             alt="LUFIAN"
-            className="h-6 sm:h-7 w-auto max-w-[100px] sm:max-w-[125px] object-contain select-none"
+            className="h-5 sm:h-6 w-auto max-w-[65px] sm:max-w-[78px] object-contain select-none"
             onError={(e) => {
               const target = e.target as HTMLImageElement
               if (!target.dataset.triedFallback) {
@@ -154,10 +155,21 @@ export const Header: React.FC = () => {
                 return
               }
               target.style.display = 'none'
-              const parent = target.parentElement
-              if (parent) {
-                parent.innerHTML = '<span class="text-slate-900 font-black text-xs sm:text-sm tracking-widest whitespace-nowrap">LUFIAN</span>'
+            }}
+          />
+          <div className="h-4 w-px bg-slate-300/80 shrink-0" />
+          <img
+            src={jackJonesLogo}
+            alt="JACK & JONES"
+            className="h-3 sm:h-3.5 w-auto max-w-[75px] sm:max-w-[95px] object-contain select-none"
+            onError={(e) => {
+              const target = e.target as HTMLImageElement
+              if (!target.dataset.triedFallback) {
+                target.dataset.triedFallback = 'true'
+                target.src = '/org_logo.svg'
+                return
               }
+              target.style.display = 'none'
             }}
           />
         </div>

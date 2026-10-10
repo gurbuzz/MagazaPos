@@ -203,11 +203,17 @@ export const CustomerDisplayView: React.FC = () => {
           <div className="relative p-7 rounded-3xl bg-slate-900/90 border border-blue-400/50 shadow-2xl backdrop-blur-2xl flex flex-col items-center space-y-3.5 max-w-sm text-center">
             {/* Pulsing ring aura */}
             <div className="absolute inset-0 rounded-3xl bg-blue-500/20 blur-xl animate-pulse" />
-            <div className="relative bg-white h-11 px-7 rounded-2xl shadow-xl border border-white/95 flex items-center justify-center">
+            <div className="relative bg-white h-11 px-5 rounded-2xl shadow-xl border border-white/95 flex items-center justify-center space-x-3">
               <img
                 src="/lufian-og.png"
                 alt="LUFIAN"
-                className="h-7 w-auto max-w-[160px] object-contain select-none"
+                className="h-6 w-auto max-w-[95px] object-contain select-none"
+              />
+              <div className="h-5 w-px bg-slate-200" />
+              <img
+                src="/org_logo.svg"
+                alt="JACK & JONES"
+                className="h-4 w-auto max-w-[110px] object-contain select-none"
               />
             </div>
             <div className="relative flex items-center space-x-2 text-blue-300 text-sm font-black tracking-wider uppercase">
@@ -244,22 +250,19 @@ export const CustomerDisplayView: React.FC = () => {
           )}
         </div>
 
-        {/* Center: Mathematically Centered Jack & Jones Logo Pill (Enlarged) */}
+        {/* Center: Mathematically Centered Both Logos Pill */}
         <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center pointer-events-none">
-          <div className="bg-white h-12 md:h-13 px-8 rounded-2xl shadow-2xl flex items-center justify-center border border-white/95 shrink-0 transition-transform">
+          <div className="bg-white h-12 md:h-13 px-6 md:px-7 rounded-2xl shadow-2xl flex items-center justify-center space-x-3 md:space-x-4 border border-white/95 shrink-0 transition-transform">
             <img
               src="/lufian-og.png"
               alt="LUFIAN"
-              className="h-8 md:h-9 w-auto max-w-[220px] object-contain select-none"
-              onError={(e) => {
-                const target = e.target as HTMLElement
-                target.style.display = 'none'
-                const parent = target.parentElement
-                if (parent) {
-                  parent.innerHTML =
-                    '<span class="text-slate-900 font-black text-lg md:text-xl tracking-wider">LUFIAN</span>'
-                }
-              }}
+              className="h-6 md:h-7 w-auto max-w-[110px] md:max-w-[130px] object-contain select-none"
+            />
+            <div className="h-6 w-px bg-slate-300" />
+            <img
+              src="/org_logo.svg"
+              alt="JACK & JONES"
+              className="h-4 md:h-4.5 w-auto max-w-[120px] md:max-w-[145px] object-contain select-none"
             />
           </div>
         </div>

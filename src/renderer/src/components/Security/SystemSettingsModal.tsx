@@ -442,8 +442,10 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
         {/* Header */}
         <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
           <div className="flex items-center space-x-3">
-            <div className="bg-white px-2.5 py-1 rounded-md border border-slate-200 shadow-2xs flex items-center">
-              <img src="/lufian-og.png" alt="LUFIAN" className="h-5 w-auto max-w-[90px] object-contain" />
+            <div className="bg-white px-2 py-1 rounded-md border border-slate-200 shadow-2xs flex items-center space-x-1.5">
+              <img src="/lufian-og.png" alt="LUFIAN" className="h-4 w-auto max-w-[65px] object-contain" />
+              <div className="h-3.5 w-px bg-slate-300" />
+              <img src="/org_logo.svg" alt="JACK & JONES" className="h-3 w-auto max-w-[75px] object-contain" />
             </div>
             <div>
               <h3 className="font-bold text-slate-900 text-sm">Sistem ve Kasa Ayarları</h3>

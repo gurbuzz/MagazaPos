@@ -129,14 +129,16 @@ export const LicenseLockModal: React.FC = () => {
               <Lock className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h2 className="text-xl font-extrabold tracking-tight">LUFIAN - Cihaz Aktivasyonu</h2>
+              <h2 className="text-xl font-extrabold tracking-tight">LUFIAN & JACK & JONES - Cihaz Aktivasyonu</h2>
               <p className="text-xs text-blue-100 mt-0.5">
                 Bu yazılım tek bir bilgisayara kilitli lisanslanmaktadır
               </p>
             </div>
           </div>
-          <div className="bg-white px-3 py-1.5 rounded-lg shadow-xs flex items-center justify-center">
-            <img src="/lufian-og.png" alt="LUFIAN" className="h-6 w-auto max-w-[110px] object-contain" />
+          <div className="bg-white px-2.5 py-1.5 rounded-lg shadow-xs flex items-center justify-center space-x-2">
+            <img src="/lufian-og.png" alt="LUFIAN" className="h-5 w-auto max-w-[75px] object-contain" />
+            <div className="h-4 w-px bg-slate-300" />
+            <img src="/org_logo.svg" alt="JACK & JONES" className="h-3.5 w-auto max-w-[85px] object-contain" />
           </div>
         </div>
 
