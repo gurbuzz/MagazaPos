@@ -7,6 +7,7 @@ export interface CustomerDisplayPayload {
   cartItems: any[]
   subtotal: number
   discountAmount: number
+  surchargeAmount?: number
   total: number
   activeCampaign?: any
   selectedCustomer?: any
@@ -58,6 +59,7 @@ export function syncCustomerDisplay(payload: Partial<CustomerDisplayPayload & { 
     cartItems: payload.cartItems || [],
     subtotal: payload.subtotal ?? 0,
     discountAmount: payload.discountAmount ?? 0,
+    surchargeAmount: payload.surchargeAmount ?? 0,
     total: payload.total ?? 0,
     activeCampaign: payload.activeCampaign || null,
     selectedCustomer: payload.selectedCustomer || null,

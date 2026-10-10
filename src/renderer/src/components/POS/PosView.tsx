@@ -34,6 +34,7 @@ export const PosView: React.FC = () => {
     removeFromCart,
     updateQuantity,
     discountAmount,
+    surchargeAmount,
     customTotal,
     setCustomTotal,
     applyDiscount,
@@ -157,6 +158,7 @@ export const PosView: React.FC = () => {
         cartItems,
         subtotal: getSubtotal(),
         discountAmount,
+        surchargeAmount,
         total: totalAmount,
         hidePrices: true,
         paymentInfo: {
@@ -811,6 +813,7 @@ export const PosView: React.FC = () => {
               <div className="flex flex-wrap gap-1">
                 {campaigns.map((camp) => {
                   const isActive = activeCampaign?.id === camp.id
+                  const isSurcharge = camp.action === 'SURCHARGE'
                   return (
                     <button
                       key={camp.id}
@@ -823,8 +826,12 @@ export const PosView: React.FC = () => {
                       }}
                       className={`px-2 py-0.5 rounded text-[11px] font-semibold border transition ${
                         isActive
-                          ? 'bg-amber-600 text-white border-amber-700 shadow-2xs'
-                          : 'bg-white text-slate-700 border-slate-200 hover:border-amber-300 hover:bg-amber-50/50'
+                          ? isSurcharge
+                            ? 'bg-amber-600 text-white border-amber-700 shadow-2xs'
+                            : 'bg-blue-700 text-white border-blue-800 shadow-2xs'
+                          : isSurcharge
+                          ? 'bg-amber-50/80 text-amber-900 border-amber-300 hover:border-amber-400 hover:bg-amber-100'
+                          : 'bg-white text-slate-700 border-slate-200 hover:border-blue-300 hover:bg-blue-50/50'
                       }`}
                     >
                       {camp.name}
@@ -835,15 +842,32 @@ export const PosView: React.FC = () => {
 
               {/* Active Campaign Badge Notice */}
               {activeCampaign && (
-                <div className="bg-amber-50 border border-amber-200 rounded p-1.5 flex items-center justify-between text-xs text-amber-800 font-medium">
+                <div
+                  className={`border rounded p-1.5 flex items-center justify-between text-xs font-medium ${
+                    activeCampaign.action === 'SURCHARGE'
+                      ? 'bg-amber-50 border-amber-200 text-amber-900'
+                      : 'bg-blue-50 border-blue-200 text-blue-900'
+                  }`}
+                >
                   <div className="flex items-center space-x-1.5">
-                    <Tag className="w-3.5 h-3.5 text-amber-600" />
-                    <span>Kampanya: {activeCampaign.name}</span>
+                    {activeCampaign.action === 'SURCHARGE' ? (
+                      <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                    ) : (
+                      <Tag className="w-3.5 h-3.5 text-blue-600" />
+                    )}
+                    <span>
+                      {activeCampaign.action === 'SURCHARGE' ? 'Taksit Farkı: ' : 'Kampanya: '}
+                      {activeCampaign.name}
+                    </span>
                   </div>
                   <button
                     onClick={() => applyCampaign(null)}
-                    className="text-amber-600 hover:text-amber-900 p-0.5"
-                    title="Kampanyayı İptal Et"
+                    className={`${
+                      activeCampaign.action === 'SURCHARGE'
+                        ? 'text-amber-600 hover:text-amber-900'
+                        : 'text-blue-600 hover:text-blue-900'
+                    } p-0.5`}
+                    title="İptal Et"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -857,9 +881,15 @@ export const PosView: React.FC = () => {
                   <span className="font-semibold">{subtotal.toFixed(2)} ₺</span>
                 </div>
                 {discountAmount > 0 && (
-                  <div className="flex justify-between text-amber-700 font-semibold">
+                  <div className="flex justify-between text-emerald-700 font-semibold">
                     <span>İndirim Tutarı</span>
                     <span>-{discountAmount.toFixed(2)} ₺</span>
+                  </div>
+                )}
+                {surchargeAmount > 0 && (
+                  <div className="flex justify-between text-amber-700 font-semibold">
+                    <span>Taksit / Vade Farkı</span>
+                    <span>+{surchargeAmount.toFixed(2)} ₺</span>
                   </div>
                 )}
                 <div className="flex items-center justify-between text-sm font-bold text-slate-900 pt-1.5 border-t border-slate-200">

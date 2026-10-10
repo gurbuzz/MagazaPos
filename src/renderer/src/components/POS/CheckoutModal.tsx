@@ -11,7 +11,7 @@ interface CheckoutModalProps {
 }
 
 export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, onSuccess }) => {
-  const { cartItems, discountAmount, getTotal, getSubtotal, cashierName, clearCart, selectedCustomer, storeName, receiptPrefix } = usePosStore()
+  const { cartItems, discountAmount, surchargeAmount, getTotal, getSubtotal, cashierName, clearCart, selectedCustomer, storeName, receiptPrefix } = usePosStore()
 
   const [paymentMode, setPaymentMode] = useState<'CASH' | 'CARD' | 'SPLIT'>('CASH')
   const [cashAmount, setCashAmount] = useState<number>(0)
@@ -32,6 +32,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
         cartItems,
         subtotal: getSubtotal(),
         discountAmount,
+        surchargeAmount,
         total: completedSale.totalAmount,
         selectedCustomer,
         paymentInfo: {
@@ -48,6 +49,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
         cartItems,
         subtotal: getSubtotal(),
         discountAmount,
+        surchargeAmount,
         total,
         selectedCustomer,
         paymentInfo: {
@@ -57,7 +59,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
         },
       })
     }
-  }, [isOpen, paymentMode, givenCash, completedSale, total, cartItems, discountAmount, selectedCustomer, getSubtotal])
+  }, [isOpen, paymentMode, givenCash, completedSale, total, cartItems, discountAmount, surchargeAmount, selectedCustomer, getSubtotal])
 
   if (!isOpen) return null
 
@@ -136,6 +138,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
         cartItems,
         subtotal: getSubtotal(),
         discountAmount,
+        surchargeAmount,
         total,
         selectedCustomer,
         paymentInfo: null,
@@ -178,6 +181,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
           </div>
           <div class="total">
             ${discountAmount > 0 ? `<p>İndirim / Değişim Mahsubu: -${discountAmount.toFixed(2)} TL</p>` : ''}
+            ${surchargeAmount > 0 ? `<p>Taksit / Vade Farkı: +${surchargeAmount.toFixed(2)} TL</p>` : ''}
             <p>TOPLAM: ${total.toFixed(2)} TL</p>
             ${total === 0 ? '<p>İşlem Türü: SIFIR FARK DEĞİŞİM</p>' : ''}
           </div>

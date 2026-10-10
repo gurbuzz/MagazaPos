@@ -18,8 +18,9 @@ export interface Campaign {
   id: string
   name: string
   type: 'PERCENTAGE' | 'FIXED'
+  action?: 'DISCOUNT' | 'SURCHARGE' // 'DISCOUNT' = Indirim (-), 'SURCHARGE' = Fiyat Artirimi / Taksit Farki (+)
   value: number // e.g. 10 for 10%, 50 for 50 TL
-  badgeColor?: 'indigo' | 'emerald' | 'amber' | 'rose' | 'purple'
+  badgeColor?: 'indigo' | 'emerald' | 'amber' | 'rose' | 'purple' | 'orange' | 'blue'
 }
 
 export interface Customer {
@@ -82,6 +83,7 @@ interface PosState {
   clearSelectedCustomer: () => void
 
   discountAmount: number
+  surchargeAmount: number
   customTotal: number | null
   activeCampaign: Campaign | null
   localIp: string
@@ -106,11 +108,13 @@ interface PosState {
 }
 
 const DEFAULT_CAMPAIGNS: Campaign[] = [
-  { id: 'c1', name: '%10 Genel İndirim', type: 'PERCENTAGE', value: 10, badgeColor: 'amber' },
-  { id: 'c2', name: '%20 Sezon Sonu', type: 'PERCENTAGE', value: 20, badgeColor: 'rose' },
-  { id: 'c3', name: '-50 ₺ Nakit İndirimi', type: 'FIXED', value: 50, badgeColor: 'emerald' },
-  { id: 'c4', name: '-100 ₺ Hoşgeldin Kuponu', type: 'FIXED', value: 100, badgeColor: 'indigo' },
-  { id: 'c5', name: '%15 VIP Müşteri İndirimi', type: 'PERCENTAGE', value: 15, badgeColor: 'purple' },
+  { id: 'c_t1', name: '+%10 Taksit', type: 'PERCENTAGE', action: 'SURCHARGE', value: 10, badgeColor: 'orange' },
+  { id: 'c_t2', name: '+%15 Taksit', type: 'PERCENTAGE', action: 'SURCHARGE', value: 15, badgeColor: 'orange' },
+  { id: 'c1', name: '%10 Genel İndirim', type: 'PERCENTAGE', action: 'DISCOUNT', value: 10, badgeColor: 'amber' },
+  { id: 'c2', name: '%20 Sezon Sonu', type: 'PERCENTAGE', action: 'DISCOUNT', value: 20, badgeColor: 'rose' },
+  { id: 'c3', name: '-50 ₺ Nakit İndirimi', type: 'FIXED', action: 'DISCOUNT', value: 50, badgeColor: 'emerald' },
+  { id: 'c4', name: '-100 ₺ Hoşgeldin Kuponu', type: 'FIXED', action: 'DISCOUNT', value: 100, badgeColor: 'indigo' },
+  { id: 'c5', name: '%15 VIP Müşteri İndirimi', type: 'PERCENTAGE', action: 'DISCOUNT', value: 15, badgeColor: 'purple' },
 ]
 
 export const usePosStore = create<PosState>((set, get) => ({
@@ -201,26 +205,50 @@ export const usePosStore = create<PosState>((set, get) => ({
   clearSelectedCustomer: () => set({ selectedCustomer: null }),
 
   discountAmount: 0,
+  surchargeAmount: 0,
   customTotal: null,
   activeCampaign: null,
   localIp: '127.0.0.1',
   setLocalIp: (ip) => set({ localIp: ip }),
 
-  campaigns: DEFAULT_CAMPAIGNS,
+  campaigns: (() => {
+    try {
+      const saved = localStorage.getItem('pos_campaigns')
+      if (saved) {
+        const parsed: Campaign[] = JSON.parse(saved)
+        const hasTaksit = parsed.some((c) => c.action === 'SURCHARGE' || c.name.includes('Taksit'))
+        if (!hasTaksit) {
+          const merged = [DEFAULT_CAMPAIGNS[0], DEFAULT_CAMPAIGNS[1], ...parsed]
+          localStorage.setItem('pos_campaigns', JSON.stringify(merged))
+          return merged
+        }
+        return parsed
+      }
+    } catch (e) {}
+    return DEFAULT_CAMPAIGNS
+  })(),
 
   addCampaign: (newCamp) => {
     const campaignWithId: Campaign = {
       ...newCamp,
       id: `camp_${Date.now()}`,
     }
-    set((state) => ({ campaigns: [...state.campaigns, campaignWithId] }))
+    const updated = [...get().campaigns, campaignWithId]
+    try {
+      localStorage.setItem('pos_campaigns', JSON.stringify(updated))
+    } catch (e) {}
+    set({ campaigns: updated })
   },
 
   deleteCampaign: (id) => {
-    set((state) => ({
-      campaigns: state.campaigns.filter((c) => c.id !== id),
-      activeCampaign: state.activeCampaign?.id === id ? null : state.activeCampaign,
-    }))
+    const updated = get().campaigns.filter((c) => c.id !== id)
+    try {
+      localStorage.setItem('pos_campaigns', JSON.stringify(updated))
+    } catch (e) {}
+    set({
+      campaigns: updated,
+      activeCampaign: get().activeCampaign?.id === id ? null : get().activeCampaign,
+    })
   },
 
   addToCart: (variant) => {
@@ -301,7 +329,13 @@ export const usePosStore = create<PosState>((set, get) => ({
     }
   },
 
-  applyDiscount: (amount) => set({ discountAmount: Math.max(0, Math.round(amount * 100) / 100), activeCampaign: null, customTotal: null }),
+  applyDiscount: (amount) =>
+    set({
+      discountAmount: Math.max(0, Math.round(amount * 100) / 100),
+      surchargeAmount: 0,
+      activeCampaign: null,
+      customTotal: null,
+    }),
 
   setCustomTotal: (amount) => {
     if (amount === null) {
@@ -310,37 +344,68 @@ export const usePosStore = create<PosState>((set, get) => ({
     }
     const subtotal = get().getSubtotal()
     const val = Math.max(0, Math.round(amount * 100) / 100)
-    const discount = subtotal > val ? Math.round((subtotal - val) * 100) / 100 : 0
-    set({
-      customTotal: val,
-      discountAmount: discount,
-      activeCampaign: null,
-    })
+    if (val < subtotal) {
+      const discount = Math.round((subtotal - val) * 100) / 100
+      set({
+        customTotal: val,
+        discountAmount: discount,
+        surchargeAmount: 0,
+        activeCampaign: null,
+      })
+    } else {
+      const surcharge = Math.round((val - subtotal) * 100) / 100
+      set({
+        customTotal: val,
+        discountAmount: 0,
+        surchargeAmount: surcharge,
+        activeCampaign: null,
+      })
+    }
   },
 
   applyCampaign: (campaign) => {
     if (!campaign) {
-      set({ discountAmount: 0, activeCampaign: null, customTotal: null })
+      set({ discountAmount: 0, surchargeAmount: 0, activeCampaign: null, customTotal: null })
       return
     }
 
     const subtotal = get().getSubtotal()
-    let discount = 0
+    const isSurcharge = campaign.action === 'SURCHARGE'
 
+    let calculated = 0
     if (campaign.type === 'PERCENTAGE') {
-      discount = (subtotal * campaign.value) / 100
+      calculated = (subtotal * campaign.value) / 100
     } else {
-      discount = campaign.value
+      calculated = campaign.value
     }
+    calculated = Math.round(calculated * 100) / 100
 
-    set({
-      discountAmount: Math.round(Math.min(subtotal, Math.max(0, discount)) * 100) / 100,
-      activeCampaign: campaign,
-      customTotal: null,
-    })
+    if (isSurcharge) {
+      set({
+        discountAmount: 0,
+        surchargeAmount: Math.max(0, calculated),
+        activeCampaign: campaign,
+        customTotal: null,
+      })
+    } else {
+      set({
+        discountAmount: Math.round(Math.min(subtotal, Math.max(0, calculated)) * 100) / 100,
+        surchargeAmount: 0,
+        activeCampaign: campaign,
+        customTotal: null,
+      })
+    }
   },
 
-  clearCart: () => set({ cartItems: [], discountAmount: 0, activeCampaign: null, customTotal: null, selectedCustomer: null }),
+  clearCart: () =>
+    set({
+      cartItems: [],
+      discountAmount: 0,
+      surchargeAmount: 0,
+      activeCampaign: null,
+      customTotal: null,
+      selectedCustomer: null,
+    }),
 
   getSubtotal: () => {
     const raw = get().cartItems.reduce((sum, item) => sum + (Number(item.totalPrice) || 0), 0)
@@ -348,12 +413,12 @@ export const usePosStore = create<PosState>((set, get) => ({
   },
 
   getTotal: () => {
-    const { customTotal, discountAmount } = get()
+    const { customTotal, discountAmount, surchargeAmount } = get()
     if (customTotal !== null) {
       return customTotal
     }
     const subtotal = get().getSubtotal()
-    const raw = Math.max(0, subtotal - (Number(discountAmount) || 0))
+    const raw = Math.max(0, subtotal - (Number(discountAmount) || 0) + (Number(surchargeAmount) || 0))
     return Math.round(raw * 100) / 100
   },
 }))
@@ -364,6 +429,7 @@ usePosStore.subscribe((state) => {
   const syncKey = JSON.stringify({
     items: state.cartItems.map((i) => ({ id: i.variantId, q: i.quantity, p: i.totalPrice })),
     discount: state.discountAmount,
+    surcharge: state.surchargeAmount,
     campaign: state.activeCampaign?.id,
     customer: state.selectedCustomer?.id,
     stockMode: state.isStockOnlyMode,
@@ -382,6 +448,7 @@ usePosStore.subscribe((state) => {
     cartItems: state.cartItems,
     subtotal: state.getSubtotal(),
     discountAmount: state.discountAmount,
+    surchargeAmount: state.surchargeAmount,
     total: state.getTotal(),
     activeCampaign: state.activeCampaign,
     selectedCustomer: state.selectedCustomer,

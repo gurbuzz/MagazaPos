@@ -64,6 +64,7 @@ export const CustomerDisplayView: React.FC = () => {
     cartItems: [],
     subtotal: 0,
     discountAmount: 0,
+    surchargeAmount: 0,
     total: 0,
     activeCampaign: null,
     selectedCustomer: null,
@@ -577,6 +578,14 @@ export const CustomerDisplayView: React.FC = () => {
                         </span>
                       </div>
                     )}
+                    {(data.surchargeAmount ?? 0) > 0 && (
+                      <div className="flex justify-between text-orange-400 font-bold">
+                        <span>Taksit / Vade Farkı:</span>
+                        <span>
+                          +{(data.surchargeAmount ?? 0).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
+                        </span>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="pt-2 border-t border-white/10 space-y-1 text-xs shrink-0">
@@ -773,6 +782,11 @@ export const CustomerDisplayView: React.FC = () => {
                           -{data.discountAmount.toFixed(2)} ₺
                         </span>
                       )}
+                      {(data.surchargeAmount ?? 0) > 0 && (
+                        <span className="text-sm font-black text-orange-200 bg-orange-500/30 px-3 py-1 rounded-xl border border-orange-400/40">
+                          +{(data.surchargeAmount ?? 0).toFixed(2)} ₺
+                        </span>
+                      )}
                     </div>
                   )}
 
@@ -794,6 +808,18 @@ export const CustomerDisplayView: React.FC = () => {
                           </span>
                           <span className="text-base">
                             -{data.discountAmount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
+                          </span>
+                        </div>
+                      )}
+
+                      {(data.surchargeAmount ?? 0) > 0 && (
+                        <div className="flex justify-between items-center text-sm text-orange-400 font-extrabold">
+                          <span className="flex items-center space-x-1.5">
+                            <CreditCard className="w-3.5 h-3.5" />
+                            <span>Taksit / Vade Farkı</span>
+                          </span>
+                          <span className="text-base">
+                            +{(data.surchargeAmount ?? 0).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
                           </span>
                         </div>
                       )}

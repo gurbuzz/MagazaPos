@@ -232,6 +232,7 @@
       cartItems: [],
       subtotal: 0,
       discountAmount: 0,
+      surchargeAmount: 0,
       total: 0,
       activeCampaign: null,
       selectedCustomer: null,
@@ -512,6 +513,12 @@
                         <span>-${Number(state.discountAmount).toFixed(2)} ₺</span>
                       </div>
                     ` : ''}
+                    ${(state.surchargeAmount || 0) > 0 ? `
+                      <div class="flex justify-between text-orange-400 font-bold text-base">
+                        <span>Taksit / Vade Farkı:</span>
+                        <span>+${Number(state.surchargeAmount).toFixed(2)} ₺</span>
+                      </div>
+                    ` : ''}
                   </div>
                 ` : `
                   <div class="pt-3 border-t border-white/10 text-sm shrink-0 flex justify-between text-blue-200 font-medium">
@@ -582,6 +589,7 @@
                 </div>
               </div>
               ${state.discountAmount > 0 ? `<span class="text-base font-black text-amber-200 bg-amber-400/30 px-3.5 py-1 rounded-xl border border-amber-400/40">-${Number(state.discountAmount).toFixed(2)} ₺</span>` : ''}
+              ${(state.surchargeAmount || 0) > 0 ? `<span class="text-base font-black text-orange-200 bg-orange-500/30 px-3.5 py-1 rounded-xl border border-orange-400/40">+${Number(state.surchargeAmount).toFixed(2)} ₺</span>` : ''}
             </div>
           `;
         }
@@ -627,6 +635,12 @@
                 <div class="flex justify-between items-center text-base text-amber-300 font-extrabold">
                   <span>İndirim Tutarı</span>
                   <span class="text-xl">-${Number(state.discountAmount).toFixed(2)} ₺</span>
+                </div>
+              ` : ''}
+              ${(state.surchargeAmount || 0) > 0 ? `
+                <div class="flex justify-between items-center text-base text-orange-400 font-extrabold">
+                  <span>Taksit / Vade Farkı</span>
+                  <span class="text-xl">+${Number(state.surchargeAmount).toFixed(2)} ₺</span>
                 </div>
               ` : ''}
             </div>
