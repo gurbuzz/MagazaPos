@@ -66,7 +66,7 @@ if "%NEED_INSTALL%"=="1" (
     echo  [OK] npm install tamamlandi.
     echo.
 ) else (
-    echo  [OK] Bagimli paketler (node_modules) mevcut.
+    echo  [OK] Bagimli paketler ^(node_modules^) mevcut.
     echo.
 )
 
