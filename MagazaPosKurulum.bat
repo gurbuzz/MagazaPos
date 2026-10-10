@@ -41,28 +41,46 @@ if not exist ".env" (
 )
 
 REM --- npm install ---
-if not exist "node_modules" (
-    echo  [1/4] Paketler yukleniyor - npm install...
+set "NEED_INSTALL=0"
+if not exist "node_modules" set "NEED_INSTALL=1"
+if not exist "node_modules\prisma" set "NEED_INSTALL=1"
+if not exist "node_modules\.bin\prisma.cmd" set "NEED_INSTALL=1"
+
+if "%NEED_INSTALL%"=="1" (
+    if exist "node_modules" (
+        echo  [BILGI] Onceki kurulum yarim kalmis, eksik paketler tamamlaniyor...
+    ) else (
+        echo  [1/4] Paketler yukleniyor - npm install...
+    )
     echo  Bu islem birkac dakika surebilir, lutfen bekleyin...
     echo.
     call npm install
     if errorlevel 1 (
         echo.
         echo  [HATA] npm install basarisiz!
+        echo  Lutfen internet baglantinizi kontrol edip tekrar deneyin.
         pause
         goto BITIS
     )
     echo.
     echo  [OK] npm install tamamlandi.
     echo.
+) else (
+    echo  [OK] Bagimli paketler (node_modules) mevcut.
+    echo.
 )
 
 REM --- Prisma Generate (her zaman kontrol et) ---
 if not exist "node_modules\.prisma\client" (
     echo  [2/4] Prisma istemcisi hazirlaniyor...
-    call npx prisma generate
+    if exist "node_modules\.bin\prisma.cmd" (
+        call "node_modules\.bin\prisma.cmd" generate
+    ) else (
+        call npx prisma generate
+    )
     if errorlevel 1 (
         echo  [HATA] prisma generate basarisiz!
+        echo  node_modules klasorunu silip kurulumu tekrar baslatmayi deneyin.
         pause
         goto BITIS
     )
@@ -75,7 +93,11 @@ if not exist "node_modules\.prisma\client" (
 REM --- Veritabani ---
 if not exist "prisma\dev.db" (
     echo  [3/4] Veritabani olusturuluyor...
-    call npx prisma db push --accept-data-loss
+    if exist "node_modules\.bin\prisma.cmd" (
+        call "node_modules\.bin\prisma.cmd" db push --accept-data-loss
+    ) else (
+        call npx prisma db push --accept-data-loss
+    )
     if errorlevel 1 (
         echo  [HATA] Veritabani olusturulamadi!
         pause
@@ -84,7 +106,11 @@ if not exist "prisma\dev.db" (
     echo  [OK] Veritabani olusturuldu.
     echo.
     echo  [4/4] Ornek veriler yukleniyor...
-    call npx tsx prisma/seed.ts
+    if exist "node_modules\.bin\tsx.cmd" (
+        call "node_modules\.bin\tsx.cmd" prisma/seed.ts
+    ) else (
+        call npx tsx prisma/seed.ts
+    )
     if errorlevel 1 (
         echo  [HATA] Ornek veriler yuklenemedi!
         pause
@@ -150,14 +176,23 @@ REM Eger MagazaPOS arkada aciksa dosya kilitlenmesini onlemek icin kapat
 taskkill /F /IM MagazaPOS.exe >nul 2>&1
 
 echo  [1/4] Veritabani semasi ve ornek veriler pakete hazirlaniyor...
-call npx prisma generate
-call npx prisma db push --accept-data-loss
+if exist "node_modules\.bin\prisma.cmd" (
+    call "node_modules\.bin\prisma.cmd" generate
+    call "node_modules\.bin\prisma.cmd" db push --accept-data-loss
+) else (
+    call npx prisma generate
+    call npx prisma db push --accept-data-loss
+)
 if errorlevel 1 (
     echo  [HATA] Prisma db push basarisiz! Lutfen .env dosyanizi kontrol edin.
     pause
     goto BITIS
 )
-call npx tsx prisma/seed.ts
+if exist "node_modules\.bin\tsx.cmd" (
+    call "node_modules\.bin\tsx.cmd" prisma/seed.ts
+) else (
+    call npx tsx prisma/seed.ts
+)
 if errorlevel 1 (
     echo  [HATA] Ornek veriler yuklenemedi!
     pause
