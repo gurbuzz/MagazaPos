@@ -16,6 +16,36 @@ if errorlevel 1 (
     exit /b
 )
 
+REM --- node_modules eksik/yarim mi kontrol et ---
+set "NEED_INSTALL=0"
+if not exist "node_modules" set "NEED_INSTALL=1"
+if not exist "node_modules\prisma" set "NEED_INSTALL=1"
+if not exist "node_modules\.bin\prisma.cmd" set "NEED_INSTALL=1"
+
+if "%NEED_INSTALL%"=="1" (
+    echo [BILGI] Eksik veya yarim node_modules tespit edildi.
+    echo [BILGI] npm install calistiriliyor, lutfen bekleyin...
+    echo.
+    call npm install
+    if errorlevel 1 (
+        echo.
+        echo [HATA] npm install basarisiz!
+        echo Lutfen internet baglantinizi kontrol edip tekrar deneyin.
+        pause
+        exit /b
+    )
+    echo.
+    echo [OK] npm install tamamlandi.
+    echo.
+) else (
+    echo [OK] node_modules hazir.
+    echo.
+)
+
+REM Code signing devre disi birak
+set CSC_IDENTITY_AUTO_DISCOVERY=false
+set WIN_CSC_LINK=
+
 echo [BILGI] .EXE paketi olusturuluyor, lutfen bekleyiniz...
 echo.
 call npm run package:win
@@ -42,4 +72,4 @@ if exist "release\win-unpacked" (
     )
 )
 
-pause
+pause
