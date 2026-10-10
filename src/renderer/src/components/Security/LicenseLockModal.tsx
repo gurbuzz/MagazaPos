@@ -11,30 +11,60 @@ export const LicenseLockModal: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState('')
   const [successMsg, setSuccessMsg] = useState('')
 
-  // Check license status on mount
+  // Check license status on mount with startup retry tolerance
   useEffect(() => {
-    checkStatus()
-  }, [])
+    let isMounted = true
 
-  const checkStatus = async () => {
-    try {
-      setIsChecking(true)
-      const res = await fetch('/api/license/status')
-      const data = await res.json()
-      if (data && typeof data.isLicensed === 'boolean') {
-        setIsLicensed(data.isLicensed)
-        if (data.deviceId) {
-          setDeviceId(data.deviceId)
+    const checkStatus = async (retryCount = 0) => {
+      try {
+        setIsChecking(true)
+        const res = await fetch('/api/license/status')
+
+        if (!res.ok) {
+          // If server is not ready yet (502/503/500 during boot), retry
+          if (retryCount < 6) {
+            setTimeout(() => {
+              if (isMounted) checkStatus(retryCount + 1)
+            }, 600)
+            return
+          }
+        }
+
+        const data = await res.json()
+        if (!isMounted) return
+
+        if (data && typeof data.isLicensed === 'boolean') {
+          setIsLicensed(data.isLicensed)
+          if (data.deviceId) {
+            setDeviceId(data.deviceId)
+          }
+          setIsChecking(false)
+          return
+        }
+      } catch (err) {
+        console.warn(`[License] Startup check attempt ${retryCount + 1} waiting for backend:`, err)
+        // If Express server hasn't finished opening port 3782 yet, retry up to 6 times (3.6s total)
+        if (retryCount < 6) {
+          setTimeout(() => {
+            if (isMounted) checkStatus(retryCount + 1)
+          }, 600)
+          return
+        }
+
+        // Only lock after 6 consecutive failed attempts
+        if (isMounted) {
+          setIsLicensed(false)
+          setIsChecking(false)
         }
       }
-    } catch (err) {
-      console.error('License check error:', err)
-      // If server failed, keep locked to be safe
-      setIsLicensed(false)
-    } finally {
-      setIsChecking(false)
     }
-  }
+
+    checkStatus()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   const handleCopy = () => {
     if (!deviceId) return

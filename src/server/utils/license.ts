@@ -7,6 +7,9 @@ import { getUserDataDir } from './paths'
 
 export const LICENSE_SECRET = 'MagazaPOS_2026_Secure_License_Key_@Antigravity'
 
+let cachedRawHardwareId: string | null = null
+let cachedDeviceId: string | null = null
+
 function getLicenseFilePath(): string {
   const dataDir = path.join(getUserDataDir(), 'data')
   if (!fs.existsSync(dataDir)) {
@@ -28,6 +31,24 @@ function getLicenseFilePath(): string {
   return licensePath
 }
 
+function getLicenseCandidatePaths(): string[] {
+  const candidates: string[] = []
+  try {
+    candidates.push(path.join(getUserDataDir(), 'data', 'license.json'))
+    candidates.push(path.join(getUserDataDir(), 'license.json'))
+  } catch (e) {}
+
+  if (process.platform === 'win32' && process.env.APPDATA) {
+    candidates.push(path.join(process.env.APPDATA, 'MagazaPOS', 'data', 'license.json'))
+    candidates.push(path.join(process.env.APPDATA, 'MagazaPOS', 'license.json'))
+  }
+
+  candidates.push(path.resolve(process.cwd(), 'data/license.json'))
+  candidates.push(path.resolve(process.cwd(), 'license.json'))
+
+  return [...new Set(candidates)]
+}
+
 interface LicenseData {
   deviceId: string
   activationKey: string
@@ -36,41 +57,69 @@ interface LicenseData {
 
 /**
  * Reads a unique, stable hardware/OS identifier.
- * Windows: MachineGuid from Registry (or ComputerSystemProduct UUID)
+ * Windows: MachineGuid from Registry (<15ms via reg query), or PowerShell / WMIC fallback
  * Linux: /etc/machine-id or dbus machine-id
  * Fallback: os.hostname() + cpu details
  */
 function getRawHardwareId(): string {
+  if (cachedRawHardwareId) {
+    return cachedRawHardwareId
+  }
+
   if (process.platform === 'win32') {
+    // 1. FASTEST & MOST RELIABLE: Direct reg.exe query (<15ms, built-in C binary in System32, zero PowerShell/.NET overhead)
+    try {
+      const output = execSync('reg query "HKLM\\SOFTWARE\\Microsoft\\Cryptography" /v MachineGuid', {
+        timeout: 5000,
+        windowsHide: true,
+        stdio: ['ignore', 'pipe', 'ignore']
+      }).toString()
+      const match = output.match(/MachineGuid\s+REG_\w+\s+([^\r\n]+)/i)
+      if (match && match[1] && match[1].trim().length > 5) {
+        cachedRawHardwareId = match[1].trim()
+        return cachedRawHardwareId
+      }
+    } catch {}
+
+    // 2. PowerShell query with 10s timeout (generous for low-spec POS PCs like Celeron J6412 during startup)
     try {
       const output = execSync(
         'powershell -NoProfile -Command "(Get-ItemProperty -Path \'HKLM:\\SOFTWARE\\Microsoft\\Cryptography\').MachineGuid"',
-        { timeout: 3000, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] }
+        { timeout: 10000, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] }
       )
         .toString()
         .trim()
-      if (output && output.length > 5) return output
-    } catch {
-      // Fallback to wmic
-      try {
-        const output = execSync('wmic csproduct get uuid', {
-          timeout: 3000,
-          windowsHide: true,
-          stdio: ['ignore', 'pipe', 'ignore']
-        })
-          .toString()
-          .replace('UUID', '')
-          .trim()
-        if (output && output.length > 5) return output
-      } catch {}
-    }
+      if (output && output.length > 5) {
+        cachedRawHardwareId = output
+        return cachedRawHardwareId
+      }
+    } catch {}
+
+    // 3. Fallback to wmic
+    try {
+      const output = execSync('wmic csproduct get uuid', {
+        timeout: 10000,
+        windowsHide: true,
+        stdio: ['ignore', 'pipe', 'ignore']
+      })
+        .toString()
+        .replace(/UUID/i, '')
+        .trim()
+      if (output && output.length > 5) {
+        cachedRawHardwareId = output
+        return cachedRawHardwareId
+      }
+    } catch {}
   } else if (process.platform === 'linux') {
     const candidatePaths = ['/etc/machine-id', '/var/lib/dbus/machine-id']
     for (const p of candidatePaths) {
       if (fs.existsSync(p)) {
         try {
           const content = fs.readFileSync(p, 'utf-8').trim()
-          if (content.length > 5) return content
+          if (content.length > 5) {
+            cachedRawHardwareId = content
+            return cachedRawHardwareId
+          }
         } catch {}
       }
     }
@@ -79,16 +128,21 @@ function getRawHardwareId(): string {
   // Generic fallback
   const cpus = os.cpus()
   const cpuModel = cpus.length > 0 ? cpus[0].model : 'CPU'
-  return `${os.hostname()}-${cpuModel}-${os.arch()}`
+  cachedRawHardwareId = `${os.hostname()}-${cpuModel}-${os.arch()}`
+  return cachedRawHardwareId
 }
 
 /**
  * Returns formatted device ID: MPOS-XXXX-XXXX (8 uppercase chars)
  */
 export function getDeviceId(): string {
+  if (cachedDeviceId) {
+    return cachedDeviceId
+  }
   const rawId = getRawHardwareId()
   const hash = crypto.createHash('sha256').update(rawId).digest('hex').toUpperCase()
-  return `MPOS-${hash.substring(0, 4)}-${hash.substring(4, 8)}`
+  cachedDeviceId = `MPOS-${hash.substring(0, 4)}-${hash.substring(4, 8)}`
+  return cachedDeviceId
 }
 
 /**
@@ -106,14 +160,19 @@ export function generateActivationKey(deviceId: string): string {
 }
 
 function readLicenseFile(): LicenseData | null {
-  try {
-    const filePath = getLicenseFilePath()
-    if (fs.existsSync(filePath)) {
-      const content = fs.readFileSync(filePath, 'utf-8')
-      return JSON.parse(content)
+  const candidatePaths = getLicenseCandidatePaths()
+  for (const filePath of candidatePaths) {
+    try {
+      if (fs.existsSync(filePath)) {
+        const content = fs.readFileSync(filePath, 'utf-8')
+        const parsed = JSON.parse(content)
+        if (parsed && parsed.deviceId && parsed.activationKey) {
+          return parsed
+        }
+      }
+    } catch (err) {
+      // Continue checking next candidate
     }
-  } catch (err) {
-    console.error('License file read error:', err)
   }
   return null
 }
@@ -157,13 +216,26 @@ export function activateLicense(inputKey: string): { success: boolean; message: 
   }
 
   try {
-    const filePath = getLicenseFilePath()
     const data: LicenseData = {
       deviceId: currentDeviceId,
       activationKey: cleanKey,
       activatedAt: new Date().toISOString()
     }
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8')
+    const jsonStr = JSON.stringify(data, null, 2)
+
+    // Save to primary path
+    const primaryPath = getLicenseFilePath()
+    fs.writeFileSync(primaryPath, jsonStr, 'utf-8')
+
+    // Also mirror to project root data/ if directory exists or can be created
+    try {
+      const localDataDir = path.resolve(process.cwd(), 'data')
+      if (!fs.existsSync(localDataDir)) {
+        fs.mkdirSync(localDataDir, { recursive: true })
+      }
+      fs.writeFileSync(path.join(localDataDir, 'license.json'), jsonStr, 'utf-8')
+    } catch (e) {}
+
     return {
       success: true,
       message: 'MağazaPOS bu cihaza başarıyla tanımlandı ve aktive edildi!'

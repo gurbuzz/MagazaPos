@@ -53,10 +53,24 @@ function getRawHardwareId() {
   const os = require('os')
 
   if (process.platform === 'win32') {
+    // 1. FASTEST: reg query (<15ms)
+    try {
+      const output = execSync('reg query "HKLM\\SOFTWARE\\Microsoft\\Cryptography" /v MachineGuid', {
+        timeout: 5000,
+        windowsHide: true,
+        stdio: ['ignore', 'pipe', 'ignore']
+      }).toString()
+      const match = output.match(/MachineGuid\s+REG_\w+\s+([^\r\n]+)/i)
+      if (match && match[1] && match[1].trim().length > 5) {
+        return match[1].trim()
+      }
+    } catch {}
+
+    // 2. PowerShell with 10s timeout
     try {
       const output = execSync(
         'powershell -NoProfile -Command "(Get-ItemProperty -Path \'HKLM:\\SOFTWARE\\Microsoft\\Cryptography\').MachineGuid"',
-        { timeout: 3000, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] }
+        { timeout: 10000, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] }
       )
         .toString()
         .trim()
@@ -64,7 +78,7 @@ function getRawHardwareId() {
     } catch {
       try {
         const output = execSync('wmic csproduct get uuid', {
-          timeout: 3000,
+          timeout: 10000,
           windowsHide: true,
           stdio: ['ignore', 'pipe', 'ignore']
         })
