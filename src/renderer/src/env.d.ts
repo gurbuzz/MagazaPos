@@ -1,4 +1,4 @@
-export {}
+/// <reference types="vite/client" />
 
 export interface CustomerDisplayStatus {
   isOpen: boolean
@@ -27,5 +27,15 @@ declare global {
       onCustomerDisplayStatusChange: (callback: (status: CustomerDisplayStatus) => void) => () => void
     }
   }
+}
+
+declare module '*.png' {
+  const content: string
+  export default content
+}
+
+declare module '*.svg' {
+  const content: string
+  export default content
 }
 

@@ -72,7 +72,7 @@ function openCustomerDisplayWindow() {
       fullscreen: true,
       kiosk: true,
       autoHideMenuBar: true,
-      title: 'JACK & JONES - Müşteri Ekranı',
+      title: 'LUFIAN - Müşteri Ekranı',
       backgroundColor: '#020b24',
       icon: iconPath,
       webPreferences: {
@@ -89,7 +89,7 @@ function openCustomerDisplayWindow() {
       height: 720,
       minWidth: 800,
       minHeight: 560,
-      title: 'JACK & JONES - Müşteri Ekranı (Önizleme Modu)',
+      title: 'LUFIAN - Müşteri Ekranı (Önizleme Modu)',
       autoHideMenuBar: true,
       backgroundColor: '#020b24',
       icon: iconPath,
@@ -162,7 +162,7 @@ function createWindow() {
     height: 768,
     minWidth: 1024,
     minHeight: 680,
-    title: 'JACK & JONES - POS ve Stok Yönetimi',
+    title: 'LUFIAN - POS ve Stok Yönetimi',
     autoHideMenuBar: true,
     icon: iconPath,
     webPreferences: {

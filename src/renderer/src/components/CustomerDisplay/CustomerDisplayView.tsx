@@ -204,9 +204,9 @@ export const CustomerDisplayView: React.FC = () => {
             <div className="absolute inset-0 rounded-3xl bg-blue-500/20 blur-xl animate-pulse" />
             <div className="relative bg-white h-11 px-7 rounded-2xl shadow-xl border border-white/95 flex items-center justify-center">
               <img
-                src="/org_logo.svg"
-                alt="JACK & JONES"
-                className="h-6 w-auto max-w-[160px] object-contain select-none"
+                src="/lufian-og.png"
+                alt="LUFIAN"
+                className="h-7 w-auto max-w-[160px] object-contain select-none"
               />
             </div>
             <div className="relative flex items-center space-x-2 text-blue-300 text-sm font-black tracking-wider uppercase">
@@ -247,16 +247,16 @@ export const CustomerDisplayView: React.FC = () => {
         <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center pointer-events-none">
           <div className="bg-white h-12 md:h-13 px-8 rounded-2xl shadow-2xl flex items-center justify-center border border-white/95 shrink-0 transition-transform">
             <img
-              src="/org_logo.svg"
-              alt="JACK & JONES"
-              className="h-7 md:h-8 w-auto max-w-[220px] object-contain select-none"
+              src="/lufian-og.png"
+              alt="LUFIAN"
+              className="h-8 md:h-9 w-auto max-w-[220px] object-contain select-none"
               onError={(e) => {
                 const target = e.target as HTMLElement
                 target.style.display = 'none'
                 const parent = target.parentElement
                 if (parent) {
                   parent.innerHTML =
-                    '<span class="text-[#00268A] font-black text-lg md:text-xl tracking-wider">JACK & JONES</span>'
+                    '<span class="text-slate-900 font-black text-lg md:text-xl tracking-wider">LUFIAN</span>'
                 }
               }}
             />

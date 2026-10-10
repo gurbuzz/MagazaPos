@@ -88,9 +88,9 @@ export const PinLockModal: React.FC = () => {
         <div className="space-y-3">
           <div className="glass-card p-3 rounded-2xl shadow-sm flex items-center justify-center max-w-[200px] mx-auto">
             <img
-              src="/org_logo.svg"
-              alt="JACK & JONES"
-              className="h-9 w-auto object-contain select-none"
+              src="/lufian-og.png"
+              alt="LUFIAN"
+              className="h-8 w-auto max-w-[140px] object-contain select-none"
               onError={(e) => {
                 const target = e.target as HTMLElement
                 target.style.display = 'none'
@@ -99,7 +99,7 @@ export const PinLockModal: React.FC = () => {
           </div>
           <div>
             <span className="text-[10px] font-bold text-[#00268A] uppercase tracking-wider bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-100">
-              {storeName || 'JACK & JONES'}
+              {storeName || 'LUFIAN'}
             </span>
             <h2 className="text-lg font-extrabold text-slate-900 mt-1.5">Kasa Güvenlik Girişi</h2>
             <p className="text-xs text-slate-500 font-medium mt-0.5">

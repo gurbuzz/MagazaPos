@@ -72,12 +72,16 @@ app.get('/customerbackground.jpg', (_req, res) => {
   res.status(404).end()
 })
 
-app.get('/org_logo.svg', (_req, res) => {
+app.get(['/lufian-og.png', '/logo.png', '/org_logo.svg'], (_req, res) => {
   const candidates = [
+    path.join(publicDir, 'lufian-og.png'),
+    path.resolve(process.cwd(), 'src/server/public/lufian-og.png'),
+    path.resolve(process.cwd(), 'public/lufian-og.png'),
+    path.resolve(process.cwd(), 'dist/lufian-og.png'),
+    path.resolve(process.cwd(), 'dist-electron/main/public/lufian-og.png'),
     path.join(publicDir, 'org_logo.svg'),
     path.resolve(process.cwd(), 'src/server/public/org_logo.svg'),
-    path.resolve(process.cwd(), 'public/org_logo.svg'),
-    path.resolve(process.cwd(), 'dist-electron/main/public/org_logo.svg')
+    path.resolve(process.cwd(), 'public/org_logo.svg')
   ]
   for (const c of candidates) {
     if (fs.existsSync(c)) {
