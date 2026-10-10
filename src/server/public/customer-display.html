@@ -212,14 +212,14 @@
     <!-- Populated dynamically by JS -->
   </main>
 
-  <!-- Footer: Compact height (h-8 = 32px) with safe padding -->
-  <footer class="h-8 bg-slate-900/60 backdrop-blur-2xl border-t border-white/10 px-8 flex items-center justify-between text-xs text-blue-300/80 z-10 shrink-0">
+  <!-- Footer: Ultra-slim compact height -->
+  <footer class="h-7 bg-slate-900/70 backdrop-blur-2xl border-t border-white/10 px-6 flex items-center justify-between text-[11px] text-blue-300/70 z-10 shrink-0">
     <div class="flex items-center space-x-2">
       <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
       <span class="font-bold text-[11px] text-blue-100">Kasa Aktif & Canlı Bağlantı</span>
     </div>
     <div>
-      <span class="text-[9px] text-blue-300/60 font-semibold tracking-wider uppercase">
+      <span class="text-[9px] text-blue-300/50 font-semibold tracking-wider uppercase">
         Design & Architecture by Atacan Gürbüz
       </span>
     </div>
@@ -341,50 +341,50 @@
       if (state.status === 'completed') {
         const changeDue = state.paymentInfo && state.paymentInfo.changeDue ? state.paymentInfo.changeDue : 0;
         main.innerHTML = `
-          <div class="flex-1 flex flex-col items-center justify-center text-center p-6 bg-slate-900/55 border border-white/15 rounded-3xl backdrop-blur-2xl shadow-2xl animate-slowmotion-enter overflow-y-auto">
-            <div class="w-20 h-20 rounded-full bg-emerald-500/20 border-2 border-emerald-400 flex items-center justify-center mb-4 shadow-xl shadow-emerald-500/30 animate-bounce">
-              <span class="text-4xl text-emerald-400 font-black">✓</span>
+          <div class="flex-1 flex flex-col items-center justify-center text-center p-6 bg-slate-900/60 border border-white/15 rounded-3xl backdrop-blur-2xl shadow-2xl animate-slowmotion-enter overflow-y-auto">
+            <div class="w-24 h-24 rounded-full bg-emerald-500/20 border-2 border-emerald-400 flex items-center justify-center mb-5 shadow-xl shadow-emerald-500/30 animate-bounce">
+              <span class="text-5xl text-emerald-400 font-black">✓</span>
             </div>
-            <span class="px-3.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-xs font-black uppercase tracking-wider mb-2">
+            <span class="px-4 py-1.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-sm font-black uppercase tracking-wider mb-3">
               İşlem Başarılı
             </span>
-            <h2 class="text-3xl md:text-4xl font-black text-white mb-2 tracking-tight">${state.hidePrices ? 'İşleminiz Başarıyla Tamamlandı!' : 'Ödemeniz Başarıyla Alındı!'}</h2>
-            ${state.selectedCustomer ? `<div class="text-base text-blue-300 font-bold mb-1">Sayın ${state.selectedCustomer.firstName} ${state.selectedCustomer.lastName}</div>` : ''}
-            <p class="text-sm text-blue-200/90 font-medium max-w-md mb-6">
+            <h2 class="text-4xl md:text-5xl lg:text-6xl font-black text-white mb-2 tracking-tight">${state.hidePrices ? 'İşleminiz Başarıyla Tamamlandı!' : 'Ödemeniz Başarıyla Alındı!'}</h2>
+            ${state.selectedCustomer ? `<div class="text-xl text-blue-300 font-extrabold mb-2">Sayın ${state.selectedCustomer.firstName} ${state.selectedCustomer.lastName}</div>` : ''}
+            <p class="text-base md:text-lg text-blue-200/90 font-medium max-w-xl mb-7">
               Bizi tercih ettiğiniz için teşekkür eder, ürünlerinizi keyifle kullanmanızı dileriz.
             </p>
-            <div class="bg-white/[0.06] border border-white/15 rounded-2xl p-5 w-full max-w-md space-y-3 shadow-xl backdrop-blur-xl">
+            <div class="bg-white/[0.06] border border-white/15 rounded-3xl p-6 w-full max-w-lg space-y-4 shadow-xl backdrop-blur-xl">
               ${state.paymentInfo?.receiptNo ? `
-                <div class="flex justify-between items-center text-sm border-b border-white/10 pb-2">
-                  <span class="text-blue-200 font-medium">Fiş Numarası:</span>
-                  <span class="font-mono font-black text-white text-base">${state.paymentInfo.receiptNo}</span>
+                <div class="flex justify-between items-center text-base border-b border-white/10 pb-3">
+                  <span class="text-blue-200 font-semibold">Fiş Numarası:</span>
+                  <span class="font-mono font-black text-white text-xl">${state.paymentInfo.receiptNo}</span>
                 </div>
               ` : ''}
               ${!state.hidePrices ? `
-                <div class="flex justify-between items-center text-base pt-1">
+                <div class="flex justify-between items-center text-lg pt-1">
                   <span class="font-bold text-white">Tahsil Edilen Toplam:</span>
-                  <span class="text-2xl font-black text-emerald-400">${Number(state.total).toFixed(2)} ₺</span>
+                  <span class="text-3xl md:text-4xl font-black text-emerald-400">${Number(state.total).toFixed(2)} ₺</span>
                 </div>
                 ${changeDue > 0 ? `
-                  <div class="p-3 bg-emerald-500/20 border border-emerald-400/40 rounded-xl flex justify-between items-center mt-2 animate-emerald-ring">
-                    <span class="text-xs font-black text-emerald-200 uppercase tracking-wide">Para Üstü:</span>
-                    <span class="text-2xl font-black font-mono text-emerald-300">${Number(changeDue).toFixed(2)} ₺</span>
+                  <div class="p-4 bg-emerald-500/20 border border-emerald-400/40 rounded-2xl flex justify-between items-center mt-3 animate-emerald-ring">
+                    <span class="text-sm font-black text-emerald-200 uppercase tracking-wide">Para Üstü:</span>
+                    <span class="text-3xl font-black font-mono text-emerald-300">${Number(changeDue).toFixed(2)} ₺</span>
                   </div>
                 ` : ''}
               ` : `
-                <div class="flex justify-between items-center text-base pt-1">
+                <div class="flex justify-between items-center text-lg pt-1">
                   <span class="font-bold text-white">Teslim Edilen Toplam:</span>
-                  <span class="text-2xl font-black text-emerald-400">${(state.cartItems || []).reduce((acc, i) => acc + i.quantity, 0)} Adet Ürün</span>
+                  <span class="text-3xl font-black text-emerald-400">${(state.cartItems || []).reduce((acc, i) => acc + i.quantity, 0)} Adet Ürün</span>
                 </div>
               `}
             </div>
-            <p class="text-xs text-blue-300/80 font-medium mt-4">🧾 Fişiniz basılıyor, lütfen fişinizi almayı unutmayınız.</p>
+            <p class="text-sm text-blue-300 font-semibold mt-5">🧾 Fişiniz basılıyor, lütfen fişinizi almayı unutmayınız.</p>
           </div>
         `;
         return;
       }
 
-      // 2. CHECKOUT STAGE (WITH SAFE INSET LOGO & NO CALCULATED VAT)
+      // 2. CHECKOUT STAGE
       if (state.status === 'checkout') {
         const mode = state.paymentInfo?.mode || 'CARD';
         const isCash = mode === 'CASH';
@@ -392,32 +392,32 @@
         const change = state.paymentInfo?.changeDue || 0;
 
         const itemsHtml = (state.cartItems || []).map(item => `
-          <div class="flex items-center justify-between p-2 rounded-xl bg-white/[0.04] border border-white/[0.08] text-xs">
-            <div class="flex-1 min-w-0 pr-2">
-              <div class="font-bold text-white truncate">${item.productName}</div>
-              ${!state.hidePrices ? `<div class="text-[11px] text-blue-300/70">${item.quantity} Adet × ${Number(item.unitPrice).toFixed(2)} ₺</div>` : `<div class="text-[11px] text-blue-300/70">${item.quantity} Adet</div>`}
+          <div class="flex items-center justify-between p-3 rounded-2xl bg-white/[0.05] border border-white/[0.1] text-sm">
+            <div class="flex-1 min-w-0 pr-3">
+              <div class="font-black text-white text-base truncate">${item.productName}</div>
+              ${!state.hidePrices ? `<div class="text-xs text-blue-300/80 font-medium">${item.quantity} Adet × ${Number(item.unitPrice).toFixed(2)} ₺</div>` : `<div class="text-xs text-blue-300/80 font-medium">${item.quantity} Adet</div>`}
             </div>
-            ${!state.hidePrices ? `<span class="font-black font-mono text-white shrink-0">${Number(item.totalPrice).toFixed(2)} ₺</span>` : ''}
+            ${!state.hidePrices ? `<span class="font-black font-mono text-white text-base shrink-0">${Number(item.totalPrice).toFixed(2)} ₺</span>` : ''}
           </div>
         `).join('');
 
         main.innerHTML = `
           <div class="flex-1 flex overflow-hidden gap-4 md:gap-5 min-h-0">
-            <!-- Left 58%: Translucent Interactive Payment Stage with Left Entrance -->
-            <div class="flex-[3] flex flex-col bg-slate-900/55 border border-white/15 rounded-3xl overflow-hidden backdrop-blur-2xl shadow-2xl min-h-0 animate-panel-left">
-              <div class="px-6 py-3.5 border-b border-white/10 bg-white/[0.04] flex items-center justify-between shrink-0">
-                <div class="flex items-center space-x-3">
-                  <div class="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-lg font-black text-lg">
+            <!-- Left 58%: Interactive Payment Stage -->
+            <div class="flex-[3] flex flex-col bg-slate-900/60 border border-white/15 rounded-3xl overflow-hidden backdrop-blur-2xl shadow-2xl min-h-0 animate-panel-left">
+              <div class="px-6 py-4 border-b border-white/10 bg-white/[0.04] flex items-center justify-between shrink-0">
+                <div class="flex items-center space-x-3.5">
+                  <div class="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-lg font-black text-xl">
                     💳
                   </div>
                   <div>
-                    <span class="text-[10px] font-black text-blue-300 uppercase tracking-widest block">GÜVENLİ İŞLEM</span>
-                    <h2 class="text-base font-black text-white tracking-tight">Ödeme & Tahsilat Aşaması</h2>
+                    <span class="text-[11px] font-black text-blue-300 uppercase tracking-widest block">GÜVENLİ İŞLEM</span>
+                    <h2 class="text-lg md:text-xl font-black text-white tracking-tight">Ödeme & Tahsilat Aşaması</h2>
                   </div>
                 </div>
-                <div class="flex items-center space-x-2">
-                  <span class="w-2.5 h-2.5 rounded-full bg-blue-400 animate-ping"></span>
-                  <span class="px-3.5 py-1 rounded-full bg-blue-500/25 text-blue-200 border border-blue-400/40 text-xs font-black uppercase">
+                <div class="flex items-center space-x-2.5">
+                  <span class="w-3 h-3 rounded-full bg-blue-400 animate-ping"></span>
+                  <span class="px-4 py-1.5 rounded-full bg-blue-500/25 text-blue-200 border border-blue-400/40 text-xs md:text-sm font-black uppercase">
                     ${isCash ? 'Nakit Ödeme' : mode === 'CARD' ? 'Kart / Temassız' : 'Parçalı Ödeme'}
                   </span>
                 </div>
@@ -425,26 +425,26 @@
 
               <div class="flex-1 flex flex-col items-center justify-center p-6 text-center overflow-y-auto">
                 ${isCash ? `
-                  <div class="w-full max-w-lg space-y-4">
+                  <div class="w-full max-w-lg space-y-5">
                     <div class="relative mx-auto w-24 h-24 flex items-center justify-center">
                       <div class="absolute inset-0 rounded-3xl bg-amber-500/20 animate-emerald-ring"></div>
-                      <div class="w-20 h-20 rounded-3xl bg-amber-500/20 border-2 border-amber-400/50 flex items-center justify-center text-3xl shadow-xl">
+                      <div class="w-20 h-20 rounded-3xl bg-amber-500/20 border-2 border-amber-400/50 flex items-center justify-center text-4xl shadow-xl">
                         🪙
                       </div>
                     </div>
                     <div>
-                      <h3 class="text-2xl font-black text-white tracking-tight">Nakit Tahsilat Yapılıyor</h3>
-                      <p class="text-sm text-blue-200/80 font-medium mt-1">Lütfen nakit ödemenizi kasa görevlisine iletiniz.</p>
+                      <h3 class="text-3xl font-black text-white tracking-tight">Nakit Tahsilat Yapılıyor</h3>
+                      <p class="text-base text-blue-200/90 font-medium mt-1.5">Lütfen nakit ödemenizi kasa görevlisine iletiniz.</p>
                     </div>
                     ${!state.hidePrices ? `
-                      <div class="grid grid-cols-2 gap-3 pt-2">
-                        <div class="bg-white/[0.05] border border-white/10 p-4 rounded-2xl">
+                      <div class="grid grid-cols-2 gap-4 pt-2">
+                        <div class="bg-white/[0.06] border border-white/10 p-5 rounded-2xl">
                           <span class="text-xs font-bold text-blue-200 uppercase tracking-wider block">Alınan Tutar</span>
-                          <span class="text-2xl font-black font-mono text-white mt-1 block">${Number(given).toFixed(2)} ₺</span>
+                          <span class="text-3xl font-black font-mono text-white mt-1.5 block">${Number(given).toFixed(2)} ₺</span>
                         </div>
-                        <div class="bg-emerald-500/20 border-2 border-emerald-400/60 p-4 rounded-2xl animate-emerald-ring">
+                        <div class="bg-emerald-500/20 border-2 border-emerald-400/60 p-5 rounded-2xl animate-emerald-ring">
                           <span class="text-xs font-black text-emerald-200 uppercase tracking-wider block">Para Üstü</span>
-                          <span class="text-2xl font-black font-mono text-emerald-300 mt-1 block">${Number(change).toFixed(2)} ₺</span>
+                          <span class="text-3xl font-black font-mono text-emerald-300 mt-1.5 block">${Number(change).toFixed(2)} ₺</span>
                         </div>
                       </div>
                     ` : ''}
@@ -454,18 +454,18 @@
                     <div class="relative mx-auto w-28 h-28 flex items-center justify-center">
                       <div class="absolute inset-0 rounded-full bg-blue-500/20 animate-soft-ring"></div>
                       <div class="absolute -inset-2 rounded-full border border-blue-400/30 animate-ping duration-1000"></div>
-                      <div class="w-20 h-20 rounded-3xl bg-gradient-to-br from-blue-600 to-blue-800 border-2 border-blue-400 flex items-center justify-center text-white text-3xl shadow-2xl shadow-blue-900/50">
+                      <div class="w-20 h-20 rounded-3xl bg-gradient-to-br from-blue-600 to-blue-800 border-2 border-blue-400 flex items-center justify-center text-white text-4xl shadow-2xl shadow-blue-900/50">
                         📶
                       </div>
                     </div>
-                    <div class="space-y-1.5">
-                      <span class="px-3 py-0.5 rounded-full bg-blue-500/20 text-blue-200 border border-blue-400/40 text-xs font-extrabold uppercase inline-block">
+                    <div class="space-y-2">
+                      <span class="px-3.5 py-1 rounded-full bg-blue-500/20 text-blue-200 border border-blue-400/40 text-xs font-black uppercase inline-block">
                         TEMASSIZ VEYA ÇİPLİ İŞLEM
                       </span>
                       <h3 class="text-2xl md:text-3xl font-black text-white tracking-tight">
                         Lütfen Kartınızı POS Cihazına Yaklaştırınız
                       </h3>
-                      <p class="text-sm text-blue-200/80 font-medium max-w-sm mx-auto">
+                      <p class="text-base text-blue-200/90 font-medium max-w-sm mx-auto">
                         Kartınızı terminale yaklaştırabilir veya çipli olarak cihaza yerleştirebilirsiniz.
                       </p>
                     </div>
@@ -474,62 +474,61 @@
                         <span>✨ Sayın ${state.selectedCustomer.firstName} ${state.selectedCustomer.lastName} • İyi Günlerde Kullanınız</span>
                       </div>
                     ` : ''}
-                    <div class="pt-2 flex flex-wrap items-center justify-center gap-2">
-                      <span class="px-3 py-1 rounded-xl bg-white/[0.06] border border-white/15 text-xs font-bold text-white">Temassız</span>
-                      <span class="px-3 py-1 rounded-xl bg-white/[0.06] border border-white/15 text-xs font-bold text-white">Troy</span>
-                      <span class="px-3 py-1 rounded-xl bg-white/[0.06] border border-white/15 text-xs font-bold text-white">Visa</span>
-                      <span class="px-3 py-1 rounded-xl bg-white/[0.06] border border-white/15 text-xs font-bold text-white">Mastercard</span>
-                      <span class="px-3 py-1 rounded-xl bg-white/[0.06] border border-white/15 text-xs font-bold text-white">Apple / Mobil Pay</span>
+                    <div class="pt-2 flex flex-wrap items-center justify-center gap-2.5">
+                      <span class="px-3.5 py-1.5 rounded-xl bg-white/[0.08] border border-white/15 text-xs font-extrabold text-white">Troy</span>
+                      <span class="px-3.5 py-1.5 rounded-xl bg-white/[0.08] border border-white/15 text-xs font-extrabold text-white">Visa</span>
+                      <span class="px-3.5 py-1.5 rounded-xl bg-white/[0.08] border border-white/15 text-xs font-extrabold text-white">Mastercard</span>
+                      <span class="px-3.5 py-1.5 rounded-xl bg-white/[0.08] border border-white/15 text-xs font-extrabold text-white">Apple / Mobil Pay</span>
                     </div>
                   </div>
                 `}
               </div>
 
-              <div class="px-6 py-2.5 bg-white/[0.03] border-t border-white/10 text-xs text-blue-300/80 font-medium flex items-center justify-between shrink-0">
+              <div class="px-6 py-3 bg-white/[0.03] border-t border-white/10 text-xs md:text-sm text-blue-300 font-medium flex items-center justify-between shrink-0">
                 <span>🛡️ 256-bit Uçtan Uca Şifreli Güvenli Tahsilat</span>
-                <span class="font-semibold text-white">${state.cartItems.reduce((acc, i) => acc + i.quantity, 0)} Ürün</span>
+                <span class="font-bold text-white">${state.cartItems.reduce((acc, i) => acc + i.quantity, 0)} Ürün</span>
               </div>
             </div>
 
-            <!-- Right 42%: Order Summary & Giant Amount Due Card with Right Entrance -->
-            <div class="flex-[2] flex flex-col justify-between space-y-3 min-h-0 animate-panel-right">
-              <div class="bg-slate-900/55 border border-white/15 rounded-3xl p-4 backdrop-blur-2xl shadow-xl flex-1 flex flex-col min-h-0">
-                <div class="flex items-center justify-between pb-2 border-b border-white/10 mb-2 shrink-0">
-                  <span class="text-xs font-black text-blue-200 uppercase tracking-wider">🧾 Sipariş Özeti</span>
-                  <span class="text-xs font-bold text-blue-300/80">${state.cartItems.length} Kalem</span>
+            <!-- Right 42%: Order Summary & Giant Amount Due Card -->
+            <div class="flex-[2] flex flex-col justify-between space-y-3.5 min-h-0 animate-panel-right">
+              <div class="bg-slate-900/60 border border-white/15 rounded-3xl p-5 backdrop-blur-2xl shadow-xl flex-1 flex flex-col min-h-0">
+                <div class="flex items-center justify-between pb-3 border-b border-white/10 mb-3 shrink-0">
+                  <span class="text-sm font-black text-blue-200 uppercase tracking-wider">🧾 Sipariş Özeti</span>
+                  <span class="text-sm font-bold text-blue-300">${state.cartItems.length} Kalem</span>
                 </div>
-                <div class="flex-1 overflow-y-auto space-y-2 pr-1 min-h-0 no-scrollbar">
+                <div class="flex-1 overflow-y-auto space-y-2.5 pr-1 min-h-0 no-scrollbar">
                   ${itemsHtml}
                 </div>
                 ${!state.hidePrices ? `
-                  <div class="pt-2 border-t border-white/10 space-y-1 text-xs shrink-0">
-                    <div class="flex justify-between text-blue-200/80">
+                  <div class="pt-3 border-t border-white/10 space-y-1.5 text-sm shrink-0">
+                    <div class="flex justify-between text-blue-200 font-medium">
                       <span>Ara Toplam:</span>
-                      <span class="font-bold text-white">${Number(state.subtotal).toFixed(2)} ₺</span>
+                      <span class="font-bold text-white text-base">${Number(state.subtotal).toFixed(2)} ₺</span>
                     </div>
                     ${state.discountAmount > 0 ? `
-                      <div class="flex justify-between text-amber-300 font-bold">
+                      <div class="flex justify-between text-amber-300 font-bold text-base">
                         <span>İndirim Tutarı:</span>
                         <span>-${Number(state.discountAmount).toFixed(2)} ₺</span>
                       </div>
                     ` : ''}
                   </div>
                 ` : `
-                  <div class="pt-2 border-t border-white/10 text-xs shrink-0 flex justify-between text-blue-200/80">
+                  <div class="pt-3 border-t border-white/10 text-sm shrink-0 flex justify-between text-blue-200 font-medium">
                     <span>Toplam Parça:</span>
-                    <span class="font-bold text-white">${state.cartItems.reduce((acc, i) => acc + i.quantity, 0)} Adet</span>
+                    <span class="font-bold text-white text-base">${state.cartItems.reduce((acc, i) => acc + i.quantity, 0)} Adet</span>
                   </div>
                 `}
               </div>
 
-              <div class="bg-gradient-to-br from-[#00268A]/90 via-[#0a359e]/80 to-[#1e3a8a]/70 border-2 border-blue-400/60 rounded-2xl p-5 text-center shadow-2xl backdrop-blur-xl text-white shrink-0">
-                <span class="text-xs font-black text-blue-200 uppercase tracking-widest block mb-1">
+              <div class="bg-gradient-to-br from-[#00268A]/90 via-[#0a359e]/80 to-[#1e3a8a]/70 border-2 border-blue-400/60 rounded-3xl p-6 text-center shadow-2xl backdrop-blur-xl text-white shrink-0">
+                <span class="text-xs md:text-sm font-black text-blue-200 uppercase tracking-widest block mb-1.5">
                   ${!state.hidePrices ? 'ÖDENECEK TOPLAM TUTAR' : 'TOPLAM ÜRÜN ADEDİ'}
                 </span>
-                <div class="text-5xl md:text-6xl font-black text-white tracking-tight drop-shadow-md">
-                  ${!state.hidePrices ? `${Number(state.total).toFixed(2)} <span class="text-3xl text-blue-200 font-bold">₺</span>` : `${state.cartItems.reduce((acc, i) => acc + i.quantity, 0)} <span class="text-2xl text-blue-200 font-bold">ADET</span>`}
+                <div class="text-6xl md:text-7xl font-black text-white tracking-tight drop-shadow-md">
+                  ${!state.hidePrices ? `${Number(state.total).toFixed(2)} <span class="text-4xl text-blue-200 font-bold">₺</span>` : `${state.cartItems.reduce((acc, i) => acc + i.quantity, 0)} <span class="text-3xl text-blue-200 font-bold">ADET</span>`}
                 </div>
-                <div class="text-[11px] text-blue-200 font-semibold mt-2">${!state.hidePrices ? 'Net Tutar' : 'Stok Çıkış Listesi'}</div>
+                <div class="text-xs text-blue-200 font-semibold mt-2.5">${!state.hidePrices ? 'Net Tutar' : 'Stok Çıkış Listesi'}</div>
               </div>
             </div>
           </div>
@@ -537,33 +536,33 @@
         return;
       }
 
-      // 3. ACTIVE CART (NO CALCULATED VAT)
+      // 3. ACTIVE CART
       if (state.cartItems && state.cartItems.length > 0) {
         const itemsHtml = state.cartItems.map((item, idx) => {
           const isLast = idx === state.cartItems.length - 1;
           const color = item.attributes?.color || '';
           const size = item.attributes?.size || '';
           return `
-            <div class="p-3 rounded-2xl border flex items-center justify-between transition-all ${isLast ? 'bg-blue-500/20 border-blue-400/60 shadow-lg ring-1 ring-blue-400/40' : 'bg-white/[0.04] border-white/10 hover:bg-white/[0.08]'}">
+            <div class="p-3.5 md:p-4 rounded-2xl border flex items-center justify-between transition-all ${isLast ? 'bg-blue-500/25 border-blue-400/70 shadow-lg ring-1 ring-blue-400/50' : 'bg-white/[0.05] border-white/10 hover:bg-white/[0.08]'}">
               <div class="flex-1 mr-3 min-w-0">
-                <div class="flex items-center space-x-2">
-                  <h3 class="text-base font-extrabold text-white truncate">${item.productName}</h3>
-                  ${isLast ? '<span class="px-2 py-0.5 rounded-full bg-blue-500/40 text-blue-100 border border-blue-400/50 text-[10px] font-black uppercase shrink-0 shadow-2xs">Yeni Eklendi</span>' : ''}
+                <div class="flex items-center space-x-2.5">
+                  <h3 class="text-lg md:text-xl font-black text-white truncate tracking-tight">${item.productName}</h3>
+                  ${isLast ? '<span class="px-2.5 py-0.5 rounded-full bg-blue-500/50 text-white border border-blue-300 text-[11px] font-black uppercase shrink-0 shadow-xs">Yeni</span>' : ''}
                 </div>
-                <div class="flex items-center space-x-2 mt-1 text-xs text-blue-200/80">
-                  ${(color || size) ? `<span class="px-2.5 py-0.5 rounded-md bg-white/10 text-white font-bold border border-white/15">${color} / ${size}</span>` : ''}
-                  ${item.barcode ? `<span class="font-mono text-blue-300 font-semibold text-[11px]">${item.barcode}</span>` : ''}
+                <div class="flex items-center space-x-2.5 mt-1 text-xs md:text-sm text-blue-200/90">
+                  ${(color || size) ? `<span class="px-3 py-0.5 rounded-lg bg-white/10 text-white font-extrabold border border-white/15">${color} / ${size}</span>` : ''}
+                  ${item.barcode ? `<span class="font-mono text-blue-300 font-bold text-xs">${item.barcode}</span>` : ''}
                 </div>
               </div>
               <div class="text-right flex items-center space-x-4 shrink-0">
-                <div class="text-center bg-white/10 px-3 py-1.5 rounded-xl border border-white/15 min-w-[50px]">
-                  <span class="text-[10px] text-blue-200 uppercase block font-bold">Adet</span>
-                  <span class="text-xl font-black text-white">${item.quantity}</span>
+                <div class="text-center bg-white/10 px-3.5 py-2 rounded-xl border border-white/15 min-w-[55px]">
+                  <span class="text-[11px] text-blue-200 uppercase block font-bold">Adet</span>
+                  <span class="text-2xl font-black text-white">${item.quantity}</span>
                 </div>
                 ${!state.hidePrices ? `
-                  <div class="text-right min-w-[95px]">
-                    <span class="text-[11px] text-blue-200/80 block font-medium">Birim: ${Number(item.unitPrice).toFixed(2)} ₺</span>
-                    <span class="text-xl font-black text-white">${Number(item.totalPrice).toFixed(2)} ₺</span>
+                  <div class="text-right min-w-[110px]">
+                    <span class="text-xs text-blue-200/80 block font-medium">Birim: ${Number(item.unitPrice).toFixed(2)} ₺</span>
+                    <span class="text-2xl md:text-3xl font-black text-white">${Number(item.totalPrice).toFixed(2)} ₺</span>
                   </div>
                 ` : ''}
               </div>
@@ -574,78 +573,78 @@
         let campaignHtml = '';
         if (!state.hidePrices && state.activeCampaign) {
           campaignHtml = `
-            <div class="bg-amber-500/20 border border-amber-400/40 rounded-2xl p-3 flex items-center justify-between backdrop-blur-xl shadow-md mb-2.5 shrink-0">
-              <div class="flex items-center space-x-2.5">
-                <span class="p-2 rounded-xl bg-amber-500/30 text-amber-300 border border-amber-400/40 text-sm">🏷️</span>
+            <div class="bg-amber-500/20 border border-amber-400/40 rounded-2xl p-3.5 flex items-center justify-between backdrop-blur-xl shadow-md mb-3 shrink-0">
+              <div class="flex items-center space-x-3">
+                <span class="p-2.5 rounded-xl bg-amber-500/30 text-amber-300 border border-amber-400/40 text-base">🏷️</span>
                 <div>
-                  <span class="text-[10px] font-black text-amber-300 uppercase tracking-wide block">Kampanya</span>
-                  <span class="text-sm font-black text-white">${state.activeCampaign.name}</span>
+                  <span class="text-[11px] font-black text-amber-300 uppercase tracking-wide block">Kampanya</span>
+                  <span class="text-base font-black text-white">${state.activeCampaign.name}</span>
                 </div>
               </div>
-              ${state.discountAmount > 0 ? `<span class="text-sm font-black text-amber-200 bg-amber-400/30 px-3 py-1 rounded-xl border border-amber-400/40">-${Number(state.discountAmount).toFixed(2)} ₺</span>` : ''}
+              ${state.discountAmount > 0 ? `<span class="text-base font-black text-amber-200 bg-amber-400/30 px-3.5 py-1 rounded-xl border border-amber-400/40">-${Number(state.discountAmount).toFixed(2)} ₺</span>` : ''}
             </div>
           `;
         }
 
         const rightPanelHtml = state.hidePrices ? `
-          <div class="bg-slate-900/55 border border-white/15 rounded-3xl p-6 backdrop-blur-2xl space-y-5 shadow-2xl flex-1 flex flex-col justify-between">
-            <div class="space-y-3">
-              <div class="flex items-center space-x-2 text-rose-300 border-b border-white/10 pb-3">
-                <span class="text-lg">🛍️</span>
-                <span class="text-sm font-black uppercase tracking-wider">Ürün & Stok Bilgisi</span>
+          <div class="bg-slate-900/60 border border-white/15 rounded-3xl p-6 backdrop-blur-2xl space-y-5 shadow-2xl flex-1 flex flex-col justify-between">
+            <div class="space-y-4">
+              <div class="flex items-center space-x-2.5 text-rose-300 border-b border-white/10 pb-3">
+                <span class="text-xl">🛍️</span>
+                <span class="text-base font-black uppercase tracking-wider">Ürün & Stok Bilgisi</span>
               </div>
-              <div class="space-y-2 text-sm text-blue-100">
-                <div class="flex justify-between items-center bg-white/[0.04] p-3 rounded-xl border border-white/10">
+              <div class="space-y-2.5 text-base text-blue-100">
+                <div class="flex justify-between items-center bg-white/[0.04] p-3.5 rounded-2xl border border-white/10">
                   <span class="text-blue-200 font-semibold">Toplam Çeşit:</span>
-                  <span class="font-black text-white text-base">${state.cartItems.length} Kalem</span>
+                  <span class="font-black text-white text-lg">${state.cartItems.length} Kalem</span>
                 </div>
-                <div class="flex justify-between items-center bg-white/[0.04] p-3 rounded-xl border border-white/10">
+                <div class="flex justify-between items-center bg-white/[0.04] p-3.5 rounded-2xl border border-white/10">
                   <span class="text-blue-200 font-semibold">Toplam Ürün Adedi:</span>
-                  <span class="font-black text-white text-base">${state.cartItems.reduce((acc, i) => acc + i.quantity, 0)} Adet</span>
+                  <span class="font-black text-white text-lg">${state.cartItems.reduce((acc, i) => acc + i.quantity, 0)} Adet</span>
                 </div>
               </div>
             </div>
-            <div class="bg-gradient-to-br from-[#00268A]/90 via-[#0a359e]/80 to-[#1e3a8a]/70 border-2 border-blue-400/60 rounded-2xl p-5 text-center shadow-2xl backdrop-blur-xl text-white shrink-0">
-              <span class="text-xs font-black text-blue-200 uppercase tracking-widest block mb-1">SEPETTEKİ TOPLAM ÜRÜN</span>
-              <div class="text-5xl md:text-6xl font-black text-white tracking-tight drop-shadow-md">
-                ${state.cartItems.reduce((acc, i) => acc + i.quantity, 0)} <span class="text-2xl text-blue-200 font-bold">ADET</span>
+            <div class="bg-gradient-to-br from-[#00268A]/90 via-[#0a359e]/80 to-[#1e3a8a]/70 border-2 border-blue-400/60 rounded-3xl p-6 text-center shadow-2xl backdrop-blur-xl text-white shrink-0">
+              <span class="text-xs md:text-sm font-black text-blue-200 uppercase tracking-widest block mb-1.5">SEPETTEKİ TOPLAM ÜRÜN</span>
+              <div class="text-6xl md:text-7xl font-black text-white tracking-tight drop-shadow-md">
+                ${state.cartItems.reduce((acc, i) => acc + i.quantity, 0)} <span class="text-3xl text-blue-200 font-bold">ADET</span>
               </div>
-              <div class="text-xs text-blue-200 font-semibold mt-2">Stok Çıkış Listesi</div>
+              <div class="text-xs text-blue-200 font-semibold mt-2.5">Stok Çıkış Listesi</div>
             </div>
-            <div class="text-center text-xs text-blue-200/80 font-medium pt-1">
+            <div class="text-center text-sm text-blue-200 font-semibold pt-1">
               <span>Keyifli Alışverişler Dileriz</span>
             </div>
           </div>
         ` : `
           ${campaignHtml}
-          <div class="bg-slate-900/55 border border-white/15 rounded-3xl p-5 backdrop-blur-2xl space-y-3.5 shadow-2xl flex-1 flex flex-col justify-between">
-            <div class="space-y-2 pb-3 border-b border-white/10 shrink-0">
-              <div class="flex justify-between items-center text-sm">
+          <div class="bg-slate-900/60 border border-white/15 rounded-3xl p-6 backdrop-blur-2xl space-y-4 shadow-2xl flex-1 flex flex-col justify-between">
+            <div class="space-y-3 pb-3 border-b border-white/10 shrink-0">
+              <div class="flex justify-between items-center text-base">
                 <span class="text-blue-200 font-semibold">Ara Toplam</span>
-                <span class="font-extrabold text-white text-base">${Number(state.subtotal).toFixed(2)} ₺</span>
+                <span class="font-black text-white text-xl">${Number(state.subtotal).toFixed(2)} ₺</span>
               </div>
               ${state.discountAmount > 0 ? `
-                <div class="flex justify-between items-center text-sm text-amber-300 font-extrabold">
+                <div class="flex justify-between items-center text-base text-amber-300 font-extrabold">
                   <span>İndirim Tutarı</span>
-                  <span class="text-base">-${Number(state.discountAmount).toFixed(2)} ₺</span>
+                  <span class="text-xl">-${Number(state.discountAmount).toFixed(2)} ₺</span>
                 </div>
               ` : ''}
             </div>
 
-            <div class="bg-gradient-to-br from-[#00268A]/90 via-[#0a359e]/80 to-[#1e3a8a]/70 border-2 border-blue-400/60 rounded-2xl p-4 md:p-5 text-center shadow-2xl backdrop-blur-xl text-white shrink-0">
-              <span class="text-xs font-black text-blue-200 uppercase tracking-widest block mb-1">ÖDENECEK TOPLAM TUTAR</span>
-              <div class="text-5xl md:text-6xl font-black text-white tracking-tight drop-shadow-md">
-                ${Number(state.total).toFixed(2)} <span class="text-3xl text-blue-200 font-bold">₺</span>
+            <div class="bg-gradient-to-br from-[#00268A]/90 via-[#0a359e]/80 to-[#1e3a8a]/70 border-2 border-blue-400/60 rounded-3xl p-5 md:p-6 text-center shadow-2xl backdrop-blur-xl text-white shrink-0">
+              <span class="text-xs md:text-sm font-black text-blue-200 uppercase tracking-widest block mb-1.5">ÖDENECEK TOPLAM TUTAR</span>
+              <div class="text-6xl md:text-7xl font-black text-white tracking-tight drop-shadow-md">
+                ${Number(state.total).toFixed(2)} <span class="text-4xl text-blue-200 font-bold">₺</span>
               </div>
             </div>
 
-            <div class="text-center space-y-1.5 shrink-0 pt-1">
-              <span class="text-[11px] text-blue-200/80 block font-semibold">Kredi Kartı, Temassız veya Nakit Ödeme Kabul Edilir</span>
-              <div class="flex items-center justify-center space-x-2 text-xs">
-                <span class="px-2.5 py-0.5 rounded-lg bg-white/10 border border-white/15 text-white font-bold text-[11px]">Temassız</span>
-                <span class="px-2.5 py-0.5 rounded-lg bg-white/10 border border-white/15 text-white font-bold text-[11px]">Troy</span>
-                <span class="px-2.5 py-0.5 rounded-lg bg-white/10 border border-white/15 text-white font-bold text-[11px]">Visa / Mastercard</span>
-                <span class="px-2.5 py-0.5 rounded-lg bg-white/10 border border-white/15 text-white font-bold text-[11px]">Nakit</span>
+            <div class="text-center space-y-2 shrink-0 pt-1">
+              <span class="text-xs text-blue-200/90 block font-bold">Kredi Kartı, Temassız veya Nakit Ödeme Kabul Edilir</span>
+              <div class="flex items-center justify-center space-x-2 text-xs flex-wrap">
+                <span class="px-3 py-1 rounded-lg bg-white/10 border border-white/15 text-white font-bold text-xs">Temassız</span>
+                <span class="px-3 py-1 rounded-lg bg-white/10 border border-white/15 text-white font-bold text-xs">Troy</span>
+                <span class="px-3 py-1 rounded-lg bg-white/10 border border-white/15 text-white font-bold text-xs">Visa / Mastercard</span>
+                <span class="px-3 py-1 rounded-lg bg-white/10 border border-white/15 text-white font-bold text-xs">Nakit</span>
               </div>
             </div>
           </div>
@@ -653,26 +652,26 @@
 
         main.innerHTML = `
           <div class="flex-1 flex overflow-hidden gap-4 md:gap-5 min-h-0">
-            <div class="flex-[3] flex flex-col bg-slate-900/55 border border-white/15 rounded-3xl overflow-hidden backdrop-blur-2xl shadow-2xl min-h-0 animate-panel-left">
-              <div class="px-5 py-3 border-b border-white/10 bg-white/[0.04] flex items-center justify-between shrink-0">
-                <div class="flex items-center space-x-2.5">
-                  <span class="text-lg">🛍️</span>
-                  <h2 class="text-base font-black text-white tracking-wide">Alışveriş Sepetiniz</h2>
+            <div class="flex-[3] flex flex-col bg-slate-900/60 border border-white/15 rounded-3xl overflow-hidden backdrop-blur-2xl shadow-2xl min-h-0 animate-panel-left">
+              <div class="px-6 py-4 border-b border-white/10 bg-white/[0.04] flex items-center justify-between shrink-0">
+                <div class="flex items-center space-x-3">
+                  <span class="text-2xl">🛍️</span>
+                  <h2 class="text-lg md:text-xl font-black text-white tracking-wide">Alışveriş Sepetiniz</h2>
                 </div>
-                <span class="px-3 py-0.5 rounded-full bg-blue-500/25 text-blue-200 border border-blue-400/40 text-xs font-extrabold">
-                  ${state.cartItems.reduce((acc, i) => acc + i.quantity, 0)} Kalem
+                <span class="px-3.5 py-1 rounded-full bg-blue-500/30 text-blue-100 border border-blue-400/50 text-xs md:text-sm font-black">
+                  ${state.cartItems.reduce((acc, i) => acc + i.quantity, 0)} Ürün
                 </span>
               </div>
-              <div class="flex-1 overflow-y-auto p-3.5 space-y-2.5 min-h-0 no-scrollbar" id="itemsScrollBox">
+              <div class="flex-1 overflow-y-auto p-4 space-y-3 min-h-0 no-scrollbar" id="itemsScrollBox">
                 ${itemsHtml}
               </div>
-              <div class="px-5 py-2 bg-white/[0.03] border-t border-white/10 text-[11px] text-blue-300/80 font-medium flex items-center justify-between shrink-0">
-                <span>Fişinizle 14 gün içinde değişim yapılabilir.</span>
-                <span class="text-blue-300/90 font-semibold">Keyifli Alışverişler Dileriz</span>
+              <div class="px-6 py-2.5 bg-white/[0.03] border-t border-white/10 text-xs text-blue-300 font-medium flex items-center justify-between shrink-0">
+                <span>Fişinizle 14 gün içinde mağazamızdan değişim yapılabilir.</span>
+                <span class="text-blue-200 font-bold">Keyifli Alışverişler Dileriz</span>
               </div>
             </div>
 
-            <div class="flex-[2] flex flex-col justify-between space-y-3 min-h-0 overflow-y-auto animate-panel-right">
+            <div class="flex-[2] flex flex-col justify-between space-y-3.5 min-h-0 overflow-y-auto animate-panel-right">
               ${rightPanelHtml}
             </div>
           </div>
@@ -685,10 +684,10 @@
         return;
       }
 
-      // 4. STANDBY / IDLE STATE (SAFE 13.3" HEIGHT - LOGO NEVER CLIPPED) - WITH CUSTOMER BACKGROUND & HIGH TRANSPARENCY
+      // 4. STANDBY / IDLE STATE (WELCOME SCREEN - ENLARGED TYPOGRAPHY & COMPACT SLIM FOOTER)
       const p = PROMOS[promoIdx];
       main.innerHTML = `
-        <div class="flex-1 flex flex-col items-center justify-around p-4 md:p-6 border border-white/25 rounded-3xl shadow-2xl relative overflow-hidden animate-slowmotion-fade">
+        <div class="flex-1 flex flex-col items-center justify-center p-6 md:p-8 border border-white/20 rounded-3xl shadow-2xl relative overflow-hidden animate-slowmotion-fade gap-5 md:gap-7">
           <!-- Cinematic Store Atmosphere Background Image -->
           <div class="absolute inset-0 z-0">
             <img
@@ -697,43 +696,54 @@
               class="w-full h-full object-cover object-center scale-100 filter brightness-[0.92] contrast-[1.05]"
             />
             <!-- High-transparency subtle gradient overlay so the background image is clearly visible -->
-            <div class="absolute inset-0 bg-gradient-to-t from-[#060c1c]/65 via-[#0c1a38]/20 to-[#060c1c]/40"></div>
+            <div class="absolute inset-0 bg-gradient-to-t from-[#060c1c]/70 via-[#0c1a38]/25 to-[#060c1c]/45"></div>
           </div>
 
-          <div class="text-center space-y-2.5 z-10 max-w-xl shrink-0">
+          <!-- Welcome Message -->
+          <div class="text-center space-y-3 z-10 max-w-2xl shrink-0">
             <div>
-              <span class="px-4 py-1.5 rounded-full bg-blue-500/25 text-blue-200 border border-blue-400/40 text-[11px] font-black tracking-widest uppercase inline-block shadow-md backdrop-blur-md">
+              <span class="px-5 py-1.5 rounded-full bg-blue-500/30 text-blue-100 border border-blue-400/50 text-xs md:text-sm font-black tracking-widest uppercase inline-block shadow-lg backdrop-blur-md">
                 PREMIUM RETAIL EXPERIENCE
               </span>
             </div>
-            <h2 class="text-4xl md:text-5xl font-black text-white tracking-tight leading-tight drop-shadow-lg">Hoş Geldiniz</h2>
-            <p class="text-sm md:text-base text-blue-100 font-semibold drop-shadow-md">Yeni sezon koleksiyonumuz ve ayrıcalıklı alışveriş deneyimi için buradayız.</p>
+            <h2 class="text-5xl md:text-6xl lg:text-7xl font-black text-white tracking-tight leading-tight drop-shadow-2xl">
+              Hoş Geldiniz
+            </h2>
+            <p class="text-lg md:text-xl text-blue-100 font-bold drop-shadow-lg max-w-xl mx-auto">
+              Yeni sezon koleksiyonumuz ve ayrıcalıklı alışveriş deneyimi için buradayız.
+            </p>
           </div>
 
-          <div class="w-full max-w-xl my-1 z-10 shrink-0">
-            <div class="bg-slate-900/35 border border-white/25 rounded-2xl p-4 md:p-5 backdrop-blur-md shadow-2xl transition-all duration-500">
+          <!-- Auto-Rotating Campaign Banner -->
+          <div class="w-full max-w-2xl z-10 shrink-0">
+            <div class="bg-slate-900/45 border border-white/25 rounded-3xl p-5 md:p-6 backdrop-blur-xl shadow-2xl transition-all duration-500">
               <div class="flex items-start space-x-4">
-                <div class="p-3 rounded-xl ${p.iconBg} shadow-lg text-2xl shrink-0 border border-white/20">
+                <div class="p-3.5 md:p-4 rounded-2xl ${p.iconBg} shadow-lg text-3xl shrink-0 border border-white/20">
                   ${p.icon}
                 </div>
-                <div class="flex-1 space-y-1">
-                  <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border inline-block ${p.badgeColor}">${p.badge}</span>
-                  <h3 class="text-xl font-black text-white tracking-tight drop-shadow-sm">${p.title}</h3>
-                  <p class="text-xs text-blue-100 font-medium leading-relaxed drop-shadow-xs">${p.subtitle}</p>
+                <div class="flex-1 space-y-1.5">
+                  <span class="px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider border inline-block ${p.badgeColor}">
+                    ${p.badge}
+                  </span>
+                  <h3 class="text-2xl md:text-3xl font-black text-white tracking-tight drop-shadow-md">
+                    ${p.title}
+                  </h3>
+                  <p class="text-sm md:text-base text-blue-100 font-medium leading-relaxed drop-shadow-sm">
+                    ${p.subtitle}
+                  </p>
                 </div>
               </div>
             </div>
           </div>
 
-          <div class="w-full max-w-lg z-10 grid grid-cols-2 gap-3 pt-1 border-t border-white/15 text-xs shrink-0">
-            <div class="bg-slate-900/30 border border-white/20 p-3.5 rounded-xl text-center backdrop-blur-md shadow-lg">
-              <span class="text-blue-300 block text-[10px] font-bold uppercase mb-0.5">Ödeme Yöntemleri</span>
-              <span class="font-extrabold text-white text-xs drop-shadow-xs">Nakit & Tüm Banka Kartları</span>
-            </div>
-            <div class="bg-slate-900/30 border border-white/20 p-3.5 rounded-xl text-center backdrop-blur-md shadow-lg">
-              <span class="text-blue-300 block text-[10px] font-bold uppercase mb-0.5">Değişim Kolaylığı</span>
-              <span class="font-extrabold text-white text-xs drop-shadow-xs">Fiş ile 14 Gün İçinde Değişim</span>
-            </div>
+          <!-- Sleek Compact Single-Line Bottom Badge Row (Replaced Bulky Cards) -->
+          <div class="z-10 flex flex-wrap items-center justify-center gap-3 text-xs md:text-sm font-bold text-blue-100/90 shrink-0">
+            <span class="px-4 py-1.5 rounded-full bg-slate-900/50 border border-white/20 backdrop-blur-md flex items-center gap-2 shadow-md">
+              <span>💳</span> Nakit & Tüm Banka Kartları
+            </span>
+            <span class="px-4 py-1.5 rounded-full bg-slate-900/50 border border-white/20 backdrop-blur-md flex items-center gap-2 shadow-md">
+              <span>🔄</span> 14 Gün İçinde Fiş ile Değişim
+            </span>
           </div>
         </div>
       `;

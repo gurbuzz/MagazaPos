@@ -38,6 +38,13 @@ const getPublicDir = () => {
 
 const publicDir = getPublicDir()
 
+// Serve static assets (customer display, images, fonts, logo)
+app.use(express.static(publicDir))
+const publicRoot = path.resolve(process.cwd(), 'public')
+if (fs.existsSync(publicRoot)) {
+  app.use(express.static(publicRoot))
+}
+
 // Serve mobile static assets
 app.use('/mobile', express.static(publicDir))
 app.get('/mobile', (req, res) => {
@@ -47,6 +54,37 @@ app.get('/mobile', (req, res) => {
   } else {
     res.status(404).send('Mobil sayfa dosyası bulunamadı.')
   }
+})
+
+// Explicit static handlers to guarantee customer screen assets never 404 on external devices
+app.get('/customerbackground.jpg', (_req, res) => {
+  const candidates = [
+    path.join(publicDir, 'customerbackground.jpg'),
+    path.resolve(process.cwd(), 'src/server/public/customerbackground.jpg'),
+    path.resolve(process.cwd(), 'public/customerbackground.jpg'),
+    path.resolve(process.cwd(), 'dist-electron/main/public/customerbackground.jpg')
+  ]
+  for (const c of candidates) {
+    if (fs.existsSync(c)) {
+      return res.sendFile(c)
+    }
+  }
+  res.status(404).end()
+})
+
+app.get('/org_logo.svg', (_req, res) => {
+  const candidates = [
+    path.join(publicDir, 'org_logo.svg'),
+    path.resolve(process.cwd(), 'src/server/public/org_logo.svg'),
+    path.resolve(process.cwd(), 'public/org_logo.svg'),
+    path.resolve(process.cwd(), 'dist-electron/main/public/org_logo.svg')
+  ]
+  for (const c of candidates) {
+    if (fs.existsSync(c)) {
+      return res.sendFile(c)
+    }
+  }
+  res.status(404).end()
 })
 
 // Serve customer display static page for Wi-Fi tablets and external screens

@@ -837,7 +837,7 @@ export const CustomerDisplayView: React.FC = () => {
           </div>
         ) : (
           /* CASE 4: STANDBY / IDLE STATE (EMPTY CART) - WITH CUSTOMER BACKGROUND & HIGH TRANSPARENCY */
-          <div className="flex-1 flex flex-col items-center justify-around p-4 md:p-6 border border-white/25 rounded-3xl shadow-2xl relative overflow-hidden animate-slowmotion-fade">
+          <div className="flex-1 flex flex-col items-center justify-center p-6 md:p-8 border border-white/20 rounded-3xl shadow-2xl relative overflow-hidden animate-slowmotion-fade gap-5 md:gap-7">
             {/* Cinematic Store Atmosphere Background Image */}
             <div className="absolute inset-0 z-0">
               <img
@@ -846,46 +846,46 @@ export const CustomerDisplayView: React.FC = () => {
                 className="w-full h-full object-cover object-center scale-100 filter brightness-[0.92] contrast-[1.05]"
               />
               {/* High-transparency subtle gradient overlay so the background image is clearly visible */}
-              <div className="absolute inset-0 bg-gradient-to-t from-[#060c1c]/65 via-[#0c1a38]/20 to-[#060c1c]/40" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#060c1c]/70 via-[#0c1a38]/25 to-[#060c1c]/45" />
             </div>
 
             {/* Top Standby Welcome */}
-            <div className="text-center space-y-2.5 z-10 max-w-xl shrink-0">
+            <div className="text-center space-y-3 z-10 max-w-2xl shrink-0">
               <div>
-                <span className="px-4 py-1.5 rounded-full bg-blue-500/25 text-blue-200 border border-blue-400/40 text-[11px] font-black tracking-widest uppercase inline-block shadow-md backdrop-blur-md">
+                <span className="px-5 py-1.5 rounded-full bg-blue-500/30 text-blue-100 border border-blue-400/50 text-xs md:text-sm font-black tracking-widest uppercase inline-block shadow-lg backdrop-blur-md">
                   PREMIUM RETAIL EXPERIENCE
                 </span>
               </div>
 
-              <h2 className="text-4xl md:text-5xl font-black text-white tracking-tight leading-tight drop-shadow-lg">
+              <h2 className="text-5xl md:text-6xl lg:text-7xl font-black text-white tracking-tight leading-tight drop-shadow-2xl">
                 Hoş Geldiniz
               </h2>
 
-              <p className="text-sm md:text-base text-blue-100 font-semibold drop-shadow-md">
+              <p className="text-lg md:text-xl text-blue-100 font-bold drop-shadow-lg max-w-xl mx-auto">
                 Yeni sezon koleksiyonumuz ve ayrıcalıklı alışveriş deneyimi için buradayız.
               </p>
             </div>
 
             {/* Center: Dynamic Auto-Rotating Campaign Banner (High Transparency Frosted Glass) */}
-            <div className="w-full max-w-xl my-1 z-10 shrink-0">
-              <div className="bg-slate-900/35 border border-white/25 rounded-2xl p-4 md:p-5 backdrop-blur-md shadow-2xl transition-all duration-500">
+            <div className="w-full max-w-2xl z-10 shrink-0">
+              <div className="bg-slate-900/45 border border-white/25 rounded-3xl p-5 md:p-6 backdrop-blur-xl shadow-2xl transition-all duration-500">
                 <div className="flex items-start space-x-4">
                   <div
-                    className={`p-3 rounded-xl ${PROMO_SLIDES[currentSlide].iconBg} shadow-lg shrink-0 border border-white/20`}
+                    className={`p-3.5 md:p-4 rounded-2xl ${PROMO_SLIDES[currentSlide].iconBg} shadow-lg shrink-0 border border-white/20 text-3xl`}
                   >
-                    <SlideIcon className="w-6 h-6" />
+                    <SlideIcon className="w-8 h-8" />
                   </div>
 
-                  <div className="flex-1 space-y-1">
+                  <div className="flex-1 space-y-1.5">
                     <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border inline-block ${PROMO_SLIDES[currentSlide].badgeColor}`}
+                      className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider border inline-block ${PROMO_SLIDES[currentSlide].badgeColor}`}
                     >
                       {PROMO_SLIDES[currentSlide].badge}
                     </span>
-                    <h3 className="text-xl font-black text-white tracking-tight drop-shadow-sm">
+                    <h3 className="text-2xl md:text-3xl font-black text-white tracking-tight drop-shadow-md">
                       {PROMO_SLIDES[currentSlide].title}
                     </h3>
-                    <p className="text-xs text-blue-100 font-medium leading-relaxed drop-shadow-xs">
+                    <p className="text-sm md:text-base text-blue-100 font-medium leading-relaxed drop-shadow-sm">
                       {PROMO_SLIDES[currentSlide].subtitle}
                     </p>
                   </div>
@@ -908,39 +908,28 @@ export const CustomerDisplayView: React.FC = () => {
               </div>
             </div>
 
-            {/* Bottom Standby Cards (Translucent Frosted Glass) */}
-            <div className="w-full max-w-lg z-10 grid grid-cols-2 gap-3 pt-1 border-t border-white/15 text-xs shrink-0">
-              <div className="bg-slate-900/30 border border-white/20 p-3.5 rounded-xl text-center backdrop-blur-md shadow-lg">
-                <span className="text-blue-300 block text-[10px] font-bold uppercase mb-0.5">
-                  Ödeme Yöntemleri
-                </span>
-                <span className="font-extrabold text-white text-xs drop-shadow-xs">
-                  Nakit & Tüm Banka Kartları
-                </span>
-              </div>
-
-              <div className="bg-slate-900/30 border border-white/20 p-3.5 rounded-xl text-center backdrop-blur-md shadow-lg">
-                <span className="text-blue-300 block text-[10px] font-bold uppercase mb-0.5">
-                  Değişim Kolaylığı
-                </span>
-                <span className="font-extrabold text-white text-xs drop-shadow-xs">
-                  Fiş ile 14 Gün İçinde Değişim
-                </span>
-              </div>
+            {/* Bottom Standby Badge Pills (Replaced bulky double cards) */}
+            <div className="z-10 flex flex-wrap items-center justify-center gap-3 text-xs md:text-sm font-bold text-blue-100/90 shrink-0">
+              <span className="px-4 py-1.5 rounded-full bg-slate-900/50 border border-white/20 backdrop-blur-md flex items-center gap-2 shadow-md">
+                <span>💳</span> Nakit & Tüm Banka Kartları
+              </span>
+              <span className="px-4 py-1.5 rounded-full bg-slate-900/50 border border-white/20 backdrop-blur-md flex items-center gap-2 shadow-md">
+                <span>🔄</span> 14 Gün İçinde Fiş ile Değişim
+              </span>
             </div>
           </div>
         )}
       </main>
 
-      {/* FOOTER: Compact height (h-8 = 32px) with safe padding */}
-      <footer className="h-8 bg-slate-900/60 backdrop-blur-2xl border-t border-white/10 px-8 flex items-center justify-between text-xs text-blue-300/80 z-10 shrink-0">
+      {/* FOOTER: Ultra-slim compact height */}
+      <footer className="h-7 bg-slate-900/70 backdrop-blur-2xl border-t border-white/10 px-6 flex items-center justify-between text-[11px] text-blue-300/70 z-10 shrink-0">
         <div className="flex items-center space-x-2">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
           <span className="font-bold text-[11px] text-blue-100">Kasa Aktif & Canlı Bağlantı</span>
         </div>
 
         <div>
-          <span className="text-[9px] text-blue-300/60 font-semibold tracking-wider uppercase">
+          <span className="text-[9px] text-blue-300/50 font-semibold tracking-wider uppercase">
             Design & Architecture by Atacan Gürbüz
           </span>
         </div>
