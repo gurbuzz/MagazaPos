@@ -53,12 +53,18 @@
       "icon": "public/icon.ico"
     },
     "nsis": {
-      "oneClick": true,
-      "perMachine": false,
-      "allowToChangeInstallationDirectory": false,
+      "oneClick": false,
+      "perMachine": true,
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "MagazaPOS"
+      "shortcutName": "MagazaPOS",
+      "installerIcon": "public/icon.ico",
+      "uninstallerIcon": "public/icon.ico",
+      "installerHeaderIcon": "public/icon.ico",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true
     }
   },
   "dependencies": {

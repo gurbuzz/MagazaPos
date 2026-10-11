@@ -234,11 +234,10 @@ echo    [BASARILI] MagazaPOS Kurulum Paketi Olusturuldu!
 echo  ============================================================
 echo.
 
-REM Masaustu temizligi: Varsa eski kurulum exe'sini masaustunden temizle (sadece kisayol kalsin)
+REM Masaustu temizligi
 for /f "usebackq delims=" %%D in (`powershell -NoProfile -Command "[Environment]::GetFolderPath('Desktop')"`) do set "MASA=%%D"
 if defined MASA (
     if exist "%MASA%\MagazaPOS-Kurulum.exe" del /f /q "%MASA%\MagazaPOS-Kurulum.exe" >nul 2>&1
-    if exist "%MASA%\MagazaPOS Setup *.exe" del /f /q "%MASA%\MagazaPOS Setup *.exe" >nul 2>&1
 )
 
 echo  [BILGI] MagazaPOS simdi bu bilgisayara kuruluyor ve baslatiliyor...

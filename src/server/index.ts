@@ -11,6 +11,7 @@ import { printRouter } from './routes/print'
 import { systemRouter } from './routes/system'
 import { licenseRouter } from './routes/license'
 import { customerDisplayRouter } from './routes/customerDisplay'
+import { musicRouter } from './routes/music'
 
 const app = express()
 const PORT = process.env.PORT || 3782
@@ -120,6 +121,7 @@ app.use('/api/customer-display', customerDisplayRouter)
 app.use('/api/print', printRouter)
 app.use('/api/system', systemRouter)
 app.use('/api/license', licenseRouter)
+app.use('/api/music', musicRouter)
 
 
 // Debug Log Endpoint

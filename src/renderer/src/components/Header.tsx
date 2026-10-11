@@ -13,18 +13,22 @@ import {
   Minimize,
   Keyboard as KeyboardIcon,
   Tv,
+  Music,
 } from 'lucide-react'
 import { usePosStore } from '../store/usePosStore'
 import { useKeyboardStore } from '../store/useKeyboardStore'
+import { useMusicStore } from '../store/useMusicStore'
 import { CampaignModal } from './POS/CampaignModal'
 import { SystemSettingsModal } from './Security/SystemSettingsModal'
 import { AdminPinModal } from './Security/AdminPinModal'
+import { MusicModal } from './Music/MusicModal'
 import lufianLogo from '../assets/lufian-og.png'
 import jackJonesLogo from '../assets/org_logo.svg'
 
 export const Header: React.FC = () => {
   const { activeTab, setActiveTab, setLocalIp, lockApp, isStockOnlyMode, toggleStockOnlyMode } = usePosStore()
   const { isOpen: isKeyboardOpen, toggleKeyboard } = useKeyboardStore()
+  const { isPlaying, setIsModalOpen: setIsMusicModalOpen, fetchStatus: fetchMusicStatus } = useMusicStore()
   const [isCampaignModalOpen, setIsCampaignModalOpen] = useState(false)
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
@@ -89,11 +93,17 @@ export const Header: React.FC = () => {
       }
     }
 
+    fetchMusicStatus()
+    const musicStatusTimer = setInterval(() => {
+      fetchMusicStatus()
+    }, 10000)
+
     window.addEventListener('keydown', handleKeyDown)
     document.addEventListener('fullscreenchange', handleFullscreenChange)
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
       document.removeEventListener('fullscreenchange', handleFullscreenChange)
+      clearInterval(musicStatusTimer)
       if (unsubCustomerDisplay) unsubCustomerDisplay()
     }
   }, [setLocalIp])
@@ -254,6 +264,23 @@ export const Header: React.FC = () => {
           <span className="sm:hidden">Kampanya</span>
         </button>
 
+        {/* Store Music Button */}
+        <button
+          onClick={() => setIsMusicModalOpen(true)}
+          className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 text-white rounded-xl text-xs font-black transition shadow-xs whitespace-nowrap shrink-0 ${
+            isPlaying
+              ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 ring-2 ring-emerald-300'
+              : 'bg-indigo-600 hover:bg-indigo-700'
+          }`}
+          title="Mağaza Müzik & Ses Sistemi (Amfi Kontrolü)"
+        >
+          <Music className={`w-3.5 h-3.5 shrink-0 ${isPlaying ? 'animate-bounce text-emerald-200' : 'text-indigo-200'}`} />
+          <span className="hidden sm:inline">Müzik</span>
+          {isPlaying && (
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-ping shrink-0" />
+          )}
+        </button>
+
         <div className="h-5 w-px bg-slate-300 mx-0.5 shrink-0" />
 
         {/* Customer Display (Müşteri Ekranı) Dual-Screen Button */}
@@ -377,6 +404,9 @@ export const Header: React.FC = () => {
             : 'Bu işlem için 6 haneli Yönetici PIN şifresini girin.'
         }
       />
+
+      {/* Store Music & Audio Management Modal */}
+      <MusicModal />
     </header>
   )
 }

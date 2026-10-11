@@ -74,41 +74,11 @@ export const PosView: React.FC = () => {
   const totalInputRef = useRef<HTMLInputElement>(null)
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Web Audio API feedback for scan events
-  const playAudioNotification = (type: 'success' | 'error') => {
-    try {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
-      if (!AudioCtx) return
-      const ctx = new AudioCtx()
-
-      if (type === 'success') {
-        const osc = ctx.createOscillator()
-        const gain = ctx.createGain()
-        osc.type = 'sine'
-        osc.frequency.setValueAtTime(880, ctx.currentTime) // A5
-        osc.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.08) // E6
-        gain.gain.setValueAtTime(0.12, ctx.currentTime)
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08)
-        osc.connect(gain)
-        gain.connect(ctx.destination)
-        osc.start()
-        osc.stop(ctx.currentTime + 0.08)
-      } else {
-        const osc = ctx.createOscillator()
-        const gain = ctx.createGain()
-        osc.type = 'sawtooth'
-        osc.frequency.setValueAtTime(220, ctx.currentTime) // A3
-        osc.frequency.setValueAtTime(160, ctx.currentTime + 0.08)
-        gain.gain.setValueAtTime(0.15, ctx.currentTime)
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2)
-        osc.connect(gain)
-        gain.connect(ctx.destination)
-        osc.start()
-        osc.stop(ctx.currentTime + 0.2)
-      }
-    } catch {
-      // Audio not permitted or supported; silently ignore
-    }
+  // Web Audio API feedback for scan events (Amfi ve mağaza hoparlörlerini rahatsız etmemek için doğrudan kapatıldı)
+  const playAudioNotification = (_type: 'success' | 'error') => {
+    // Kasa yazılım sesleri mağaza ses sistemine/amfiye gitmemesi için kapatıldı.
+    // Fiziksel barkod okuyucu donanım düzeyinde kendi dahili sesini vermeye devam eder.
+    return
   }
 
   const showToast = (type: 'success' | 'error' | 'info', message: string, barcode?: string) => {

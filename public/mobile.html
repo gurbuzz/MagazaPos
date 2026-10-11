@@ -16,11 +16,13 @@
   <header class="bg-[#00268A] text-white border-b border-[#001c66] px-4 py-3 sticky top-0 z-10 shadow-md">
     <div class="max-w-md mx-auto flex items-center justify-between">
       <div class="flex items-center space-x-2.5">
-        <div class="bg-white px-2.5 py-1 rounded-md shadow-xs flex items-center justify-center">
-          <img src="/lufian-og.png" alt="LUFIAN" class="h-5 w-auto max-w-[85px] object-contain" />
+        <div class="bg-white px-2 py-1 rounded-md shadow-xs flex items-center justify-center space-x-1.5">
+          <img src="/lufian-og.png" alt="LUFIAN" class="h-4 w-auto max-w-[65px] object-contain" />
+          <div class="h-3.5 w-px bg-slate-300"></div>
+          <img src="/org_logo.svg" alt="JACK & JONES" class="h-3 w-auto max-w-[70px] object-contain" />
         </div>
         <div>
-          <h1 class="font-bold text-white text-sm leading-tight">LUFIAN</h1>
+          <h1 class="font-bold text-white text-xs leading-tight">Lufian & Jack & Jones</h1>
           <span class="text-[10px] text-blue-100 font-medium">Mobil Depo & Stok Sorgulama</span>
         </div>
       </div>
@@ -32,7 +34,7 @@
   </header>
 
   <!-- Main Search Container -->
-  <main class="max-w-md mx-auto p-3.5 space-y-3">
+  <main class="max-w-md mx-auto p-3.5 pb-28 space-y-3">
     <!-- Search Box with Camera Button -->
     <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-1.5">
       <label class="block text-xs font-bold text-slate-700 uppercase tracking-tight">Ürün / Barkod / Beden Ara</label>
@@ -202,6 +204,215 @@
     });
 
     fetchStock('');
+
+    // --- Mobile Store Music Remote Controller ---
+    const mobileMusicBar = document.getElementById('mobileMusicBar');
+    const musicTrackTitle = document.getElementById('musicTrackTitle');
+    const musicTrackArtist = document.getElementById('musicTrackArtist');
+    const musicFadeBadge = document.getElementById('musicFadeBadge');
+    const musicVolLabel = document.getElementById('musicVolLabel');
+    const btnMobilePlay = document.getElementById('btnMobilePlay');
+    const btnMobileNext = document.getElementById('btnMobileNext');
+    const btnVolDown = document.getElementById('btnVolDown');
+    const btnVolUp = document.getElementById('btnVolUp');
+    const btnOpenMusicSearch = document.getElementById('btnOpenMusicSearch');
+    const musicSearchModal = document.getElementById('musicSearchModal');
+    const btnCloseMusicSearch = document.getElementById('btnCloseMusicSearch');
+    const musicSearchInput = document.getElementById('musicSearchInput');
+    const musicSearchResults = document.getElementById('musicSearchResults');
+
+    let currentMusicVol = 70;
+    let isMusicPlaying = false;
+
+    async function fetchMusicStatus() {
+      try {
+        const res = await fetch('/api/music/status');
+        if (res.ok) {
+          const data = await res.json();
+          isMusicPlaying = data.isPlaying;
+          currentMusicVol = data.volume;
+          musicTrackTitle.textContent = data.currentTrack?.title || 'Mağaza Müziği';
+          musicTrackArtist.textContent = data.currentTrack?.artist || 'Lufian & Jack & Jones';
+          musicVolLabel.textContent = `${data.liveVolume || data.volume}%`;
+          btnMobilePlay.textContent = isMusicPlaying ? '⏸' : '▶';
+
+          if (data.isFading) {
+            musicFadeBadge.classList.remove('hidden');
+          } else {
+            musicFadeBadge.classList.add('hidden');
+          }
+        }
+      } catch (e) {}
+    }
+
+    btnMobilePlay.addEventListener('click', async () => {
+      try {
+        const endpoint = isMusicPlaying ? '/api/music/pause' : '/api/music/play';
+        await fetch(endpoint, { method: 'POST' });
+        fetchMusicStatus();
+      } catch (e) {}
+    });
+
+    btnMobileNext.addEventListener('click', async () => {
+      try {
+        await fetch('/api/music/next', { method: 'POST' });
+        fetchMusicStatus();
+      } catch (e) {}
+    });
+
+    btnVolDown.addEventListener('click', async () => {
+      const newVol = Math.max(0, currentMusicVol - 10);
+      try {
+        await fetch('/api/music/volume', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ volume: newVol })
+        });
+        fetchMusicStatus();
+      } catch (e) {}
+    });
+
+    btnVolUp.addEventListener('click', async () => {
+      const newVol = Math.min(100, currentMusicVol + 10);
+      try {
+        await fetch('/api/music/volume', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ volume: newVol })
+        });
+        fetchMusicStatus();
+      } catch (e) {}
+    });
+
+    btnOpenMusicSearch.addEventListener('click', () => {
+      musicSearchModal.classList.remove('hidden');
+      musicSearchInput.focus();
+    });
+
+    btnCloseMusicSearch.addEventListener('click', () => {
+      musicSearchModal.classList.add('hidden');
+    });
+
+    window.lastMobileTracksMap = {};
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    let searchMusicTimer;
+    musicSearchInput.addEventListener('input', (e) => {
+      clearTimeout(searchMusicTimer);
+      const q = e.target.value.trim();
+      if (!q) {
+        musicSearchResults.innerHTML = '<div class="text-center py-6 text-slate-400 text-xs font-medium">Aramak için yukarıya yazın.</div>';
+        return;
+      }
+      searchMusicTimer = setTimeout(async () => {
+        try {
+          musicSearchResults.innerHTML = '<div class="text-center py-4 text-slate-400 text-xs">Aranıyor...</div>';
+          const res = await fetch(`/api/music/search?q=${encodeURIComponent(q)}`);
+          const tracks = await res.json();
+          if (!tracks || tracks.length === 0) {
+            musicSearchResults.innerHTML = '<div class="text-center py-4 text-slate-400 text-xs">Sonuç bulunamadı.</div>';
+            return;
+          }
+          window.lastMobileTracksMap = {};
+          musicSearchResults.innerHTML = tracks.map(t => {
+            window.lastMobileTracksMap[t.id] = t;
+            return `
+              <div class="p-2.5 bg-slate-50 hover:bg-blue-50 border border-slate-200 rounded-lg flex items-center justify-between cursor-pointer" onclick="playMobileTrackById('${t.id}')">
+                <div class="truncate mr-2">
+                  <span class="font-bold text-xs text-slate-900 block truncate">${escapeHtml(t.title)}</span>
+                  <span class="text-[10px] text-slate-500 block truncate">${escapeHtml(t.artist)}</span>
+                </div>
+                <button class="px-2.5 py-1 bg-[#00268A] text-white rounded text-[11px] font-bold shrink-0">Çal</button>
+              </div>
+            `;
+          }).join('');
+        } catch (err) {
+          musicSearchResults.innerHTML = '<div class="text-center py-4 text-rose-500 text-xs">Arama hatası.</div>';
+        }
+      }, 350);
+    });
+
+    window.playMobileTrackById = async function(id) {
+      const track = window.lastMobileTracksMap?.[id];
+      if (!track) return;
+      try {
+        await fetch('/api/music/select-track', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ track })
+        });
+        musicSearchModal.classList.add('hidden');
+        fetchMusicStatus();
+      } catch (e) {}
+    };
+
+    fetchMusicStatus();
+    setInterval(fetchMusicStatus, 4000);
   </script>
+
+  <!-- Floating Store Music Remote Bar -->
+  <div id="mobileMusicBar" class="fixed bottom-0 left-0 right-0 max-w-md mx-auto z-40 bg-slate-900/95 backdrop-blur-md text-white border-t border-slate-700/80 px-3.5 py-2.5 shadow-2xl flex items-center justify-between">
+    <div class="flex items-center space-x-2.5 truncate flex-1 mr-2" id="btnOpenMusicSearch" style="cursor: pointer;">
+      <div class="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0 overflow-hidden relative">
+        <span id="musicStatusIcon" class="text-sm">🎵</span>
+      </div>
+      <div class="truncate">
+        <div class="flex items-center space-x-1.5">
+          <span id="musicTrackTitle" class="text-xs font-bold text-white truncate block">Mağaza Müziği</span>
+          <span id="musicFadeBadge" class="hidden text-[9px] px-1 py-0.2 bg-amber-500/20 text-amber-300 rounded font-bold">Geçiş</span>
+        </div>
+        <span id="musicTrackArtist" class="text-[10px] text-slate-400 font-medium truncate block">Lufian & Jack & Jones</span>
+      </div>
+    </div>
+
+    <!-- Quick Action Buttons -->
+    <div class="flex items-center space-x-1.5 shrink-0">
+      <button id="btnVolDown" class="p-1 rounded-lg bg-slate-800 text-slate-300 hover:text-white font-mono text-[11px]">🔉</button>
+      <span id="musicVolLabel" class="text-[10px] font-mono font-bold text-slate-300 min-w-[24px] text-center">70%</span>
+      <button id="btnVolUp" class="p-1 rounded-lg bg-slate-800 text-slate-300 hover:text-white font-mono text-[11px]">🔊</button>
+      <button id="btnMobilePlay" class="w-7 h-7 rounded-lg bg-[#00268A] text-white flex items-center justify-center font-bold text-xs shadow-xs active:scale-95 transition">
+        ▶
+      </button>
+      <button id="btnMobileNext" class="w-7 h-7 rounded-lg bg-slate-800 text-slate-300 hover:text-white flex items-center justify-center text-xs active:scale-95 transition">
+        ⏭
+      </button>
+    </div>
+  </div>
+
+  <!-- Mobile Song Search Modal -->
+  <div id="musicSearchModal" class="hidden fixed inset-0 z-50 bg-slate-900/90 flex flex-col p-4 items-center justify-center">
+    <div class="bg-white rounded-2xl p-4 w-full max-w-sm space-y-3 shadow-2xl flex flex-col max-h-[85vh]">
+      <div class="flex justify-between items-center pb-2 border-b border-slate-100">
+        <h3 class="font-bold text-xs text-slate-800 flex items-center space-x-1.5">
+          <span>🎵</span>
+          <span>Mağazaya Şarkı Seç & Çal</span>
+        </h3>
+        <button id="btnCloseMusicSearch" class="text-slate-400 hover:text-slate-700 font-bold text-base px-2">✕</button>
+      </div>
+
+      <div class="space-y-1">
+        <input
+          id="musicSearchInput"
+          type="text"
+          placeholder="Şarkı veya sanatçı adı yazın..."
+          class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#00268A]"
+        />
+        <p class="text-[10px] text-slate-500 font-medium">Tıkladığınız şarkı yumuşak geçişle amfiden çalmaya başlar.</p>
+      </div>
+
+      <div id="musicSearchResults" class="space-y-1.5 overflow-y-auto flex-1 max-h-[280px]">
+        <div class="text-center py-6 text-slate-400 text-xs font-medium">Aramak için yukarıya yazın.</div>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
