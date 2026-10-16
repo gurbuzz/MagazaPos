@@ -16,7 +16,10 @@ import {
   Sparkles,
   Store,
   RefreshCw,
-  Copy
+  Copy,
+  BadgePercent,
+  Save,
+  Tag as TagIcon
 } from 'lucide-react'
 import { usePosStore } from '../../store/usePosStore'
 import { generateCode128Svg } from '../../utils/barcode128'
@@ -31,30 +34,22 @@ interface LabelPreset {
 }
 
 const PRESETS: LabelPreset[] = [
-  // Yatay Baskı Şablonları (Horizontal)
+  // Standart Yatay Rulo Şablonları (Hem Yatay Hem 90° Dikey Baskı Uyumlu)
+  {
+    id: 'h_60_40',
+    name: '60 x 40 mm (Önerilen)',
+    width: 60,
+    height: 40,
+    orientation: 'HORIZONTAL',
+    description: 'Standart Mağaza & Tekstil Rulosu (Hem Yatay Hem 90° Dikey Baskı Uyumlu)'
+  },
   {
     id: 'h_50_30',
     name: '50 x 30 mm',
     width: 50,
     height: 30,
     orientation: 'HORIZONTAL',
-    description: 'Standart Yatay Barkod (En Popüler)'
-  },
-  {
-    id: 'h_40_20',
-    name: '40 x 20 mm',
-    width: 40,
-    height: 20,
-    orientation: 'HORIZONTAL',
-    description: 'Kompakt / Mini Barkod'
-  },
-  {
-    id: 'h_60_40',
-    name: '60 x 40 mm',
-    width: 60,
-    height: 40,
-    orientation: 'HORIZONTAL',
-    description: 'Geniş Ürün Etiketi'
+    description: 'Kompakt Yatay Barkod Rulosu'
   },
   {
     id: 'h_70_40',
@@ -62,41 +57,33 @@ const PRESETS: LabelPreset[] = [
     width: 70,
     height: 40,
     orientation: 'HORIZONTAL',
-    description: 'Büyük Raf / İndirim Etiketi'
+    description: 'Geniş Ürün / Raf Etiketi'
+  },
+  {
+    id: 'h_40_20',
+    name: '40 x 20 mm',
+    width: 40,
+    height: 20,
+    orientation: 'HORIZONTAL',
+    description: 'Mini / Kompakt Barkod'
   },
 
-  // Dikey Baskı Şablonları (Vertical)
-  {
-    id: 'v_30_50',
-    name: '30 x 50 mm',
-    width: 30,
-    height: 50,
-    orientation: 'VERTICAL',
-    description: 'Standart Dikey Tekstil'
-  },
+  // Fiziksel Dikey Rulolar (Yazıcıya Özel Dikey Takılan Rulolar)
   {
     id: 'v_40_60',
-    name: '40 x 60 mm',
+    name: '40 x 60 mm (Fiziksel Dikey)',
     width: 40,
     height: 60,
     orientation: 'VERTICAL',
-    description: 'Tekstil & Sallama Etiketi'
+    description: 'Yazıcıya Özel Dikey Takılan Rulo'
   },
   {
-    id: 'v_40_80',
-    name: '40 x 80 mm',
-    width: 40,
-    height: 80,
+    id: 'v_30_50',
+    name: '30 x 50 mm (Fiziksel Dikey)',
+    width: 30,
+    height: 50,
     orientation: 'VERTICAL',
-    description: 'Uzun Askı & Beden Kartı'
-  },
-  {
-    id: 'v_50_70',
-    name: '50 x 70 mm',
-    width: 50,
-    height: 70,
-    orientation: 'VERTICAL',
-    description: 'Büyük Fiyat & Ürün Kartı'
+    description: 'Dar Dikey Sallama Kart Rulosu'
   }
 ]
 
@@ -108,11 +95,11 @@ export const LabelPrinterModal: React.FC = () => {
   const [categories, setCategories] = useState<any[]>([])
   const [selectedVariant, setSelectedVariant] = useState<any | null>(null)
 
-  // Orientation & Dimensions State
-  const [orientation, setOrientation] = useState<'HORIZONTAL' | 'VERTICAL'>('HORIZONTAL')
-  const [selectedPresetId, setSelectedPresetId] = useState<string>('h_50_30')
-  const [labelWidth, setLabelWidth] = useState<number>(50)
-  const [labelHeight, setLabelHeight] = useState<number>(30)
+  // Orientation, Layout & Dimensions State
+  const [printLayout, setPrintLayout] = useState<'HORIZONTAL' | 'ROTATED_VERTICAL' | 'NATURAL_VERTICAL'>('HORIZONTAL')
+  const [selectedPresetId, setSelectedPresetId] = useState<string>('h_60_40')
+  const [labelWidth, setLabelWidth] = useState<number>(60)
+  const [labelHeight, setLabelHeight] = useState<number>(40)
   const [showStoreName, setShowStoreName] = useState<boolean>(true)
 
   // Print controls
@@ -127,6 +114,100 @@ export const LabelPrinterModal: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState<string>('')
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('')
   const searchInputRef = useRef<HTMLInputElement>(null)
+
+  // Discount / İskontolu Etiket States
+  const [isDiscountMode, setIsDiscountMode] = useState<boolean>(false)
+  const [customOriginalPrice, setCustomOriginalPrice] = useState<string>('')
+  const [customDiscountPrice, setCustomDiscountPrice] = useState<string>('')
+  const [isSavingDiscount, setIsSavingDiscount] = useState<boolean>(false)
+  const [saveSuccessMsg, setSaveSuccessMsg] = useState<string>('')
+
+  // Sync pricing state when selectedVariant changes
+  useEffect(() => {
+    if (selectedVariant) {
+      const orig = Number(selectedVariant.salePrice || 0)
+      setCustomOriginalPrice(orig > 0 ? orig.toFixed(2) : '')
+      if (selectedVariant.discountPrice && Number(selectedVariant.discountPrice) > 0) {
+        setIsDiscountMode(true)
+        setCustomDiscountPrice(Number(selectedVariant.discountPrice).toFixed(2))
+      } else {
+        setIsDiscountMode(false)
+        setCustomDiscountPrice(orig > 0 ? (orig * 0.8).toFixed(2) : '')
+      }
+    }
+  }, [selectedVariant?.id])
+
+  const handleApplyDiscountPct = (pct: number) => {
+    const orig = parseFloat(customOriginalPrice) || Number(selectedVariant?.salePrice || 0)
+    if (orig > 0) {
+      const discounted = orig * (1 - pct / 100)
+      setCustomDiscountPrice(discounted.toFixed(2))
+      setIsDiscountMode(true)
+    }
+  }
+
+  const origPriceNum = parseFloat(customOriginalPrice) || Number(selectedVariant?.salePrice || 0)
+  const discPriceNum = parseFloat(customDiscountPrice) || (selectedVariant?.discountPrice ? Number(selectedVariant.discountPrice) : 0)
+  const isDiscounted = isDiscountMode && origPriceNum > 0 && discPriceNum > 0 && discPriceNum < origPriceNum
+  const discountPct = isDiscounted
+    ? Math.round(((origPriceNum - discPriceNum) / origPriceNum) * 100)
+    : 0
+
+  const handleSaveDiscountToProduct = async () => {
+    if (!selectedVariant) return
+    setIsSavingDiscount(true)
+    try {
+      const discVal = isDiscountMode ? parseFloat(customDiscountPrice) : null
+      let adminPin = localStorage.getItem('pos_admin_pin_session') || ''
+      if (!adminPin) {
+        const entered = window.prompt('Bu indirimi ürün kartına kalıcı olarak kaydetmek için Yönetici PIN (6 haneli) giriniz:')
+        if (!entered) {
+          setIsSavingDiscount(false)
+          return
+        }
+        adminPin = entered.trim()
+      }
+
+      const res = await fetch(`/api/products/variants/${selectedVariant.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Pin': adminPin,
+        },
+        body: JSON.stringify({
+          discountPrice: (discVal && discVal > 0) ? discVal : null,
+          note: 'Etiket ekranından indirimli fiyat güncellemesi'
+        })
+      })
+      if (res.ok) {
+        localStorage.setItem('pos_admin_pin_session', adminPin)
+        const updated = await res.json()
+        setSelectedVariant((prev: any) => ({ ...prev, discountPrice: updated.discountPrice }))
+        setProducts((prev) =>
+          prev.map((p) => ({
+            ...p,
+            variants: p.variants?.map((v: any) =>
+              v.id === selectedVariant.id ? { ...v, discountPrice: updated.discountPrice } : v
+            ),
+          }))
+        )
+        setSaveSuccessMsg('✅ İndirimli fiyat ürün kartına kaydedildi!')
+        setTimeout(() => setSaveSuccessMsg(''), 3500)
+      } else {
+        const err = await res.json()
+        if (err.code === 'UNAUTHORIZED_ADMIN_PIN' || res.status === 401) {
+          localStorage.removeItem('pos_admin_pin_session')
+          alert('Geçersiz Yönetici PIN şifresi.')
+        } else {
+          alert('Kaydetme hatası: ' + (err.error || 'Bilinmeyen hata'))
+        }
+      }
+    } catch (e: any) {
+      alert('Hata: ' + e.message)
+    } finally {
+      setIsSavingDiscount(false)
+    }
+  }
 
   useEffect(() => {
     fetch('/api/products')
@@ -157,42 +238,31 @@ export const LabelPrinterModal: React.FC = () => {
     }
   }, [])
 
-  // Switch Orientation
-  const handleOrientationChange = (newOrientation: 'HORIZONTAL' | 'VERTICAL') => {
-    if (newOrientation === orientation) return
-    setOrientation(newOrientation)
-
-    if (newOrientation === 'HORIZONTAL') {
-      const preset = PRESETS.find((p) => p.id === 'h_50_30') || PRESETS[0]
-      setSelectedPresetId(preset.id)
-      setLabelWidth(preset.width)
-      setLabelHeight(preset.height)
-    } else {
-      const preset = PRESETS.find((p) => p.id === 'v_30_50') || PRESETS[4]
-      setSelectedPresetId(preset.id)
-      setLabelWidth(preset.width)
-      setLabelHeight(preset.height)
-    }
-  }
-
   // Choose preset
   const handleSelectPreset = (preset: LabelPreset) => {
     setSelectedPresetId(preset.id)
-    setOrientation(preset.orientation)
     setLabelWidth(preset.width)
     setLabelHeight(preset.height)
+    if (preset.orientation === 'VERTICAL') {
+      setPrintLayout('NATURAL_VERTICAL')
+    } else {
+      if (printLayout === 'NATURAL_VERTICAL') {
+        setPrintLayout('HORIZONTAL')
+      }
+    }
   }
 
   // Swap Width and Height
   const handleSwapDimensions = () => {
     const newWidth = labelHeight
     const newHeight = labelWidth
-    const newOrientation = newWidth >= newHeight ? 'HORIZONTAL' : 'VERTICAL'
-
     setLabelWidth(newWidth)
     setLabelHeight(newHeight)
-    setOrientation(newOrientation)
-
+    if (newWidth < newHeight) {
+      setPrintLayout('NATURAL_VERTICAL')
+    } else {
+      setPrintLayout('HORIZONTAL')
+    }
     const matching = PRESETS.find((p) => p.width === newWidth && p.height === newHeight)
     setSelectedPresetId(matching ? matching.id : 'custom')
   }
@@ -231,49 +301,101 @@ export const LabelPrinterModal: React.FC = () => {
   const previewBarcodeSvg = useMemo(() => {
     if (!selectedVariant) return ''
     const code = selectedVariant.barcode || selectedVariant.sku || '123456789012'
-    const svgHeight = orientation === 'HORIZONTAL'
-      ? Math.max(18, Math.min(26, Math.round(labelHeight * 0.75)))
-      : Math.max(22, Math.min(32, Math.round(labelHeight * 0.45)))
+    const isVertical = printLayout === 'ROTATED_VERTICAL' || printLayout === 'NATURAL_VERTICAL'
+    const svgHeight = isVertical ? 22 : 24
     return generateCode128Svg(code, svgHeight)
-  }, [selectedVariant, orientation, labelHeight])
+  }, [selectedVariant, printLayout, labelHeight, labelWidth])
 
   // Build Full HTML Document for Silent Thermal Printing
   const buildPrintHtml = (copiesCount: number) => {
     if (!selectedVariant) return ''
 
     const barcode = selectedVariant.barcode || selectedVariant.sku || '123456789012'
-    const price = Number(selectedVariant.salePrice || 0).toFixed(2)
+    const standardPrice = Number(selectedVariant.salePrice || 0).toFixed(2)
+    const formattedOrigPrice = origPriceNum.toFixed(2)
+    const formattedDiscPrice = discPriceNum.toFixed(2)
     const productName = selectedVariant.product?.name || 'Ürün Adı'
     const color = selectedVariant.attributes?.color || '-'
     const size = selectedVariant.attributes?.size || '-'
     const sku = selectedVariant.sku || '-'
 
-    const svgHeight = orientation === 'HORIZONTAL'
-      ? Math.max(16, Math.min(26, Math.round(labelHeight * 0.75)))
-      : Math.max(20, Math.min(32, Math.round(labelHeight * 0.45)))
+    const isRotatedVertical = printLayout === 'ROTATED_VERTICAL'
+    const isNaturalVertical = printLayout === 'NATURAL_VERTICAL'
+    const isAnyVertical = isRotatedVertical || isNaturalVertical
 
+    const svgHeight = isAnyVertical ? 22 : 24
     const vectorBarcodeSvg = generateCode128Svg(barcode, svgHeight)
 
-    const singlePageContent = orientation === 'HORIZONTAL'
+    const horizontalPriceSection = isDiscounted
       ? `
-        <div class="label-page horizontal">
-          <div class="h-header">
-            <span class="store-name">${showStoreName ? effectiveStoreName : ''}</span>
-            <span class="sku-text">${sku ? `KOD: ${sku}` : ''}</span>
+        <div class="discount-price-row">
+          <div class="old-price-col">
+            <span class="old-price-lbl">ESKİ FİYAT</span>
+            <span class="old-price-val">${formattedOrigPrice} TL</span>
           </div>
-          <div class="product-title">${productName}</div>
-          <div class="variant-info">Renk: ${color} | Beden: ${size}</div>
-          <div class="barcode-wrap">
-            <div class="svg-container">${vectorBarcodeSvg}</div>
-            <div class="barcode-number">${barcode}</div>
+          <div class="badge-col">
+            <span class="discount-badge">-%${discountPct}</span>
           </div>
-          <div class="price-row">
-            <span class="kdv-tag">KDV DAHİLDİR</span>
-            <span class="price-val">${price} TL</span>
+          <div class="new-price-col">
+            <span class="new-price-lbl">İSKONTOLU FİYAT</span>
+            <span class="new-price-val">${formattedDiscPrice} TL</span>
           </div>
         </div>
       `
       : `
+        <div class="price-row">
+          <span class="kdv-tag">KDV DAHİLDİR</span>
+          <span class="price-val">${standardPrice} TL</span>
+        </div>
+      `
+
+    const verticalPriceSection = isDiscounted
+      ? `
+        <div class="price-box discounted-box">
+          <div class="v-old-row">
+            <span class="v-old-lbl">LİSTE:</span>
+            <span class="v-old-val">${formattedOrigPrice} TL</span>
+          </div>
+          <div class="v-badge-tag">%${discountPct} İSKONTOLU</div>
+          <div class="v-new-row">
+            <div class="v-new-lbl">İNDİRİMLİ SATIŞ FİYATI</div>
+            <div class="v-new-val">${formattedDiscPrice} TL</div>
+          </div>
+        </div>
+      `
+      : `
+        <div class="price-box">
+          <div class="price-label">FİYAT (KDV DAHİL)</div>
+          <div class="price-val">${standardPrice} TL</div>
+        </div>
+      `
+
+    let singlePageContent = ''
+
+    if (isRotatedVertical) {
+      // 90 DEGREE ROTATED PRINT ON HORIZONTAL ROLL (e.g. 60x40mm paper, 40x60mm rotated content)
+      singlePageContent = `
+        <div class="label-page rotated-page">
+          <div class="rotated-vertical-inner">
+            <div class="v-header">
+              <div class="store-name">${showStoreName ? effectiveStoreName : ''}</div>
+            </div>
+            <div class="product-title">${productName}</div>
+            <div class="attributes-grid">
+              <div class="attr-row"><span class="attr-lbl">RENK:</span> <span class="attr-val">${color}</span></div>
+              <div class="attr-row"><span class="attr-lbl">BEDEN:</span> <span class="attr-val">${size}</span></div>
+              <div class="attr-row"><span class="attr-lbl">KOD:</span> <span class="attr-val">${sku}</span></div>
+            </div>
+            <div class="barcode-wrap">
+              <div class="svg-container">${vectorBarcodeSvg}</div>
+              <div class="barcode-number">${barcode}</div>
+            </div>
+            ${verticalPriceSection}
+          </div>
+        </div>
+      `
+    } else if (isNaturalVertical) {
+      singlePageContent = `
         <div class="label-page vertical">
           <div class="v-header">
             <div class="store-name">${showStoreName ? effectiveStoreName : ''}</div>
@@ -288,12 +410,26 @@ export const LabelPrinterModal: React.FC = () => {
             <div class="svg-container">${vectorBarcodeSvg}</div>
             <div class="barcode-number">${barcode}</div>
           </div>
-          <div class="price-box">
-            <div class="price-label">FİYAT (KDV DAHİL)</div>
-            <div class="price-val">${price} TL</div>
-          </div>
+          ${verticalPriceSection}
         </div>
       `
+    } else {
+      singlePageContent = `
+        <div class="label-page horizontal">
+          <div class="h-header">
+            <span class="store-name">${showStoreName ? effectiveStoreName : ''}</span>
+            <span class="sku-text">${sku ? `KOD: ${sku}` : ''}</span>
+          </div>
+          <div class="product-title">${productName}</div>
+          <div class="variant-info">Renk: ${color} | Beden: ${size}</div>
+          <div class="barcode-wrap">
+            <div class="svg-container">${vectorBarcodeSvg}</div>
+            <div class="barcode-number">${barcode}</div>
+          </div>
+          ${horizontalPriceSection}
+        </div>
+      `
+    }
 
     const allPagesHtml = Array.from({ length: copiesCount })
       .map(() => singlePageContent)
@@ -337,7 +473,7 @@ export const LabelPrinterModal: React.FC = () => {
 
             /* YATAY (HORIZONTAL) STİL */
             .horizontal {
-              padding: 1.5mm 2mm;
+              padding: 1.8mm 2.2mm;
               display: flex;
               flex-direction: column;
               justify-content: space-between;
@@ -347,33 +483,32 @@ export const LabelPrinterModal: React.FC = () => {
               display: flex;
               justify-content: space-between;
               align-items: center;
-              font-size: 8px;
-              font-weight: 800;
-              border-bottom: 0.6px solid #000;
+              border-bottom: 0.8px solid #000;
               padding-bottom: 1px;
             }
             .horizontal .store-name {
               text-transform: uppercase;
+              font-size: 12.5px;
               font-weight: 900;
-              letter-spacing: 0.5px;
+              letter-spacing: 0.8px;
             }
             .horizontal .sku-text {
               font-family: 'Courier New', monospace;
-              font-size: 7.5px;
-              font-weight: bold;
+              font-size: 10px;
+              font-weight: 800;
             }
             .horizontal .product-title {
-              font-size: 9.5px;
+              font-size: 15px;
               font-weight: 900;
               line-height: 1.15;
-              max-height: 22px;
+              max-height: 34px;
               overflow: hidden;
               margin: 1px 0;
               color: #000;
             }
             .horizontal .variant-info {
-              font-size: 8px;
-              font-weight: bold;
+              font-size: 12px;
+              font-weight: 800;
               color: #000;
             }
             .horizontal .barcode-wrap {
@@ -384,14 +519,14 @@ export const LabelPrinterModal: React.FC = () => {
               margin: 1px 0;
             }
             .horizontal .svg-container {
-              width: 92%;
+              width: 90%;
               display: flex;
               align-items: center;
               justify-content: center;
             }
             .horizontal .barcode-number {
               font-family: 'Courier New', monospace;
-              font-size: 8.5px;
+              font-size: 12.5px;
               font-weight: 900;
               letter-spacing: 1.5px;
               margin-top: 1px;
@@ -401,101 +536,229 @@ export const LabelPrinterModal: React.FC = () => {
               display: flex;
               justify-content: space-between;
               align-items: flex-end;
-              border-top: 0.8px solid #000;
-              padding-top: 1.5px;
+              border-top: 1.8px solid #000;
+              padding-top: 1px;
             }
             .horizontal .kdv-tag {
-              font-size: 7px;
-              font-weight: bold;
+              font-size: 8.5px;
+              font-weight: 900;
+              letter-spacing: 0.5px;
             }
             .horizontal .price-val {
-              font-size: 13.5px;
+              font-size: 34px;
               font-weight: 900;
-              letter-spacing: -0.5px;
-              line-height: 1;
+              letter-spacing: -1px;
+              line-height: 0.95;
             }
 
-            /* DİKEY (VERTICAL) STİL */
-            .vertical {
-              padding: 2mm 2.2mm;
+            /* YATAY İSKONTOLU FİYAT */
+            .horizontal .discount-price-row {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              border-top: 1.8px solid #000;
+              padding-top: 1px;
+            }
+            .horizontal .old-price-col {
+              display: flex;
+              flex-direction: column;
+              align-items: flex-start;
+              text-align: left;
+            }
+            .horizontal .old-price-lbl {
+              font-size: 8px;
+              font-weight: 900;
+              color: #222;
+            }
+            .horizontal .old-price-val {
+              font-size: 13px;
+              font-weight: 900;
+              text-decoration: line-through;
+              line-height: 1.1;
+            }
+            .horizontal .badge-col {
+              display: flex;
+              align-items: center;
+              padding: 0 4px;
+            }
+            .horizontal .discount-badge {
+              background: #000 !important;
+              color: #fff !important;
+              font-size: 13px;
+              font-weight: 900;
+              padding: 2.5px 6px;
+              border-radius: 3px;
+              letter-spacing: 0.5px;
+            }
+            .horizontal .new-price-col {
+              display: flex;
+              flex-direction: column;
+              align-items: flex-end;
+              text-align: right;
+            }
+            .horizontal .new-price-lbl {
+              font-size: 8px;
+              font-weight: 900;
+            }
+            .horizontal .new-price-val {
+              font-size: 34px;
+              font-weight: 900;
+              letter-spacing: -1px;
+              line-height: 0.95;
+            }
+
+            /* ROTATED 90 DEGREE VERTICAL (Yatay Ruloya 90° Dikey Baskı) */
+            .rotated-page {
+              position: relative;
+              overflow: hidden;
+            }
+            .rotated-vertical-inner {
+              width: ${labelHeight}mm;
+              height: ${labelWidth}mm;
+              position: absolute;
+              top: 50%;
+              left: 50%;
+              transform: translate(-50%, -50%) rotate(90deg);
               display: flex;
               flex-direction: column;
               justify-content: space-between;
+              padding: 1.8mm 2.2mm;
+              box-sizing: border-box;
+              text-align: center;
+              background-color: #fff !important;
+              color: #000 !important;
+            }
+
+            /* DİKEY (VERTICAL) ORTAK STİL */
+            .vertical, .rotated-vertical-inner {
               text-align: center;
             }
-            .vertical .v-header {
+            .vertical .v-header, .rotated-vertical-inner .v-header {
               border-bottom: 1.5px solid #000;
               padding-bottom: 1.5px;
-              margin-bottom: 2px;
+              margin-bottom: 1px;
             }
-            .vertical .store-name {
-              font-size: 10.5px;
+            .vertical .store-name, .rotated-vertical-inner .store-name {
+              font-size: 13.5px;
               font-weight: 900;
               letter-spacing: 1px;
               text-transform: uppercase;
             }
-            .vertical .product-title {
-              font-size: 10px;
+            .vertical .product-title, .rotated-vertical-inner .product-title {
+              font-size: 14px;
               font-weight: 900;
               line-height: 1.15;
               margin: 1px 0;
               color: #000;
             }
-            .vertical .attributes-grid {
-              border: 1px solid #000;
-              border-radius: 2px;
-              padding: 2.5px 3.5px;
-              margin: 2px 0;
-              font-size: 8.5px;
+            .vertical .attributes-grid, .rotated-vertical-inner .attributes-grid {
+              border: 1.2px solid #000;
+              border-radius: 3px;
+              padding: 2.5px 4px;
+              margin: 1.5px 0;
+              font-size: 11px;
               text-align: left;
             }
-            .vertical .attr-row {
+            .vertical .attr-row, .rotated-vertical-inner .attr-row {
               display: flex;
               justify-content: space-between;
               line-height: 1.25;
             }
-            .vertical .attr-lbl {
+            .vertical .attr-lbl, .rotated-vertical-inner .attr-lbl {
               font-weight: 700;
             }
-            .vertical .attr-val {
+            .vertical .attr-val, .rotated-vertical-inner .attr-val {
               font-weight: 900;
             }
-            .vertical .barcode-wrap {
+            .vertical .barcode-wrap, .rotated-vertical-inner .barcode-wrap {
               display: flex;
               flex-direction: column;
               align-items: center;
               justify-content: center;
-              margin: 2px 0;
+              margin: 1.5px 0;
             }
-            .vertical .svg-container {
-              width: 95%;
+            .vertical .svg-container, .rotated-vertical-inner .svg-container {
+              width: 92%;
               display: flex;
               align-items: center;
               justify-content: center;
             }
-            .vertical .barcode-number {
+            .vertical .barcode-number, .rotated-vertical-inner .barcode-number {
               font-family: 'Courier New', monospace;
-              font-size: 9px;
+              font-size: 12px;
               font-weight: 900;
               letter-spacing: 1.5px;
               margin-top: 1px;
             }
-            .vertical .price-box {
-              border: 1.5px solid #000;
+            .vertical .price-box, .rotated-vertical-inner .price-box {
+              border: 2px solid #000;
               background-color: #fff;
-              padding: 2.5px;
-              margin-top: 2px;
+              padding: 2.5px 2px;
+              margin-top: 1.5px;
             }
-            .vertical .price-label {
-              font-size: 7px;
-              font-weight: 700;
+            .vertical .price-label, .rotated-vertical-inner .price-label {
+              font-size: 8.5px;
+              font-weight: 900;
               letter-spacing: 0.5px;
             }
-            .vertical .price-val {
-              font-size: 15.5px;
+            .vertical .price-val, .rotated-vertical-inner .price-val {
+              font-size: 36px;
               font-weight: 900;
-              letter-spacing: -0.5px;
-              line-height: 1.1;
+              letter-spacing: -1px;
+              line-height: 0.95;
+            }
+
+            /* DİKEY İSKONTOLU FİYAT */
+            .vertical .discounted-box, .rotated-vertical-inner .discounted-box {
+              border: 2px solid #000;
+              background-color: #fff;
+              padding: 2px 3px;
+              margin-top: 1.5px;
+            }
+            .vertical .v-old-row, .rotated-vertical-inner .v-old-row {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              font-size: 10px;
+              font-weight: 800;
+              border-bottom: 1px dashed #000;
+              padding-bottom: 1px;
+              margin-bottom: 1px;
+            }
+            .vertical .v-old-lbl, .rotated-vertical-inner .v-old-lbl {
+              font-size: 8px;
+              color: #222;
+              font-weight: 900;
+            }
+            .vertical .v-old-val, .rotated-vertical-inner .v-old-val {
+              font-size: 12.5px;
+              text-decoration: line-through;
+              font-weight: 900;
+            }
+            .vertical .v-badge-tag, .rotated-vertical-inner .v-badge-tag {
+              background: #000 !important;
+              color: #fff !important;
+              font-size: 11.5px;
+              font-weight: 900;
+              text-align: center;
+              padding: 1.5px;
+              letter-spacing: 0.5px;
+              border-radius: 2px;
+              margin: 1px 0;
+            }
+            .vertical .v-new-row, .rotated-vertical-inner .v-new-row {
+              text-align: center;
+              padding-top: 1px;
+            }
+            .vertical .v-new-lbl, .rotated-vertical-inner .v-new-lbl {
+              font-size: 8px;
+              font-weight: 900;
+            }
+            .vertical .v-new-val, .rotated-vertical-inner .v-new-val {
+              font-size: 36px;
+              font-weight: 900;
+              letter-spacing: -1px;
+              line-height: 0.95;
             }
           </style>
         </head>
@@ -535,7 +798,8 @@ export const LabelPrinterModal: React.FC = () => {
           body: JSON.stringify({
             variant: selectedVariant,
             quantity: quantityToPrint,
-            orientation,
+            orientation: printLayout === 'HORIZONTAL' ? 'HORIZONTAL' : 'VERTICAL',
+            layout: printLayout,
             width: labelWidth,
             height: labelHeight,
             printerName: selectedPrinter,
@@ -554,8 +818,9 @@ export const LabelPrinterModal: React.FC = () => {
         }
       }
 
+      const layoutLabel = printLayout === 'HORIZONTAL' ? '↔ Yatay' : '↕ 90° Dikey (Askı)'
       setMessage(
-        `${quantityToPrint} Adet ${orientation === 'HORIZONTAL' ? 'Yatay' : 'Dikey'} (${labelWidth}x${labelHeight}mm) Etiket Yazıcıya Gönderildi!`
+        `${quantityToPrint} Adet ${layoutLabel} (${labelWidth}x${labelHeight}mm) Etiket Başarıyla Yazıcıya Gönderildi!`
       )
     } catch (err: any) {
       setMessage(`Yazdırma hatası: ${err.message}`)
@@ -563,8 +828,6 @@ export const LabelPrinterModal: React.FC = () => {
       setIsPrinting(false)
     }
   }
-
-  const currentPresets = PRESETS.filter((p) => p.orientation === orientation)
 
   return (
     <div className="h-[calc(100vh-3.5rem)] bg-slate-100 p-4 overflow-y-auto font-sans select-none">
@@ -596,7 +859,14 @@ export const LabelPrinterModal: React.FC = () => {
                     {selectedVariant.product?.name}
                   </span>
                 </div>
-                <span className="text-emerald-700 font-extrabold text-sm">{selectedVariant.salePrice?.toFixed(2)} ₺</span>
+                {isDiscounted ? (
+                  <div className="text-right">
+                    <span className="text-slate-400 line-through text-[11px] block">{origPriceNum.toFixed(2)} ₺</span>
+                    <span className="text-rose-700 font-extrabold text-sm block">{discPriceNum.toFixed(2)} ₺</span>
+                  </div>
+                ) : (
+                  <span className="text-emerald-700 font-extrabold text-sm">{selectedVariant.salePrice?.toFixed(2)} ₺</span>
+                )}
               </div>
             )}
           </div>
@@ -703,7 +973,14 @@ export const LabelPrinterModal: React.FC = () => {
                       </div>
 
                       <div className="text-right shrink-0">
-                        <span className="font-extrabold text-emerald-700 text-xs block">{v.salePrice?.toFixed(2)} ₺</span>
+                        {v.discountPrice && v.discountPrice > 0 ? (
+                          <>
+                            <span className="text-[10px] text-slate-400 line-through block">{v.salePrice?.toFixed(2)} ₺</span>
+                            <span className="font-extrabold text-rose-700 text-xs block">{v.discountPrice?.toFixed(2)} ₺</span>
+                          </>
+                        ) : (
+                          <span className="font-extrabold text-emerald-700 text-xs block">{v.salePrice?.toFixed(2)} ₺</span>
+                        )}
                         <span className="text-[10px] text-slate-500 font-medium">Stok: {v.stockQuantity} Adet</span>
                       </div>
                     </div>
@@ -746,50 +1023,83 @@ export const LabelPrinterModal: React.FC = () => {
                 </div>
               )}
 
-              {/* Baskı Yönü Seçimi (Orientation Segmented Toggle) */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Baskı Yönü</label>
+              {/* Baskı Tasarım Düzeni (Horizontal vs 90° Rotated Vertical) */}
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-800">Baskı Yönü & Tasarım Modu</span>
+                  <span className="text-[10px] text-blue-700 font-black bg-blue-100/80 px-2 py-0.5 rounded border border-blue-300">
+                    Rulo: {labelWidth} x {labelHeight} mm
+                  </span>
+                </div>
+
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    onClick={() => handleOrientationChange('HORIZONTAL')}
-                    className={`py-2 px-3 rounded-lg border flex items-center justify-center space-x-2 transition text-xs font-bold ${
-                      orientation === 'HORIZONTAL'
-                        ? 'bg-blue-700 text-white border-blue-700 shadow-xs'
-                        : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                    onClick={() => {
+                      setPrintLayout('HORIZONTAL')
+                      if (labelHeight > labelWidth) {
+                        const temp = labelWidth
+                        setLabelWidth(labelHeight)
+                        setLabelHeight(temp)
+                      }
+                    }}
+                    className={`p-2.5 rounded-lg border flex flex-col items-center justify-center text-center transition cursor-pointer ${
+                      printLayout === 'HORIZONTAL'
+                        ? 'bg-blue-700 text-white border-blue-700 shadow-sm'
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300'
                     }`}
                   >
-                    <RectangleHorizontal className="w-4 h-4" />
-                    <span>↔ Yatay Baskı</span>
+                    <div className="flex items-center space-x-1.5 font-bold text-xs">
+                      <RectangleHorizontal className="w-4 h-4 shrink-0" />
+                      <span>↔ Yatay Baskı</span>
+                    </div>
+                    <span className={`text-[10px] mt-0.5 ${printLayout === 'HORIZONTAL' ? 'text-blue-100' : 'text-slate-500'}`}>
+                      Kutu, Raf & Ambalaj
+                    </span>
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => handleOrientationChange('VERTICAL')}
-                    className={`py-2 px-3 rounded-lg border flex items-center justify-center space-x-2 transition text-xs font-bold ${
-                      orientation === 'VERTICAL'
-                        ? 'bg-blue-700 text-white border-blue-700 shadow-xs'
-                        : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                    onClick={() => {
+                      setPrintLayout('ROTATED_VERTICAL')
+                      if (labelHeight > labelWidth) {
+                        const temp = labelWidth
+                        setLabelWidth(labelHeight)
+                        setLabelHeight(temp)
+                      }
+                    }}
+                    className={`p-2.5 rounded-lg border flex flex-col items-center justify-center text-center transition cursor-pointer ${
+                      printLayout === 'ROTATED_VERTICAL'
+                        ? 'bg-blue-700 text-white border-blue-700 shadow-sm'
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300'
                     }`}
                   >
-                    <RectangleVertical className="w-4 h-4" />
-                    <span>↕ Dikey Baskı</span>
+                    <div className="flex items-center space-x-1.5 font-bold text-xs">
+                      <RectangleVertical className="w-4 h-4 shrink-0" />
+                      <span>↕ 90° Dikey Baskı</span>
+                    </div>
+                    <span className={`text-[10px] mt-0.5 ${printLayout === 'ROTATED_VERTICAL' ? 'text-blue-100' : 'text-slate-500'}`}>
+                      Askı / Tekstil Sallama Kart
+                    </span>
                   </button>
                 </div>
-                <p className="text-[10px] text-slate-500 mt-1">
-                  {orientation === 'HORIZONTAL'
-                    ? 'Yatay rulo etiketler için uygundur (Raf, kutu ve standart ürün barkodu).'
-                    : 'Dikey rulo ve askılı tekstil etiketleri için uygundur (Sallama ve giyim kartları).'}
-                </p>
+
+                <div className="p-2 bg-blue-50/70 border border-blue-200/80 rounded text-[11px] text-blue-900 leading-snug">
+                  {printLayout === 'HORIZONTAL' ? (
+                    <span><strong>↔ Yatay Mod:</strong> Yazıcıdaki {labelWidth}x{labelHeight} mm etikete standart düz yatay formatta basar.</span>
+                  ) : (
+                    <span><strong>↕ 90° Dikey Askı Modu:</strong> Yazıcıdaki <u>aynı {labelWidth}x{labelHeight} mm yatay ruloya</u> içeriği 90° çevirip basar. Rulo değiştirmeden askı/sallama kartı elde edersiniz!</span>
+                  )}
+                </div>
               </div>
 
-              {/* Boyut Şablonları (Presets for selected orientation) */}
+              {/* Rulo / Etiket Ölçü Şablonları */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  {orientation === 'HORIZONTAL' ? 'Yatay Ölçü Şablonları' : 'Dikey Ölçü Şablonları'}
+                  Rulo / Etiket Ölçü Şablonu (Yazıcıdaki Kağıt)
                 </label>
                 <div className="grid grid-cols-2 gap-1.5">
-                  {currentPresets.map((preset) => (
+                  {PRESETS.map((preset) => (
                     <button
                       key={preset.id}
                       type="button"
@@ -837,8 +1147,8 @@ export const LabelPrinterModal: React.FC = () => {
                         const val = Math.max(10, parseInt(e.target.value) || 10)
                         setLabelWidth(val)
                         setSelectedPresetId('custom')
-                        if (val < labelHeight && orientation !== 'VERTICAL') setOrientation('VERTICAL')
-                        if (val > labelHeight && orientation !== 'HORIZONTAL') setOrientation('HORIZONTAL')
+                        if (val < labelHeight) setPrintLayout('NATURAL_VERTICAL')
+                        if (val >= labelHeight && printLayout === 'NATURAL_VERTICAL') setPrintLayout('HORIZONTAL')
                       }}
                       className="w-full bg-white border border-slate-300 rounded px-2.5 py-1 text-slate-900 font-bold text-xs focus:outline-none focus:ring-1 focus:ring-blue-600"
                     />
@@ -855,8 +1165,8 @@ export const LabelPrinterModal: React.FC = () => {
                         const val = Math.max(10, parseInt(e.target.value) || 10)
                         setLabelHeight(val)
                         setSelectedPresetId('custom')
-                        if (val > labelWidth && orientation !== 'VERTICAL') setOrientation('VERTICAL')
-                        if (val < labelWidth && orientation !== 'HORIZONTAL') setOrientation('HORIZONTAL')
+                        if (val > labelWidth) setPrintLayout('NATURAL_VERTICAL')
+                        if (val <= labelWidth && printLayout === 'NATURAL_VERTICAL') setPrintLayout('HORIZONTAL')
                       }}
                       className="w-full bg-white border border-slate-300 rounded px-2.5 py-1 text-slate-900 font-bold text-xs focus:outline-none focus:ring-1 focus:ring-blue-600"
                     />
@@ -874,6 +1184,101 @@ export const LabelPrinterModal: React.FC = () => {
                     <span>Mağaza Adını Etikette Göster ({effectiveStoreName})</span>
                   </label>
                 </div>
+              </div>
+
+              {/* İskonto & İndirimli Fiyat Ayarı */}
+              <div className="bg-amber-50/80 border border-amber-200 rounded-lg p-2.5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center space-x-2 text-xs font-bold text-amber-950 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={isDiscountMode}
+                      onChange={(e) => setIsDiscountMode(e.target.checked)}
+                      className="rounded text-amber-600 focus:ring-amber-500 w-4 h-4"
+                    />
+                    <span className="flex items-center space-x-1">
+                      <BadgePercent className="w-4 h-4 text-amber-700" />
+                      <span>İndirimli / İskontolu Etiket Bas</span>
+                    </span>
+                  </label>
+                  {isDiscounted && (
+                    <span className="bg-amber-700 text-white font-extrabold text-[10px] px-2 py-0.5 rounded-full shadow-2xs">
+                      %{discountPct} İNDİRİM
+                    </span>
+                  )}
+                </div>
+
+                {isDiscountMode && (
+                  <div className="space-y-2 pt-1 border-t border-amber-200/60">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-600 mb-0.5">
+                          Normal Fiyat (Üstü Çizili ₺)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={customOriginalPrice}
+                          onChange={(e) => setCustomOriginalPrice(e.target.value)}
+                          className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-slate-800 font-bold text-xs focus:ring-1 focus:ring-amber-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-rose-700 mb-0.5">
+                          İskontolu Fiyat (₺)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={customDiscountPrice}
+                          onChange={(e) => setCustomDiscountPrice(e.target.value)}
+                          className="w-full bg-white border border-rose-300 rounded px-2 py-1 text-rose-700 font-extrabold text-xs focus:ring-1 focus:ring-rose-500"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Hızlı İndirim Oranları */}
+                    <div className="flex items-center justify-between gap-1 pt-0.5">
+                      <span className="text-[10px] font-semibold text-slate-600">Hızlı İskonto:</span>
+                      <div className="flex items-center space-x-1">
+                        {[10, 20, 25, 30, 40, 50].map((pct) => (
+                          <button
+                            key={pct}
+                            type="button"
+                            onClick={() => handleApplyDiscountPct(pct)}
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition ${
+                              discountPct === pct
+                                ? 'bg-amber-800 text-white'
+                                : 'bg-white border border-amber-300 text-amber-900 hover:bg-amber-100'
+                            }`}
+                          >
+                            %{pct}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Ürün Kartına Kaydet Butonu */}
+                    {selectedVariant && (
+                      <div className="pt-1 flex items-center justify-between">
+                        <button
+                          type="button"
+                          disabled={isSavingDiscount}
+                          onClick={handleSaveDiscountToProduct}
+                          className="text-[11px] text-amber-900 bg-white hover:bg-amber-100 border border-amber-300 rounded px-2 py-1 font-bold flex items-center space-x-1 transition shadow-2xs"
+                        >
+                          <Save className="w-3 h-3 text-amber-700" />
+                          <span>{isSavingDiscount ? 'Kaydediliyor...' : 'Bu İndirimi Ürüne Kaydet'}</span>
+                        </button>
+                        {saveSuccessMsg && (
+                          <span className="text-[10px] font-bold text-emerald-700 animate-fadeIn">
+                            {saveSuccessMsg}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Baskı Adedi (Quantity Selection with Quick Chips) */}
@@ -918,7 +1323,7 @@ export const LabelPrinterModal: React.FC = () => {
                   <span>
                     {isPrinting
                       ? 'Yazdırılıyor...'
-                      : `${printQuantity} Adet ${orientation === 'HORIZONTAL' ? 'Yatay' : 'Dikey'} Etiket Yazdır`}
+                      : `${printQuantity} Adet ${printLayout === 'HORIZONTAL' ? 'Yatay' : '90° Dikey (Askı)'} Etiket Yazdır`}
                   </span>
                 </button>
 
@@ -960,9 +1365,25 @@ export const LabelPrinterModal: React.FC = () => {
                   <span>Canlı Termal Etiket Önizleme</span>
                 </span>
                 <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-bold border border-blue-200">
-                  {orientation === 'HORIZONTAL' ? '↔ Yatay' : '↕ Dikey'} ({labelWidth}x{labelHeight}mm)
+                  {printLayout === 'HORIZONTAL'
+                    ? `↔ Yatay (${labelWidth}x${labelHeight}mm)`
+                    : printLayout === 'ROTATED_VERTICAL'
+                    ? `↕ 90° Dikey (Rulo: ${labelWidth}x${labelHeight}mm)`
+                    : `↕ Dikey (${labelWidth}x${labelHeight}mm)`}
                 </span>
               </div>
+
+              {printLayout === 'ROTATED_VERTICAL' && (
+                <div className="w-full bg-blue-50/90 border border-blue-200 text-blue-900 rounded-lg p-2 text-[11px] font-bold flex items-center justify-between">
+                  <span className="flex items-center space-x-1.5">
+                    <TagIcon className="w-3.5 h-3.5 text-blue-700 shrink-0" />
+                    <span>Yatay {labelWidth}x{labelHeight} mm kağıda 90° döndürülerek basılır (Sıfır taşma!)</span>
+                  </span>
+                  <span className="bg-blue-600 text-white text-[9px] font-black px-2 py-0.5 rounded uppercase">
+                    Askı Modu
+                  </span>
+                </div>
+              )}
 
               {selectedVariant ? (
                 <div className="py-2 flex justify-center w-full">
@@ -970,59 +1391,84 @@ export const LabelPrinterModal: React.FC = () => {
                   <div
                     className="bg-white text-black border-2 border-slate-800 rounded shadow-md overflow-hidden flex flex-col justify-between select-none transition-all duration-200"
                     style={{
-                      width: orientation === 'HORIZONTAL' ? '280px' : '220px',
-                      aspectRatio: `${labelWidth} / ${labelHeight}`,
-                      padding: orientation === 'HORIZONTAL' ? '10px 12px' : '12px 10px',
+                      width: printLayout === 'HORIZONTAL' ? '280px' : '200px',
+                      aspectRatio: printLayout === 'HORIZONTAL'
+                        ? `${labelWidth} / ${labelHeight}`
+                        : printLayout === 'ROTATED_VERTICAL'
+                        ? `${labelHeight} / ${labelWidth}`
+                        : `${labelWidth} / ${labelHeight}`,
+                      padding: printLayout === 'HORIZONTAL' ? '10px 12px' : '12px 10px',
                     }}
                   >
-                    {orientation === 'HORIZONTAL' ? (
+                    {printLayout === 'HORIZONTAL' ? (
                       /* YATAY CANLI ÖNİZLEME */
                       <div className="h-full flex flex-col justify-between text-center">
-                        <div className="flex justify-between items-center text-[10px] font-extrabold border-b border-black pb-0.5">
+                        <div className="flex justify-between items-center text-xs font-black border-b border-black pb-0.5">
                           <span className="uppercase tracking-wider">{showStoreName ? effectiveStoreName : ''}</span>
-                          <span className="font-mono text-[9px]">KOD: {selectedVariant.sku || '-'}</span>
+                          <span className="font-mono text-[11px]">KOD: {selectedVariant.sku || '-'}</span>
                         </div>
 
                         <div className="my-auto py-1">
-                          <div className="font-black text-xs text-black leading-tight truncate">
+                          <div className="font-black text-[15px] text-black leading-snug line-clamp-2">
                             {selectedVariant.product?.name}
                           </div>
-                          <div className="text-[10px] font-bold text-black mt-0.5">
+                          <div className="text-xs font-black text-black mt-0.5">
                             Renk: {selectedVariant.attributes?.color || '-'} | Beden: {selectedVariant.attributes?.size || '-'}
                           </div>
                         </div>
 
-                        <div className="my-1 flex flex-col items-center">
+                        <div className="my-0.5 flex flex-col items-center">
                           <div
-                            className="w-[90%] max-h-[30px] flex items-center justify-center overflow-hidden"
+                            className="w-[90%] max-h-[26px] flex items-center justify-center overflow-hidden"
                             dangerouslySetInnerHTML={{ __html: previewBarcodeSvg }}
                           />
-                          <div className="font-mono text-[10px] font-black tracking-widest text-black mt-0.5">
+                          <div className="font-mono text-xs font-black tracking-widest text-black mt-0.5">
                             {selectedVariant.barcode}
                           </div>
                         </div>
 
-                        <div className="flex justify-between items-end border-t border-black pt-1">
-                          <span className="text-[8px] font-bold text-black">KDV DAHİLDİR</span>
-                          <span className="text-base font-black text-black leading-none">
-                            {selectedVariant.salePrice?.toFixed(2)} TL
-                          </span>
-                        </div>
+                        {/* FİYAT ALANI (DEVASA) */}
+                        {isDiscounted ? (
+                          <div className="flex justify-between items-center border-t-2 border-black pt-1">
+                            <div className="flex flex-col text-left">
+                              <span className="text-[8px] font-black text-slate-600 leading-none">ESKİ FİYAT</span>
+                              <span className="text-xs font-black text-slate-500 line-through leading-tight">
+                                {origPriceNum.toFixed(2)} TL
+                              </span>
+                            </div>
+                            <span className="bg-black text-white px-2 py-0.5 rounded text-xs font-black tracking-wider">
+                              -%{discountPct}
+                            </span>
+                            <div className="flex flex-col text-right">
+                              <span className="text-[8px] font-black text-black leading-none">İSKONTOLU FİYAT</span>
+                              <span className="text-3xl font-black text-black leading-none tracking-tight">
+                                {discPriceNum.toFixed(2)} TL
+                              </span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex justify-between items-end border-t-2 border-black pt-1">
+                            <span className="text-[9px] font-black text-black">KDV DAHİLDİR</span>
+                            <span className="text-3xl font-black text-black leading-none tracking-tight">
+                              {selectedVariant.salePrice?.toFixed(2)} TL
+                            </span>
+                          </div>
+                        )}
                       </div>
                     ) : (
-                      /* DİKEY CANLI ÖNİZLEME */
+                      /* DİKEY / 90° DÖNDÜRÜLMÜŞ CANLI ÖNİZLEME */
                       <div className="h-full flex flex-col justify-between text-center">
                         <div className="border-b-2 border-black pb-1 mb-1">
-                          <div className="font-black text-xs uppercase tracking-wider">
+                          <div className="font-black text-sm uppercase tracking-wider">
                             {showStoreName ? effectiveStoreName : ''}
                           </div>
                         </div>
 
-                        <div className="font-black text-xs text-black leading-snug line-clamp-2 my-1">
+                        <div className="font-black text-sm text-black leading-snug line-clamp-2 my-1">
                           {selectedVariant.product?.name}
                         </div>
 
-                        <div className="border border-black rounded p-1.5 my-1 text-left text-[10px] space-y-0.5 font-bold">
+                        <div className="border-2 border-black rounded p-1.5 my-1 text-left text-xs space-y-0.5 font-black">
                           <div className="flex justify-between">
                             <span className="text-slate-800">RENK:</span>
                             <span>{selectedVariant.attributes?.color || '-'}</span>
@@ -1037,22 +1483,39 @@ export const LabelPrinterModal: React.FC = () => {
                           </div>
                         </div>
 
-                        <div className="my-1 flex flex-col items-center">
+                        <div className="my-0.5 flex flex-col items-center">
                           <div
-                            className="w-[95%] max-h-[32px] flex items-center justify-center overflow-hidden"
+                            className="w-[92%] max-h-[26px] flex items-center justify-center overflow-hidden"
                             dangerouslySetInnerHTML={{ __html: previewBarcodeSvg }}
                           />
-                          <div className="font-mono text-[10px] font-black tracking-widest text-black mt-0.5">
+                          <div className="font-mono text-xs font-black tracking-widest text-black mt-0.5">
                             {selectedVariant.barcode}
                           </div>
                         </div>
 
-                        <div className="border-2 border-black p-1 text-center mt-1 bg-white">
-                          <div className="text-[8px] font-bold tracking-wider">FİYAT (KDV DAHİL)</div>
-                          <div className="text-base font-black text-black leading-none mt-0.5">
-                            {selectedVariant.salePrice?.toFixed(2)} TL
+                        {/* DİKEY FİYAT KUTUSU (DEVASA) */}
+                        {isDiscounted ? (
+                          <div className="border-2 border-black p-1.5 text-center mt-1 bg-white">
+                            <div className="flex justify-between items-center text-[10px] border-b border-black pb-0.5 mb-0.5 font-bold">
+                              <span className="text-slate-600">LİSTE:</span>
+                              <span className="line-through text-slate-500 font-black">{origPriceNum.toFixed(2)} TL</span>
+                            </div>
+                            <div className="bg-black text-white text-[11px] font-black py-0.5 px-1 rounded uppercase tracking-wider mb-0.5">
+                              %{discountPct} İSKONTOLU
+                            </div>
+                            <div className="text-[8px] font-black text-black">İNDİRİMLİ SATIŞ FİYATI</div>
+                            <div className="text-3xl font-black text-black leading-none mt-0.5 tracking-tight">
+                              {discPriceNum.toFixed(2)} TL
+                            </div>
                           </div>
-                        </div>
+                        ) : (
+                          <div className="border-2 border-black p-1.5 text-center mt-1 bg-white">
+                            <div className="text-[9px] font-bold tracking-wider">FİYAT (KDV DAHİL)</div>
+                            <div className="text-3xl font-black text-black leading-none mt-0.5 tracking-tight">
+                              {selectedVariant.salePrice?.toFixed(2)} TL
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

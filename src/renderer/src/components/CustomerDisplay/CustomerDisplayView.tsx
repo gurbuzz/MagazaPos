@@ -549,62 +549,75 @@ export const CustomerDisplayView: React.FC = () => {
               </div>
 
               {/* Bottom Notice */}
-              <div className="px-6 py-3 bg-white/[0.03] border-t border-white/10 text-sm text-blue-300/90 font-medium flex items-center justify-between shrink-0">
-                <span className="flex items-center space-x-2">
-                  <ShieldCheck className="w-4.5 h-4.5 text-emerald-400" />
+              <div className="px-5 py-2 bg-white/[0.03] border-t border-white/10 text-xs text-blue-300/90 font-medium flex items-center justify-between shrink-0">
+                <span className="flex items-center space-x-1.5">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
                   <span>256-bit Uçtan Uca Şifreli Güvenli Tahsilat</span>
                 </span>
-                <span className="font-bold text-white text-sm">
+                <span className="font-bold text-white text-xs">
                   {data.cartItems.reduce((acc, i) => acc + i.quantity, 0)} Ürün
                 </span>
               </div>
             </div>
 
             {/* Right 42%: Order Summary & Giant Amount Due Card with Right Entrance Animation */}
-            <div className="flex-[2] flex flex-col justify-between space-y-3 min-h-0 animate-panel-right">
+            <div className="flex-[2] flex flex-col justify-between space-y-2.5 min-h-0 animate-panel-right">
               {/* Compact Cart Items Recap */}
-              <div className="bg-slate-900/55 border border-white/15 rounded-3xl p-4 md:p-5 backdrop-blur-2xl shadow-xl flex-1 flex flex-col min-h-0">
-                <div className="flex items-center justify-between pb-2.5 border-b border-white/10 mb-2 shrink-0">
-                  <span className="text-sm font-black text-blue-200 uppercase tracking-wider flex items-center space-x-2">
-                    <Receipt className="w-4.5 h-4.5 text-blue-400" />
+              <div className="bg-slate-900/55 border border-white/15 rounded-2xl p-3.5 md:p-4 backdrop-blur-2xl shadow-xl flex-1 flex flex-col min-h-0">
+                <div className="flex items-center justify-between pb-2 border-b border-white/10 mb-2 shrink-0">
+                  <span className="text-xs font-black text-blue-200 uppercase tracking-wider flex items-center space-x-1.5">
+                    <Receipt className="w-4 h-4 text-blue-400" />
                     <span>Sipariş Özeti</span>
                   </span>
-                  <span className="text-sm font-bold text-blue-300/80">
+                  <span className="text-xs font-bold text-blue-300/80">
                     {data.cartItems.length} Kalem
                   </span>
                 </div>
 
                 {/* Items scroll */}
-                <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 min-h-0">
-                  {data.cartItems.map((item, idx) => (
-                    <div
-                      key={item.variantId || idx}
-                      className="flex items-center justify-between p-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] text-sm"
-                    >
-                      <div className="flex-1 min-w-0 pr-2">
-                        <div className="font-bold text-white truncate text-sm md:text-base">{item.productName}</div>
-                        {!data.hidePrices ? (
-                          <div className="text-xs md:text-sm text-blue-300/80 mt-0.5">
-                            {item.quantity} Adet × {item.unitPrice.toFixed(2)} ₺
-                          </div>
-                        ) : (
-                          <div className="text-xs md:text-sm text-blue-300/80 mt-0.5">
-                            {item.quantity} Adet
-                          </div>
+                <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-0">
+                  {data.cartItems.map((item, idx) => {
+                    const isDiscounted = item.originalPrice && item.originalPrice > item.unitPrice
+                    return (
+                      <div
+                        key={item.variantId || idx}
+                        className="flex items-center justify-between p-2 rounded-xl bg-white/[0.04] border border-white/[0.08] text-xs"
+                      >
+                        <div className="flex-1 min-w-0 pr-2">
+                          <div className="font-bold text-white truncate text-xs md:text-sm">{item.productName}</div>
+                          {!data.hidePrices ? (
+                            <div className="text-[11px] text-blue-300/80 mt-0.5">
+                              {item.quantity} Adet × 
+                              {isDiscounted ? (
+                                <>
+                                  <span className="line-through text-slate-400 mx-1">
+                                    {(item.originalPrice ?? 0).toFixed(2)} ₺
+                                  </span>
+                                  <span className="text-rose-300 font-bold">
+                                    {item.unitPrice.toFixed(2)} ₺
+                                  </span>
+                                </>
+                              ) : (
+                                <span className="ml-1">{item.unitPrice.toFixed(2)} ₺</span>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="text-[11px] text-blue-300/80 mt-0.5">{item.quantity} Adet</div>
+                          )}
+                        </div>
+                        {!data.hidePrices && (
+                          <span className="font-black font-mono text-white shrink-0 text-xs md:text-sm">
+                            {item.totalPrice.toFixed(2)} ₺
+                          </span>
                         )}
                       </div>
-                      {!data.hidePrices && (
-                        <span className="font-black font-mono text-white shrink-0 text-base md:text-lg">
-                          {item.totalPrice.toFixed(2)} ₺
-                        </span>
-                      )}
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
 
                 {/* Breakdown totals or Stock item count */}
                 {!data.hidePrices ? (
-                  <div className="pt-3 border-t border-white/10 space-y-1.5 text-sm md:text-base shrink-0">
+                  <div className="pt-2 border-t border-white/10 space-y-1 text-xs md:text-sm shrink-0">
                     <div className="flex justify-between text-blue-200/90 font-medium">
                       <span>Ara Toplam:</span>
                       <span className="font-bold text-white">
@@ -629,7 +642,7 @@ export const CustomerDisplayView: React.FC = () => {
                     )}
                   </div>
                 ) : (
-                  <div className="pt-3 border-t border-white/10 space-y-1.5 text-sm md:text-base shrink-0">
+                  <div className="pt-2 border-t border-white/10 space-y-1 text-xs md:text-sm shrink-0">
                     <div className="flex justify-between text-blue-200/90 font-medium">
                       <span>Toplam Parça:</span>
                       <span className="font-bold text-white">
@@ -641,80 +654,81 @@ export const CustomerDisplayView: React.FC = () => {
               </div>
 
               {/* GIANT TOTAL DUE CARD / STOCK CARD */}
-              <div className="bg-gradient-to-br from-[#00268A]/90 via-[#0a359e]/80 to-[#1e3a8a]/70 border-2 border-blue-400/60 rounded-2xl p-5 md:p-6 text-center shadow-2xl backdrop-blur-xl text-white shrink-0">
-                <span className="text-sm md:text-base font-black text-blue-200 uppercase tracking-widest block mb-1">
+              <div className="bg-gradient-to-br from-[#00268A]/90 via-[#0a359e]/80 to-[#1e3a8a]/70 border-2 border-blue-400/60 rounded-2xl p-3.5 md:p-4 text-center shadow-xl backdrop-blur-xl text-white shrink-0">
+                <span className="text-xs md:text-sm font-black text-blue-200 uppercase tracking-widest block mb-0.5">
                   {!data.hidePrices ? 'ÖDENECEK TOPLAM TUTAR' : 'TOPLAM ÜRÜN ADEDİ'}
                 </span>
-                <div className="text-6xl md:text-7xl font-black text-white tracking-tight drop-shadow-md">
+                <div className="text-4xl md:text-5xl font-black text-white tracking-tight drop-shadow-md">
                   {!data.hidePrices ? (
                     <>
                       {data.total.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}{' '}
-                      <span className="text-4xl text-blue-200 font-bold">₺</span>
+                      <span className="text-2xl md:text-3xl text-blue-200 font-bold">₺</span>
                     </>
                   ) : (
                     <>
                       {data.cartItems.reduce((acc, item) => acc + item.quantity, 0)}{' '}
-                      <span className="text-3xl text-blue-200 font-bold">ADET</span>
+                      <span className="text-2xl text-blue-200 font-bold">ADET</span>
                     </>
                   )}
                 </div>
-                <div className="text-xs md:text-sm text-blue-200 font-bold mt-2">
+                <div className="text-xs text-blue-200 font-bold mt-1">
                   {!data.hidePrices ? 'Net Tutar' : 'Stok Çıkış Listesi'}
                 </div>
               </div>
             </div>
           </div>
         ) : hasCart ? (
-          /* CASE 3: ACTIVE SHOPPING CART (BALANCED TRANSLUCENT LOOK) */
-          <div className="flex-1 flex overflow-hidden gap-4 md:gap-5 min-h-0">
+          /* CASE 3: ACTIVE SHOPPING CART (STREAMLINED TRANSLUCENT LOOK) */
+          <div className="flex-1 flex overflow-hidden gap-3.5 md:gap-4 min-h-0">
             {/* Left 58%: Real-Time Cart Items List */}
-            <div className="flex-[3] flex flex-col bg-slate-900/55 border border-white/15 rounded-3xl overflow-hidden backdrop-blur-2xl shadow-2xl min-h-0 animate-panel-left">
-              {/* Cart List Header (No duplicate logo inside scene) */}
-              <div className="px-6 py-4 border-b border-white/10 bg-white/[0.04] flex items-center justify-between shrink-0">
-                <div className="flex items-center space-x-3">
-                  <ShoppingBag className="w-6 h-6 text-blue-400" />
-                  <h2 className="text-xl md:text-2xl font-black text-white tracking-wide">
+            <div className="flex-[3] flex flex-col bg-slate-900/55 border border-white/15 rounded-2xl overflow-hidden backdrop-blur-2xl shadow-xl min-h-0 animate-panel-left">
+              {/* Cart List Header */}
+              <div className="px-5 py-2.5 border-b border-white/10 bg-white/[0.04] flex items-center justify-between shrink-0">
+                <div className="flex items-center space-x-2.5">
+                  <ShoppingBag className="w-5 h-5 text-blue-400" />
+                  <h2 className="text-lg md:text-xl font-black text-white tracking-wide">
                     Alışveriş Sepetiniz
                   </h2>
                 </div>
-                <span className="px-4 py-1 rounded-full bg-blue-500/25 text-blue-200 border border-blue-400/40 text-sm font-black">
-                  {data.cartItems.reduce((acc, item) => acc + item.quantity, 0)} Kalem
+                <span className="px-3 py-0.5 rounded-full bg-blue-500/25 text-blue-200 border border-blue-400/40 text-xs font-black">
+                  {data.cartItems.reduce((acc, item) => acc + item.quantity, 0)} Ürün
                 </span>
               </div>
 
               {/* Items List - Fully Scrollable */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
+              <div className="flex-1 overflow-y-auto p-3 space-y-2.5 min-h-0">
                 {data.cartItems.map((item, idx) => {
                   const isLastItem = idx === data.cartItems.length - 1
+                  const isDiscounted = item.originalPrice && item.originalPrice > item.unitPrice
                   return (
                     <div
                       key={item.variantId || idx}
-                      className={`p-3.5 rounded-2xl border transition-all flex items-center justify-between ${
+                      className={`p-3 rounded-xl border transition-all flex items-center justify-between ${
                         isLastItem
-                          ? 'bg-blue-500/20 border-blue-400/60 shadow-lg ring-1 ring-blue-400/40'
+                          ? 'bg-blue-500/20 border-blue-400/60 shadow-md ring-1 ring-blue-400/40'
                           : 'bg-white/[0.04] border-white/10 hover:bg-white/[0.08]'
                       }`}
                     >
                       <div className="flex-1 mr-3 min-w-0">
-                        <div className="flex items-center space-x-2.5">
-                          <h3 className="text-lg md:text-xl font-black text-white leading-snug truncate">
+                        <div className="flex items-center space-x-2">
+                          <h3 className="text-base md:text-lg font-black text-white leading-snug truncate">
                             {item.productName}
                           </h3>
                           {isLastItem && (
-                            <span className="px-2.5 py-0.5 rounded-full bg-blue-500/40 text-blue-100 border border-blue-400/50 text-xs font-black uppercase shrink-0 shadow-2xs">
-                              Yeni Eklendi
+                            <span className="px-2 py-0.5 rounded-full bg-blue-500/40 text-blue-100 border border-blue-400/50 text-[10px] font-black uppercase shrink-0 shadow-2xs">
+                              Yeni
                             </span>
                           )}
                         </div>
 
-                        <div className="flex items-center space-x-2.5 mt-1.5 text-sm text-blue-200/80">
+                        <div className="flex items-center space-x-2 mt-1 text-xs text-blue-200/80">
                           {(item.attributes?.color || item.attributes?.size) && (
-                            <span className="px-3 py-0.5 rounded-md bg-white/10 text-white font-bold border border-white/15 text-xs md:text-sm">
+                            <span className="px-2.5 py-0.5 rounded-md bg-white/10 text-white font-bold border border-white/15 text-xs">
                               {item.attributes.color || '-'} / {item.attributes.size || '-'}
                             </span>
                           )}
                           {item.barcode && (
-                            <span className="font-mono text-blue-300 font-semibold text-xs md:text-sm">
+                            <span className="font-mono text-blue-300 font-semibold text-xs">
                               {item.barcode}
                             </span>
                           )}
@@ -722,20 +736,31 @@ export const CustomerDisplayView: React.FC = () => {
                       </div>
 
                       {/* Quantity & Unit Price */}
-                      <div className="text-right flex items-center space-x-4 shrink-0">
-                        <div className="text-center bg-white/10 px-3.5 py-2 rounded-xl border border-white/15 min-w-[55px]">
-                          <span className="text-xs text-blue-200 uppercase block font-black">
+                      <div className="text-right flex items-center space-x-3 shrink-0">
+                        <div className="text-center bg-white/10 px-3 py-1.5 rounded-xl border border-white/15 min-w-[50px]">
+                          <span className="text-[10px] text-blue-200 uppercase block font-black">
                             Adet
                           </span>
-                          <span className="text-2xl md:text-3xl font-black text-white">{item.quantity}</span>
+                          <span className="text-xl md:text-2xl font-black text-white">{item.quantity}</span>
                         </div>
 
                         {!data.hidePrices && (
-                          <div className="text-right min-w-[110px]">
-                            <span className="text-xs md:text-sm text-blue-200/80 block font-medium">
-                              Birim: {item.unitPrice.toFixed(2)} ₺
-                            </span>
-                            <span className="text-2xl md:text-3xl font-black text-white">
+                          <div className="text-right min-w-[105px]">
+                            {isDiscounted ? (
+                              <div className="flex flex-col items-end">
+                                <span className="text-[11px] text-rose-300 line-through font-medium leading-none">
+                                  {(item.originalPrice ?? 0).toFixed(2)} ₺
+                                </span>
+                                <span className="text-[11px] text-emerald-300 font-bold leading-tight">
+                                  İskontolu: {item.unitPrice.toFixed(2)} ₺
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-blue-200/80 block font-medium">
+                                Birim: {item.unitPrice.toFixed(2)} ₺
+                              </span>
+                            )}
+                            <span className="text-xl md:text-2xl font-black text-white">
                               {item.totalPrice.toFixed(2)} ₺
                             </span>
                           </div>
@@ -746,155 +771,132 @@ export const CustomerDisplayView: React.FC = () => {
                 })}
                 <div ref={cartBottomRef} />
               </div>
-
-              {/* Bottom Notice */}
-              <div className="px-6 py-2.5 bg-white/[0.03] border-t border-white/10 text-xs md:text-sm text-blue-300/90 font-medium flex items-center justify-between shrink-0">
-                <span>Fişinizle 14 gün içinde değişim yapılabilir.</span>
-                <span className="text-blue-300 font-semibold">Keyifli Alışverişler Dileriz</span>
-              </div>
             </div>
 
-            {/* Right 42%: Financial Summary & Total Box OR Stock Summary Box */}
-            <div className="flex-[2] flex flex-col justify-between space-y-3 min-h-0 overflow-y-auto animate-panel-right">
+            {/* Right 42%: Financial Summary & Total Box */}
+            <div className="flex-[2] flex flex-col justify-between space-y-2.5 min-h-0 overflow-y-auto animate-panel-right">
               {data.hidePrices ? (
-                /* Stock Only Mode: No Financials, Clean Items Summary */
-                <div className="bg-slate-900/55 border border-white/15 rounded-3xl p-6 backdrop-blur-2xl space-y-5 shadow-2xl flex-1 flex flex-col justify-between">
-                  <div className="space-y-4">
-                    <div className="flex items-center space-x-2.5 text-rose-300 border-b border-white/10 pb-3">
-                      <ShoppingBag className="w-5 h-5" />
-                      <span className="text-base md:text-lg font-black uppercase tracking-wider">
+                /* Stock Only Mode: Clean Items Summary */
+                <div className="bg-slate-900/55 border border-white/15 rounded-2xl p-5 backdrop-blur-2xl space-y-4 shadow-xl flex-1 flex flex-col justify-between">
+                  <div className="space-y-3">
+                    <div className="flex items-center space-x-2 text-rose-300 border-b border-white/10 pb-2.5">
+                      <ShoppingBag className="w-4.5 h-4.5" />
+                      <span className="text-base font-black uppercase tracking-wider">
                         Ürün & Stok Bilgisi
                       </span>
                     </div>
 
-                    <div className="space-y-2.5 text-blue-100">
-                      <div className="flex justify-between items-center bg-white/[0.04] p-3.5 rounded-xl border border-white/10">
-                        <span className="text-blue-200 font-semibold text-base">Toplam Çeşit:</span>
-                        <span className="font-black text-white text-lg md:text-xl">
+                    <div className="space-y-2 text-blue-100">
+                      <div className="flex justify-between items-center bg-white/[0.04] p-3 rounded-xl border border-white/10">
+                        <span className="text-blue-200 font-semibold text-sm">Toplam Çeşit:</span>
+                        <span className="font-black text-white text-base md:text-lg">
                           {data.cartItems.length} Kalem
                         </span>
                       </div>
-                      <div className="flex justify-between items-center bg-white/[0.04] p-3.5 rounded-xl border border-white/10">
-                        <span className="text-blue-200 font-semibold text-base">Toplam Ürün Adedi:</span>
-                        <span className="font-black text-white text-lg md:text-xl">
+                      <div className="flex justify-between items-center bg-white/[0.04] p-3 rounded-xl border border-white/10">
+                        <span className="text-blue-200 font-semibold text-sm">Toplam Ürün Adedi:</span>
+                        <span className="font-black text-white text-base md:text-lg">
                           {data.cartItems.reduce((acc, item) => acc + item.quantity, 0)} Adet
                         </span>
                       </div>
                     </div>
                   </div>
 
-                  <div className="bg-gradient-to-br from-[#00268A]/90 via-[#0a359e]/80 to-[#1e3a8a]/70 border-2 border-blue-400/60 rounded-2xl p-5 md:p-6 text-center shadow-2xl backdrop-blur-xl text-white shrink-0">
-                    <span className="text-sm md:text-base font-black text-blue-200 uppercase tracking-widest block mb-1">
+                  <div className="bg-gradient-to-br from-[#00268A]/90 via-[#0a359e]/80 to-[#1e3a8a]/70 border-2 border-blue-400/60 rounded-2xl p-4 md:p-5 text-center shadow-xl backdrop-blur-xl text-white shrink-0">
+                    <span className="text-xs md:text-sm font-black text-blue-200 uppercase tracking-widest block mb-0.5">
                       SEPETTEKİ TOPLAM ÜRÜN
                     </span>
-                    <div className="text-6xl md:text-7xl font-black text-white tracking-tight drop-shadow-md">
+                    <div className="text-5xl md:text-6xl font-black text-white tracking-tight drop-shadow-md">
                       {data.cartItems.reduce((acc, item) => acc + item.quantity, 0)}{' '}
-                      <span className="text-3xl text-blue-200 font-bold">ADET</span>
+                      <span className="text-2xl text-blue-200 font-bold">ADET</span>
                     </div>
-                    <div className="text-xs md:text-sm text-blue-200 font-bold mt-2">
+                    <div className="text-xs text-blue-200 font-bold mt-1.5">
                       Stok Çıkış Listesi
                     </div>
-                  </div>
-
-                  <div className="text-center text-xs md:text-sm text-blue-200/80 font-medium pt-1">
-                    <span>Keyifli Alışverişler Dileriz</span>
                   </div>
                 </div>
               ) : (
                 <>
                   {/* Active Campaign Card if applied */}
                   {data.activeCampaign && (
-                    <div className="bg-amber-500/20 border border-amber-400/40 rounded-2xl p-3.5 flex items-center justify-between backdrop-blur-xl shadow-md shrink-0">
-                      <div className="flex items-center space-x-3">
-                        <div className="p-2.5 rounded-xl bg-amber-500/30 text-amber-300 border border-amber-400/40 shadow-xs">
-                          <Tag className="w-4.5 h-4.5" />
+                    <div className="bg-amber-500/20 border border-amber-400/40 rounded-xl p-2.5 flex items-center justify-between backdrop-blur-xl shadow-sm shrink-0">
+                      <div className="flex items-center space-x-2">
+                        <div className="p-1.5 rounded-lg bg-amber-500/30 text-amber-300 border border-amber-400/40 shadow-2xs">
+                          <Tag className="w-3.5 h-3.5" />
                         </div>
                         <div>
-                          <span className="text-xs font-black text-amber-300 uppercase tracking-wide block">
-                            Uygulanan Kampanya
+                          <span className="text-[10px] font-black text-amber-300 uppercase tracking-wide block leading-none">
+                            Kampanya
                           </span>
-                          <span className="text-base md:text-lg font-black text-white">
+                          <span className="text-sm font-black text-white leading-tight">
                             {data.activeCampaign.name}
                           </span>
                         </div>
                       </div>
                       {data.discountAmount > 0 && (
-                        <span className="text-base font-black text-amber-200 bg-amber-400/30 px-3.5 py-1.5 rounded-xl border border-amber-400/40">
+                        <span className="text-sm font-black text-amber-200 bg-amber-400/30 px-2.5 py-0.5 rounded-lg border border-amber-400/40">
                           -{data.discountAmount.toFixed(2)} ₺
                         </span>
                       )}
                       {(data.surchargeAmount ?? 0) > 0 && (
-                        <span className="text-base font-black text-orange-200 bg-orange-500/30 px-3.5 py-1.5 rounded-xl border border-orange-400/40">
+                        <span className="text-sm font-black text-orange-200 bg-orange-500/30 px-2.5 py-0.5 rounded-lg border border-orange-400/40">
                           +{(data.surchargeAmount ?? 0).toFixed(2)} ₺
                         </span>
                       )}
                     </div>
                   )}
 
-                  {/* Subtotal & Giant Total Due Card (WITHOUT CALCULATED VAT) */}
-                  <div className="bg-slate-900/55 border border-white/15 rounded-3xl p-5 md:p-6 backdrop-blur-2xl space-y-4 shadow-2xl flex-1 flex flex-col justify-between">
-                    <div className="space-y-2.5 pb-3.5 border-b border-white/10 shrink-0">
-                      <div className="flex justify-between items-center text-base md:text-lg">
+                  {/* Subtotal & Giant Total Due Card */}
+                  <div className="bg-slate-900/55 border border-white/15 rounded-2xl p-3.5 md:p-4 backdrop-blur-2xl space-y-2.5 shadow-xl flex-1 flex flex-col justify-between">
+                    <div className="space-y-1.5 pb-2 border-b border-white/10 shrink-0">
+                      <div className="flex justify-between items-center text-sm md:text-base">
                         <span className="text-blue-200 font-semibold">Ara Toplam</span>
-                        <span className="font-black text-white text-lg md:text-xl">
+                        <span className="font-black text-white text-base md:text-lg">
                           {data.subtotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
                         </span>
                       </div>
 
                       {data.discountAmount > 0 && (
-                        <div className="flex justify-between items-center text-base md:text-lg text-amber-300 font-black">
-                          <span className="flex items-center space-x-2">
-                            <Tag className="w-4 h-4" />
+                        <div className="flex justify-between items-center text-sm md:text-base text-amber-300 font-black">
+                          <span className="flex items-center space-x-1.5">
+                            <Tag className="w-3.5 h-3.5" />
                             <span>İndirim Tutarı</span>
                           </span>
-                          <span className="text-lg md:text-xl">
+                          <span className="text-base md:text-lg">
                             -{data.discountAmount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
                           </span>
                         </div>
                       )}
 
                       {(data.surchargeAmount ?? 0) > 0 && (
-                        <div className="flex justify-between items-center text-base md:text-lg text-orange-400 font-black">
-                          <span className="flex items-center space-x-2">
-                            <CreditCard className="w-4 h-4" />
+                        <div className="flex justify-between items-center text-sm md:text-base text-orange-400 font-black">
+                          <span className="flex items-center space-x-1.5">
+                            <CreditCard className="w-3.5 h-3.5" />
                             <span>Taksit / Vade Farkı</span>
                           </span>
-                          <span className="text-lg md:text-xl">
+                          <span className="text-base md:text-lg">
                             +{(data.surchargeAmount ?? 0).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
                           </span>
                         </div>
                       )}
                     </div>
 
-                    {/* GIANT TOTAL CARD: Jack & Jones Corporate Navy with Glass Depth */}
-                    <div className="bg-gradient-to-br from-[#00268A]/90 via-[#0a359e]/80 to-[#1e3a8a]/70 border-2 border-blue-400/60 rounded-2xl p-5 md:p-6 text-center shadow-2xl relative overflow-hidden backdrop-blur-xl text-white shrink-0">
-                      <span className="text-sm md:text-base font-black text-blue-200 uppercase tracking-widest block mb-1">
+                    {/* GIANT TOTAL CARD */}
+                    <div className="bg-gradient-to-br from-[#00268A]/90 via-[#0a359e]/80 to-[#1e3a8a]/70 border-2 border-blue-400/60 rounded-2xl p-3.5 md:p-4 text-center shadow-xl relative overflow-hidden backdrop-blur-xl text-white shrink-0">
+                      <span className="text-xs font-black text-blue-200 uppercase tracking-widest block mb-0.5">
                         ÖDENECEK TOPLAM TUTAR
                       </span>
-                      <div className="text-6xl md:text-7xl font-black text-white tracking-tight drop-shadow-md">
+                      <div className="text-4xl md:text-5xl font-black text-white tracking-tight drop-shadow-md">
                         {data.total.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}{' '}
-                        <span className="text-4xl text-blue-200 font-bold">₺</span>
+                        <span className="text-2xl md:text-3xl text-blue-200 font-bold">₺</span>
                       </div>
                     </div>
 
-                    {/* Accepted Payment badges */}
-                    <div className="text-center space-y-2 shrink-0 pt-1">
-                      <span className="text-xs md:text-sm text-blue-200/90 block font-semibold">
-                        Kredi Kartı, Temassız veya Nakit Ödeme Kabul Edilir
-                      </span>
-                      <div className="flex items-center justify-center space-x-2.5 text-sm">
-                        <span className="px-3 py-1 rounded-lg bg-white/10 border border-white/15 text-white font-bold text-xs md:text-sm">
-                          Temassız
-                        </span>
-                        <span className="px-3 py-1 rounded-lg bg-white/10 border border-white/15 text-white font-bold text-xs md:text-sm">
-                          Troy
-                        </span>
-                        <span className="px-3 py-1 rounded-lg bg-white/10 border border-white/15 text-white font-bold text-xs md:text-sm">
-                          Visa / Mastercard
-                        </span>
-                        <span className="px-3 py-1 rounded-lg bg-white/10 border border-white/15 text-white font-bold text-xs md:text-sm">
-                          Nakit
-                        </span>
+                    {/* Compact Single-Line Payment Pill */}
+                    <div className="text-center shrink-0 pt-0.5">
+                      <div className="inline-flex items-center space-x-2 px-3 py-0.5 rounded-full bg-white/[0.06] border border-white/10 text-[11px] md:text-xs text-blue-200/90 font-medium">
+                        <CreditCard className="w-3.5 h-3.5 text-blue-300" />
+                        <span>Nakit, Kredi Kartı ve Temassız Geçerlidir</span>
                       </div>
                     </div>
                   </div>
@@ -996,14 +998,14 @@ export const CustomerDisplayView: React.FC = () => {
       </main>
 
       {/* FOOTER: Crisp, Legible Footer Pinned to Bottom */}
-      <footer className="h-7 md:h-8 bg-slate-900/80 backdrop-blur-2xl border-t border-white/10 px-5 md:px-6 flex items-center justify-between text-xs text-blue-300/80 z-10 shrink-0">
+      <footer className="h-7 bg-slate-900/85 backdrop-blur-2xl border-t border-white/10 px-5 flex items-center justify-between text-[11px] text-blue-300/80 z-10 shrink-0">
         <div className="flex items-center space-x-2">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="font-bold text-xs text-blue-100">Kasa Aktif & Canlı Bağlantı</span>
+          <span className="font-bold text-blue-100">Kasa Aktif & Canlı Bağlantı</span>
         </div>
 
         <div>
-          <span className="text-[10px] md:text-xs text-blue-300/60 font-semibold tracking-wider uppercase">
+          <span className="text-[10px] md:text-[11px] text-blue-300/60 font-semibold tracking-wider uppercase">
             Design & Architecture by Atacan Gürbüz
           </span>
         </div>

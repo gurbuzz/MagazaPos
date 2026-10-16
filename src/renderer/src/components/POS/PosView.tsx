@@ -597,9 +597,16 @@ export const PosView: React.FC = () => {
                         {v.attributes?.color || ''} {v.attributes?.size || ''}
                       </span>
                       {!isStockOnlyMode && (
-                        <span className="font-extrabold text-emerald-700 group-hover:text-white">
-                          {v.salePrice}₺
-                        </span>
+                        v.discountPrice && v.discountPrice > 0 ? (
+                          <span className="flex items-center space-x-1">
+                            <span className="text-[10px] text-slate-400 line-through">{v.salePrice}₺</span>
+                            <span className="font-extrabold text-rose-600">{v.discountPrice}₺</span>
+                          </span>
+                        ) : (
+                          <span className="font-extrabold text-emerald-700 group-hover:text-white">
+                            {v.salePrice}₺
+                          </span>
+                        )
                       )}
                     </button>
                   ))}
@@ -730,9 +737,16 @@ export const PosView: React.FC = () => {
 
                   {!isStockOnlyMode && (
                     <div className="text-right">
-                      <span className="text-xs text-slate-500 font-medium block">
-                        Birim: {(item.unitPrice || 0).toFixed(2)}₺
-                      </span>
+                      {item.originalPrice && item.originalPrice > item.unitPrice ? (
+                        <div className="flex items-center space-x-1 justify-end text-[11px]">
+                          <span className="text-slate-400 line-through">{(item.originalPrice).toFixed(2)}₺</span>
+                          <span className="text-rose-600 font-bold">{(item.unitPrice).toFixed(2)}₺</span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-slate-500 font-medium block">
+                          Birim: {(item.unitPrice || 0).toFixed(2)}₺
+                        </span>
+                      )}
                       <span className="font-extrabold text-slate-900 text-sm">
                         {(item.totalPrice || 0).toFixed(2)} ₺
                       </span>

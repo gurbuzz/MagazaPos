@@ -38,6 +38,7 @@ model ProductVariant {
   attributes    String          // JSON string: e.g. '{"color":"Kırmızı","size":"M"}'
   costPrice     Float           @default(0)
   salePrice     Float
+  discountPrice Float?
   stockQuantity Int             @default(0)
   saleItems     SaleItem[]
   stockMovements StockMovement[]

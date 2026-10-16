@@ -45,6 +45,7 @@ export const StockView: React.FC = () => {
   const [editSize, setEditSize] = useState('')
   const [editSalePrice, setEditSalePrice] = useState('')
   const [editCostPrice, setEditCostPrice] = useState('')
+  const [editDiscountPrice, setEditDiscountPrice] = useState('')
   const [editBarcode, setEditBarcode] = useState('')
   const [editStockVal, setEditStockVal] = useState('')
 
@@ -80,6 +81,7 @@ export const StockView: React.FC = () => {
   const [newVarBarcode, setNewVarBarcode] = useState('')
   const [newVarSalePrice, setNewVarSalePrice] = useState('')
   const [newVarCostPrice, setNewVarCostPrice] = useState('')
+  const [newVarDiscountPrice, setNewVarDiscountPrice] = useState('')
   const [newVarStockQty, setNewVarStockQty] = useState('1')
   const [isCreatingVariant, setIsCreatingVariant] = useState(false)
   const newVarBarcodeInputRef = useRef<HTMLInputElement>(null)
@@ -93,6 +95,7 @@ export const StockView: React.FC = () => {
   const [quickColor, setQuickColor] = useState('Siyah')
   const [quickSize, setQuickSize] = useState('M')
   const [quickSalePrice, setQuickSalePrice] = useState('150')
+  const [quickDiscountPrice, setQuickDiscountPrice] = useState('')
   const [quickCostPrice, setQuickCostPrice] = useState('75')
   const [quickQty, setQuickQty] = useState('1')
   const [isQuickSubmitting, setIsQuickSubmitting] = useState(false)
@@ -117,6 +120,7 @@ export const StockView: React.FC = () => {
   const [newBrand, setNewBrand] = useState('')
   const [newCategoryId, setNewCategoryId] = useState('')
   const [newBasePrice, setNewBasePrice] = useState('')
+  const [newDiscountPrice, setNewDiscountPrice] = useState('')
   const [newStockQuantity, setNewStockQuantity] = useState('0')
   const [newColor, setNewColor] = useState('Siyah')
   const [newSize, setNewSize] = useState('M')
@@ -303,6 +307,7 @@ export const StockView: React.FC = () => {
           attributes: { color: clr, size: sz },
           costPrice: costPriceNum,
           salePrice: salePriceNum,
+          discountPrice: quickDiscountPrice ? parseDecimal(quickDiscountPrice) : null,
           stockQuantity: qtyNum,
         },
       ],
@@ -321,6 +326,7 @@ export const StockView: React.FC = () => {
           `✅ Yeni ürün "${quickName}" (${clr} / ${sz}) tanımlandı ve +${qtyNum} adet stoğa eklendi!`
         )
         setQuickName('')
+        setQuickDiscountPrice('')
         setScannedBarcode('')
         setUnregisteredBarcode(null)
         setScannedQty('1')
@@ -568,9 +574,18 @@ export const StockView: React.FC = () => {
             row[13]
           )
 
-          const costPrice = parseDecimal(
+          const discountPrice = parseDecimal(
             dict['fiyat iskontolu'] ||
             dict['iskontolu fiyat'] ||
+            dict['indirimli fiyat'] ||
+            dict['indirimli satış fiyatı'] ||
+            dict['indirimli satis fiyati'] ||
+            dict['discount price'] ||
+            dict['discount'] ||
+            row[14]
+          )
+
+          const costPrice = parseDecimal(
             dict['tsftl'] ||
             dict['tsf'] ||
             dict['alış fiyatı'] ||
@@ -616,6 +631,7 @@ export const StockView: React.FC = () => {
             existing.quantity += quantity
             if (salePrice > 0) existing.salePrice = Math.round(salePrice * 100) / 100
             if (costPrice > 0) existing.costPrice = Math.round(costPrice * 100) / 100
+            if (discountPrice > 0) existing.discountPrice = Math.round(discountPrice * 100) / 100
           } else {
             itemsMap.set(rawBarcode, {
               code: code || `PRD-${rawBarcode.slice(-6)}`,
@@ -627,6 +643,7 @@ export const StockView: React.FC = () => {
               size: size || 'Standart',
               costPrice: isNaN(costPrice) ? 0 : Math.round(costPrice * 100) / 100,
               salePrice: isNaN(salePrice) ? 0 : Math.round(salePrice * 100) / 100,
+              discountPrice: discountPrice > 0 ? Math.round(discountPrice * 100) / 100 : null,
               quantity,
             })
           }
@@ -682,6 +699,7 @@ export const StockView: React.FC = () => {
     setEditSize(variant.attributes?.size || '')
     setEditSalePrice(variant.salePrice?.toString() || '0')
     setEditCostPrice(variant.costPrice?.toString() || '0')
+    setEditDiscountPrice(variant.discountPrice ? variant.discountPrice.toString() : '')
     setEditBarcode(variant.barcode || '')
     setEditStockVal(variant.stockQuantity?.toString() || '0')
   }
@@ -711,6 +729,7 @@ export const StockView: React.FC = () => {
           size: editSize,
           salePrice: parseDecimal(editSalePrice),
           costPrice: parseDecimal(editCostPrice),
+          discountPrice: editDiscountPrice ? parseDecimal(editDiscountPrice) : null,
           barcode: editBarcode,
           stockQuantity: parseInt(editStockVal || '0', 10),
           note: 'Varyant detay ve stok düzeltme',
@@ -855,6 +874,7 @@ export const StockView: React.FC = () => {
           barcode: newVarBarcode.trim(),
           salePrice: parseDecimal(newVarSalePrice) || selectedProduct.basePrice,
           costPrice: parseDecimal(newVarCostPrice) || ((parseDecimal(newVarSalePrice) || selectedProduct.basePrice) * 0.5),
+          discountPrice: newVarDiscountPrice ? parseDecimal(newVarDiscountPrice) : null,
           stockQuantity: parseInt(newVarStockQty) || 0,
         }),
       })
@@ -863,6 +883,7 @@ export const StockView: React.FC = () => {
       if (res.ok) {
         setIsAddVariantModalOpen(false)
         setNewVarBarcode('')
+        setNewVarDiscountPrice('')
         setNewVarStockQty('1')
         setHighlightedVariantId(data.id)
         setScanToast({
@@ -930,6 +951,7 @@ export const StockView: React.FC = () => {
           attributes: { color: newColor, size: newSize },
           costPrice: parseDecimal(newBasePrice || '100') * 0.5,
           salePrice: parseDecimal(newBasePrice || '100'),
+          discountPrice: newDiscountPrice ? parseDecimal(newDiscountPrice) : null,
           stockQuantity: parseInt(newStockQuantity || '0', 10),
         },
       ],
@@ -948,6 +970,8 @@ export const StockView: React.FC = () => {
         setNewName('')
         setNewBarcode('')
         setNewCategoryId('')
+        setNewBasePrice('')
+        setNewDiscountPrice('')
         setNewStockQuantity('0')
         fetchProducts()
         fetchCategories()
@@ -1345,6 +1369,7 @@ export const StockView: React.FC = () => {
                     setNewVarSize('M')
                     setNewVarSalePrice(selectedProduct.basePrice?.toString() || '100')
                     setNewVarCostPrice(((parseFloat(selectedProduct.basePrice) || 100) * 0.5).toString())
+                    setNewVarDiscountPrice('')
                     setNewVarBarcode('')
                     setNewVarStockQty('1')
                     setIsAddVariantModalOpen(true)
@@ -1401,7 +1426,22 @@ export const StockView: React.FC = () => {
                               {v.barcode}
                             </span>
                           </td>
-                          <td className="px-5 py-3 font-bold text-emerald-700">{(Number(v.salePrice) || 0).toFixed(2)} ₺</td>
+                          <td className="px-5 py-3">
+                            {v.discountPrice && v.discountPrice > 0 ? (
+                              <div className="flex flex-col">
+                                <span className="line-through text-slate-400 text-xs font-normal">
+                                  {(Number(v.salePrice) || 0).toFixed(2)} ₺
+                                </span>
+                                <span className="font-extrabold text-rose-600 text-sm">
+                                  {(Number(v.discountPrice) || 0).toFixed(2)} ₺
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="font-bold text-emerald-700">
+                                {(Number(v.salePrice) || 0).toFixed(2)} ₺
+                              </span>
+                            )}
+                          </td>
                           <td className="px-5 py-3">
                             <span
                               className={`px-2 py-0.5 rounded text-[11px] font-semibold border ${
@@ -1649,21 +1689,40 @@ export const StockView: React.FC = () => {
                           />
                         </div>
                       </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Satış Fiyatı (₺) *</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={quickSalePrice}
-                          onChange={(e) => setQuickSalePrice(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault()
-                              handleQuickCreateAndStock()
-                            }
-                          }}
-                          className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded text-xs font-bold text-emerald-700"
-                        />
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Satış Fiyatı (₺) *</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={quickSalePrice}
+                            onChange={(e) => setQuickSalePrice(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault()
+                                handleQuickCreateAndStock()
+                              }
+                            }}
+                            className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded text-xs font-bold text-emerald-700"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-rose-700 uppercase mb-0.5">İskontolu Fiyat (₺)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            placeholder="Opsiyonel"
+                            value={quickDiscountPrice}
+                            onChange={(e) => setQuickDiscountPrice(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault()
+                                handleQuickCreateAndStock()
+                              }
+                            }}
+                            className="w-full px-2.5 py-1.5 bg-slate-50 border border-rose-300 rounded text-xs font-bold text-rose-600"
+                          />
+                        </div>
                       </div>
                       <div>
                         <label className="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Giriş Stoğu (Adet) *</label>
@@ -1760,7 +1819,7 @@ export const StockView: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-slate-700 font-semibold mb-1">Satış Fiyatı (₺)</label>
                   <input
@@ -1770,6 +1829,17 @@ export const StockView: React.FC = () => {
                     onChange={(e) => setEditSalePrice(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-bold text-emerald-700 focus:ring-1 focus:ring-indigo-600"
                     required
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">İskontolu Fiyat (₺)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="Opsiyonel"
+                    value={editDiscountPrice}
+                    onChange={(e) => setEditDiscountPrice(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-bold text-rose-600 focus:ring-1 focus:ring-indigo-600"
                   />
                 </div>
                 <div>
@@ -2031,15 +2101,25 @@ export const StockView: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Taban Fiyat (TL)</label>
+                  <label className="block text-slate-700 font-semibold mb-1">Satış Fiyatı (TL)</label>
                   <input
                     type="number"
                     value={newBasePrice}
                     onChange={(e) => setNewBasePrice(e.target.value)}
                     placeholder="100"
-                    className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-semibold focus:ring-1 focus:ring-blue-600"
+                    className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-bold text-emerald-700 focus:ring-1 focus:ring-blue-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">İskontolu Fiyat (TL)</label>
+                  <input
+                    type="number"
+                    value={newDiscountPrice}
+                    onChange={(e) => setNewDiscountPrice(e.target.value)}
+                    placeholder="Opsiyonel"
+                    className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-bold text-rose-600 focus:ring-1 focus:ring-blue-600"
                   />
                 </div>
                 <div>
@@ -2431,7 +2511,7 @@ export const StockView: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-slate-700 font-semibold mb-1">Satış Fiyatı (₺) *</label>
                   <input
@@ -2441,6 +2521,17 @@ export const StockView: React.FC = () => {
                     onChange={(e) => setNewVarSalePrice(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-bold text-emerald-700 focus:ring-1 focus:ring-blue-600"
                     required
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">İskontolu Fiyat (₺)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="Opsiyonel"
+                    value={newVarDiscountPrice}
+                    onChange={(e) => setNewVarDiscountPrice(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-bold text-rose-600 focus:ring-1 focus:ring-blue-600"
                   />
                 </div>
                 <div>

@@ -10,6 +10,7 @@ export interface CartItem {
   barcode: string
   attributes: { color?: string; size?: string }
   unitPrice: number
+  originalPrice?: number
   quantity: number
   totalPrice: number
 }
@@ -276,7 +277,12 @@ export const usePosStore = create<PosState>((set, get) => ({
         }
       }
 
-      const unitPrice = Math.round((Number(variant.salePrice) || 0) * 100) / 100
+      const salePriceNum = Math.round((Number(variant.salePrice) || 0) * 100) / 100
+      const rawDisc = variant.discountPrice !== undefined && variant.discountPrice !== null ? Number(variant.discountPrice) : null
+      const discPriceNum = rawDisc !== null && !isNaN(rawDisc) ? Math.round(rawDisc * 100) / 100 : null
+      const hasDiscount = discPriceNum !== null && discPriceNum > 0 && discPriceNum < salePriceNum
+      const unitPrice = hasDiscount && discPriceNum !== null ? discPriceNum : salePriceNum
+
       const newItem: CartItem = {
         variantId: variant.id,
         productId: variant.productId || variant.product?.id,
@@ -286,6 +292,7 @@ export const usePosStore = create<PosState>((set, get) => ({
         barcode: variant.barcode,
         attributes: attrs,
         unitPrice,
+        originalPrice: hasDiscount ? salePriceNum : undefined,
         quantity: 1,
         totalPrice: unitPrice,
       }

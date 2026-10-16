@@ -197,6 +197,7 @@ productRouter.post('/', async (req, res) => {
                 attributes: attrs,
                 costPrice: parseFloat(v.costPrice || 0),
                 salePrice: parseFloat(v.salePrice || basePrice || 0),
+                discountPrice: v.discountPrice ? parseFloat(v.discountPrice) : null,
                 stockQuantity: parseInt(v.stockQuantity || 0)
               }
             })
@@ -235,7 +236,7 @@ productRouter.post('/', async (req, res) => {
 productRouter.post('/:id/variants', async (req, res) => {
   try {
     const { id } = req.params
-    const { color, size, barcode, salePrice, costPrice, stockQuantity } = req.body
+    const { color, size, barcode, salePrice, costPrice, discountPrice, stockQuantity } = req.body
 
     const product = await prisma.product.findUnique({ where: { id } })
     if (!product) {
@@ -266,6 +267,9 @@ productRouter.post('/:id/variants', async (req, res) => {
     const sku = `${product.code}-${clr.toUpperCase()}-${sz.toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`
     const sPrice = parseFloat(salePrice) || product.basePrice
     const cPrice = parseFloat(costPrice) || (sPrice * 0.5)
+    const dPrice = discountPrice !== undefined && discountPrice !== null && discountPrice !== '' && !isNaN(parseFloat(discountPrice)) && parseFloat(discountPrice) > 0
+      ? parseFloat(discountPrice)
+      : null
     const qty = parseInt(stockQuantity) || 0
 
     const newVariant = await prisma.$transaction(async (tx) => {
@@ -277,6 +281,7 @@ productRouter.post('/:id/variants', async (req, res) => {
           attributes: JSON.stringify({ color: clr, size: sz }),
           costPrice: cPrice,
           salePrice: sPrice,
+          discountPrice: dPrice,
           stockQuantity: qty
         },
         include: {
@@ -336,6 +341,7 @@ productRouter.post('/import', async (req, res) => {
         const brand = String(row.brand || 'Marka').trim()
         const costPrice = parseDecimal(row.costPrice)
         const salePrice = parseDecimal(row.salePrice)
+        const discountPrice = parseDecimal(row.discountPrice || row.indirimliFiyat || row.iskontoluFiyat)
         const quantity = parseInt(row.quantity) || 0
 
         if (!name || !barcode) {
@@ -366,6 +372,7 @@ productRouter.post('/import', async (req, res) => {
           }
           if (salePrice > 0) updateData.salePrice = salePrice
           if (costPrice > 0) updateData.costPrice = costPrice
+          if (discountPrice > 0) updateData.discountPrice = discountPrice
 
           if (Object.keys(updateData).length > 0) {
             await tx.productVariant.update({
@@ -415,6 +422,7 @@ productRouter.post('/import', async (req, res) => {
             attributes: JSON.stringify({ color, size }),
             costPrice,
             salePrice: salePrice > 0 ? salePrice : product.basePrice,
+            discountPrice: discountPrice > 0 ? discountPrice : null,
             stockQuantity: quantity
           }
         })
@@ -594,7 +602,7 @@ productRouter.put('/:id', requireAdminPinAuth, async (req, res) => {
 productRouter.put('/variants/:id', requireAdminPinAuth, async (req, res) => {
   try {
     const { id } = req.params
-    const { salePrice, costPrice, barcode, color, size, stockQuantity, note } = req.body
+    const { salePrice, costPrice, discountPrice, barcode, color, size, stockQuantity, note } = req.body
 
     if (barcode && barcode.trim()) {
       const trimmedBarcode = barcode.trim()
@@ -635,6 +643,11 @@ productRouter.put('/variants/:id', requireAdminPinAuth, async (req, res) => {
         data: {
           ...(salePrice !== undefined && { salePrice: parseFloat(salePrice) }),
           ...(costPrice !== undefined && { costPrice: parseFloat(costPrice) }),
+          ...(discountPrice !== undefined && {
+            discountPrice: (discountPrice !== null && discountPrice !== '' && !isNaN(parseFloat(discountPrice)) && parseFloat(discountPrice) > 0)
+              ? parseFloat(discountPrice)
+              : null
+          }),
           ...(barcode !== undefined && { barcode: barcode.trim() }),
           attributes: JSON.stringify(newAttrs),
           ...(stockQuantity !== undefined && { stockQuantity: newStock }),
