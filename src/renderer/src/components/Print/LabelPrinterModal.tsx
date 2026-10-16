@@ -101,6 +101,7 @@ export const LabelPrinterModal: React.FC = () => {
   const [labelWidth, setLabelWidth] = useState<number>(60)
   const [labelHeight, setLabelHeight] = useState<number>(40)
   const [showStoreName, setShowStoreName] = useState<boolean>(true)
+  const [fontScale, setFontScale] = useState<'COMPACT' | 'NORMAL' | 'LARGE'>('NORMAL')
 
   // Print controls
   const [printQuantity, setPrintQuantity] = useState<number>(1)
@@ -302,9 +303,11 @@ export const LabelPrinterModal: React.FC = () => {
     if (!selectedVariant) return ''
     const code = selectedVariant.barcode || selectedVariant.sku || '123456789012'
     const isVertical = printLayout === 'ROTATED_VERTICAL' || printLayout === 'NATURAL_VERTICAL'
-    const svgHeight = isVertical ? 22 : 24
+    let svgHeight = isVertical ? 20 : 22
+    if (fontScale === 'COMPACT') svgHeight = Math.max(16, svgHeight - 4)
+    if (fontScale === 'LARGE') svgHeight += 3
     return generateCode128Svg(code, svgHeight)
-  }, [selectedVariant, printLayout, labelHeight, labelWidth])
+  }, [selectedVariant, printLayout, labelHeight, labelWidth, fontScale])
 
   // Build Full HTML Document for Silent Thermal Printing
   const buildPrintHtml = (copiesCount: number) => {
@@ -323,7 +326,50 @@ export const LabelPrinterModal: React.FC = () => {
     const isNaturalVertical = printLayout === 'NATURAL_VERTICAL'
     const isAnyVertical = isRotatedVertical || isNaturalVertical
 
-    const svgHeight = isAnyVertical ? 22 : 24
+    const isTiny = labelHeight <= 25 || labelWidth <= 45
+    const isSmall = labelHeight < 35 || labelWidth < 50
+
+    // Horizontal text size calculations
+    let hPriceFont = fontScale === 'COMPACT' ? 18 : fontScale === 'LARGE' ? 24 : 21
+    let hDiscPriceFont = fontScale === 'COMPACT' ? 16 : fontScale === 'LARGE' ? 22 : 19
+    let hTitleFont = fontScale === 'COMPACT' ? 10 : fontScale === 'LARGE' ? 12 : 11
+    let hStoreFont = fontScale === 'COMPACT' ? 9 : fontScale === 'LARGE' ? 11 : 10
+    let hBarcodeH = fontScale === 'COMPACT' ? 18 : fontScale === 'LARGE' ? 22 : 20
+
+    if (isTiny) {
+      hPriceFont = 14
+      hDiscPriceFont = 13
+      hTitleFont = 9
+      hStoreFont = 8
+      hBarcodeH = 14
+    } else if (isSmall) {
+      hPriceFont = Math.min(hPriceFont, 17)
+      hDiscPriceFont = Math.min(hDiscPriceFont, 16)
+      hTitleFont = Math.min(hTitleFont, 10)
+      hBarcodeH = Math.min(hBarcodeH, 18)
+    }
+
+    // Vertical / Rotated Vertical (usable width is narrower, e.g. 40mm)
+    let vPriceFont = fontScale === 'COMPACT' ? 18 : fontScale === 'LARGE' ? 24 : 21
+    let vDiscPriceFont = fontScale === 'COMPACT' ? 16 : fontScale === 'LARGE' ? 21 : 19
+    let vTitleFont = fontScale === 'COMPACT' ? 9.5 : fontScale === 'LARGE' ? 11.5 : 10.5
+    let vStoreFont = fontScale === 'COMPACT' ? 9 : fontScale === 'LARGE' ? 11 : 10
+    let vBarcodeH = fontScale === 'COMPACT' ? 16 : fontScale === 'LARGE' ? 20 : 18
+
+    if (isTiny) {
+      vPriceFont = 14
+      vDiscPriceFont = 13
+      vTitleFont = 8.5
+      vStoreFont = 8
+      vBarcodeH = 13
+    } else if (isSmall) {
+      vPriceFont = Math.min(vPriceFont, 17)
+      vDiscPriceFont = Math.min(vDiscPriceFont, 16)
+      vTitleFont = Math.min(vTitleFont, 9.5)
+      vBarcodeH = Math.min(vBarcodeH, 16)
+    }
+
+    const svgHeight = isAnyVertical ? vBarcodeH : hBarcodeH
     const vectorBarcodeSvg = generateCode128Svg(barcode, svgHeight)
 
     const horizontalPriceSection = isDiscounted
@@ -469,86 +515,112 @@ export const LabelPrinterModal: React.FC = () => {
               break-after: page;
               background-color: #ffffff !important;
               color: #000000 !important;
+              box-sizing: border-box;
             }
 
             /* YATAY (HORIZONTAL) STİL */
             .horizontal {
-              padding: 1.8mm 2.2mm;
+              width: ${labelWidth}mm;
+              height: ${labelHeight}mm;
+              padding: 1.5mm 2mm;
               display: flex;
               flex-direction: column;
               justify-content: space-between;
               text-align: center;
+              box-sizing: border-box;
+              overflow: hidden;
             }
             .horizontal .h-header {
               display: flex;
               justify-content: space-between;
               align-items: center;
               border-bottom: 0.8px solid #000;
-              padding-bottom: 1px;
+              padding-bottom: 0.5px;
+              line-height: 1;
             }
             .horizontal .store-name {
               text-transform: uppercase;
-              font-size: 12.5px;
+              font-size: ${hStoreFont}px;
               font-weight: 900;
-              letter-spacing: 0.8px;
+              letter-spacing: 0.5px;
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              max-width: 60%;
             }
             .horizontal .sku-text {
               font-family: 'Courier New', monospace;
-              font-size: 10px;
+              font-size: ${Math.max(7.5, hStoreFont - 1.5)}px;
               font-weight: 800;
+              white-space: nowrap;
             }
             .horizontal .product-title {
-              font-size: 15px;
+              font-size: ${hTitleFont}px;
               font-weight: 900;
               line-height: 1.15;
-              max-height: 34px;
+              max-height: 25px;
               overflow: hidden;
               margin: 1px 0;
               color: #000;
+              word-break: break-word;
             }
             .horizontal .variant-info {
-              font-size: 12px;
+              font-size: ${Math.max(8, hTitleFont - 1.5)}px;
               font-weight: 800;
               color: #000;
+              line-height: 1.1;
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
             }
             .horizontal .barcode-wrap {
               display: flex;
               flex-direction: column;
               align-items: center;
               justify-content: center;
-              margin: 1px 0;
+              margin: 0.5px 0;
+              overflow: hidden;
             }
             .horizontal .svg-container {
-              width: 90%;
+              width: 85%;
+              max-height: ${hBarcodeH}px;
               display: flex;
               align-items: center;
               justify-content: center;
+              overflow: hidden;
             }
             .horizontal .barcode-number {
               font-family: 'Courier New', monospace;
-              font-size: 12.5px;
+              font-size: ${Math.max(8, hStoreFont - 0.5)}px;
               font-weight: 900;
-              letter-spacing: 1.5px;
-              margin-top: 1px;
+              letter-spacing: 1.2px;
+              margin-top: 0.5px;
               color: #000;
+              line-height: 1;
+              white-space: nowrap;
             }
             .horizontal .price-row {
               display: flex;
               justify-content: space-between;
               align-items: flex-end;
-              border-top: 1.8px solid #000;
+              border-top: 1.2px solid #000;
               padding-top: 1px;
+              margin-top: 0.5px;
             }
             .horizontal .kdv-tag {
-              font-size: 8.5px;
+              font-size: 7.5px;
               font-weight: 900;
-              letter-spacing: 0.5px;
+              letter-spacing: 0.3px;
+              line-height: 1;
+              padding-bottom: 1px;
+              white-space: nowrap;
             }
             .horizontal .price-val {
-              font-size: 34px;
+              font-size: ${hPriceFont}px;
               font-weight: 900;
-              letter-spacing: -1px;
-              line-height: 0.95;
+              letter-spacing: -0.5px;
+              line-height: 1;
+              white-space: nowrap;
             }
 
             /* YATAY İSKONTOLU FİYAT */
@@ -556,55 +628,65 @@ export const LabelPrinterModal: React.FC = () => {
               display: flex;
               justify-content: space-between;
               align-items: center;
-              border-top: 1.8px solid #000;
+              border-top: 1.2px solid #000;
               padding-top: 1px;
+              margin-top: 0.5px;
             }
             .horizontal .old-price-col {
               display: flex;
               flex-direction: column;
               align-items: flex-start;
               text-align: left;
+              line-height: 1;
+              white-space: nowrap;
             }
             .horizontal .old-price-lbl {
-              font-size: 8px;
+              font-size: 6.5px;
               font-weight: 900;
-              color: #222;
+              color: #333;
             }
             .horizontal .old-price-val {
-              font-size: 13px;
+              font-size: 10px;
               font-weight: 900;
               text-decoration: line-through;
               line-height: 1.1;
+              white-space: nowrap;
             }
             .horizontal .badge-col {
               display: flex;
               align-items: center;
-              padding: 0 4px;
+              padding: 0 2px;
+              white-space: nowrap;
             }
             .horizontal .discount-badge {
               background: #000 !important;
               color: #fff !important;
-              font-size: 13px;
+              font-size: 9.5px;
               font-weight: 900;
-              padding: 2.5px 6px;
-              border-radius: 3px;
-              letter-spacing: 0.5px;
+              padding: 1.5px 4px;
+              border-radius: 2px;
+              letter-spacing: 0.3px;
+              white-space: nowrap;
             }
             .horizontal .new-price-col {
               display: flex;
               flex-direction: column;
               align-items: flex-end;
               text-align: right;
+              line-height: 1;
+              white-space: nowrap;
             }
             .horizontal .new-price-lbl {
-              font-size: 8px;
+              font-size: 6.5px;
               font-weight: 900;
+              color: #000;
             }
             .horizontal .new-price-val {
-              font-size: 34px;
+              font-size: ${hDiscPriceFont}px;
               font-weight: 900;
-              letter-spacing: -1px;
-              line-height: 0.95;
+              letter-spacing: -0.5px;
+              line-height: 1;
+              white-space: nowrap;
             }
 
             /* ROTATED 90 DEGREE VERTICAL (Yatay Ruloya 90° Dikey Baskı) */
@@ -622,47 +704,66 @@ export const LabelPrinterModal: React.FC = () => {
               display: flex;
               flex-direction: column;
               justify-content: space-between;
-              padding: 1.8mm 2.2mm;
+              padding: 1.5mm 2mm;
               box-sizing: border-box;
               text-align: center;
               background-color: #fff !important;
               color: #000 !important;
+              overflow: hidden;
             }
 
             /* DİKEY (VERTICAL) ORTAK STİL */
+            .vertical {
+              padding: 1.5mm 2mm;
+              display: flex;
+              flex-direction: column;
+              justify-content: space-between;
+              text-align: center;
+              box-sizing: border-box;
+              overflow: hidden;
+            }
             .vertical, .rotated-vertical-inner {
               text-align: center;
             }
             .vertical .v-header, .rotated-vertical-inner .v-header {
-              border-bottom: 1.5px solid #000;
-              padding-bottom: 1.5px;
-              margin-bottom: 1px;
+              border-bottom: 1.2px solid #000;
+              padding-bottom: 1px;
+              margin-bottom: 0.5px;
+              line-height: 1;
             }
             .vertical .store-name, .rotated-vertical-inner .store-name {
-              font-size: 13.5px;
+              font-size: ${vStoreFont}px;
               font-weight: 900;
-              letter-spacing: 1px;
+              letter-spacing: 0.8px;
               text-transform: uppercase;
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
             }
             .vertical .product-title, .rotated-vertical-inner .product-title {
-              font-size: 14px;
+              font-size: ${vTitleFont}px;
               font-weight: 900;
               line-height: 1.15;
-              margin: 1px 0;
+              max-height: 25px;
+              overflow: hidden;
+              margin: 0.5px 0;
               color: #000;
+              word-break: break-word;
             }
             .vertical .attributes-grid, .rotated-vertical-inner .attributes-grid {
-              border: 1.2px solid #000;
-              border-radius: 3px;
-              padding: 2.5px 4px;
-              margin: 1.5px 0;
-              font-size: 11px;
+              border: 1px solid #000;
+              border-radius: 2px;
+              padding: 1.5px 3px;
+              margin: 1px 0;
+              font-size: 8.5px;
               text-align: left;
+              line-height: 1.15;
             }
             .vertical .attr-row, .rotated-vertical-inner .attr-row {
               display: flex;
               justify-content: space-between;
-              line-height: 1.25;
+              line-height: 1.2;
+              white-space: nowrap;
             }
             .vertical .attr-lbl, .rotated-vertical-inner .attr-lbl {
               font-weight: 700;
@@ -675,90 +776,103 @@ export const LabelPrinterModal: React.FC = () => {
               flex-direction: column;
               align-items: center;
               justify-content: center;
-              margin: 1.5px 0;
+              margin: 0.5px 0;
+              overflow: hidden;
             }
             .vertical .svg-container, .rotated-vertical-inner .svg-container {
-              width: 92%;
+              width: 88%;
+              max-height: ${vBarcodeH}px;
               display: flex;
               align-items: center;
               justify-content: center;
+              overflow: hidden;
             }
             .vertical .barcode-number, .rotated-vertical-inner .barcode-number {
               font-family: 'Courier New', monospace;
-              font-size: 12px;
+              font-size: 9px;
               font-weight: 900;
-              letter-spacing: 1.5px;
-              margin-top: 1px;
+              letter-spacing: 1px;
+              margin-top: 0.5px;
+              line-height: 1;
+              white-space: nowrap;
             }
             .vertical .price-box, .rotated-vertical-inner .price-box {
-              border: 2px solid #000;
+              border: 1.5px solid #000;
               background-color: #fff;
-              padding: 2.5px 2px;
-              margin-top: 1.5px;
+              padding: 1.5px 2px;
+              margin-top: 1px;
             }
             .vertical .price-label, .rotated-vertical-inner .price-label {
-              font-size: 8.5px;
-              font-weight: 900;
-              letter-spacing: 0.5px;
+              font-size: 7.5px;
+              font-weight: 800;
+              letter-spacing: 0.3px;
+              line-height: 1;
+              white-space: nowrap;
             }
             .vertical .price-val, .rotated-vertical-inner .price-val {
-              font-size: 36px;
+              font-size: ${vPriceFont}px;
               font-weight: 900;
-              letter-spacing: -1px;
-              line-height: 0.95;
+              letter-spacing: -0.5px;
+              line-height: 1;
+              white-space: nowrap;
             }
 
             /* DİKEY İSKONTOLU FİYAT */
             .vertical .discounted-box, .rotated-vertical-inner .discounted-box {
-              border: 2px solid #000;
+              border: 1.5px solid #000;
               background-color: #fff;
-              padding: 2px 3px;
-              margin-top: 1.5px;
+              padding: 1.5px 2px;
+              margin-top: 1px;
             }
             .vertical .v-old-row, .rotated-vertical-inner .v-old-row {
               display: flex;
               justify-content: space-between;
               align-items: center;
-              font-size: 10px;
+              font-size: 8px;
               font-weight: 800;
-              border-bottom: 1px dashed #000;
-              padding-bottom: 1px;
-              margin-bottom: 1px;
+              border-bottom: 0.8px dashed #000;
+              padding-bottom: 0.5px;
+              margin-bottom: 0.5px;
+              white-space: nowrap;
             }
             .vertical .v-old-lbl, .rotated-vertical-inner .v-old-lbl {
-              font-size: 8px;
-              color: #222;
+              font-size: 7px;
+              color: #333;
               font-weight: 900;
             }
             .vertical .v-old-val, .rotated-vertical-inner .v-old-val {
-              font-size: 12.5px;
+              font-size: 9.5px;
               text-decoration: line-through;
               font-weight: 900;
+              white-space: nowrap;
             }
             .vertical .v-badge-tag, .rotated-vertical-inner .v-badge-tag {
               background: #000 !important;
               color: #fff !important;
-              font-size: 11.5px;
+              font-size: 8.5px;
               font-weight: 900;
               text-align: center;
-              padding: 1.5px;
-              letter-spacing: 0.5px;
+              padding: 1px;
+              letter-spacing: 0.3px;
               border-radius: 2px;
-              margin: 1px 0;
+              margin: 0.5px 0;
+              white-space: nowrap;
             }
             .vertical .v-new-row, .rotated-vertical-inner .v-new-row {
               text-align: center;
-              padding-top: 1px;
+              padding-top: 0.5px;
+              white-space: nowrap;
             }
             .vertical .v-new-lbl, .rotated-vertical-inner .v-new-lbl {
-              font-size: 8px;
+              font-size: 6.5px;
               font-weight: 900;
             }
             .vertical .v-new-val, .rotated-vertical-inner .v-new-val {
-              font-size: 36px;
+              font-size: ${vDiscPriceFont}px;
               font-weight: 900;
-              letter-spacing: -1px;
-              line-height: 0.95;
+              letter-spacing: -0.5px;
+              line-height: 1;
+              white-space: nowrap;
             }
           </style>
         </head>
@@ -1120,6 +1234,51 @@ export const LabelPrinterModal: React.FC = () => {
                 </div>
               </div>
 
+              {/* Font / Yazı Boyutu Seçimi (Taşma Koruması) */}
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 space-y-1.5">
+                <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
+                  <span>Yazı & Fiyat Boyutu (Taşma Koruması)</span>
+                  <span className="text-[10px] text-blue-700 font-bold">
+                    {fontScale === 'COMPACT' ? 'Kompakt (Dar)' : fontScale === 'NORMAL' ? 'Standart (Önerilen)' : 'Büyük'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setFontScale('COMPACT')}
+                    className={`py-1.5 px-2 rounded-lg border text-xs font-bold transition cursor-pointer text-center ${
+                      fontScale === 'COMPACT'
+                        ? 'bg-blue-700 text-white border-blue-700 shadow-2xs'
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    Kompakt (Dar)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFontScale('NORMAL')}
+                    className={`py-1.5 px-2 rounded-lg border text-xs font-bold transition cursor-pointer text-center ${
+                      fontScale === 'NORMAL'
+                        ? 'bg-blue-700 text-white border-blue-700 shadow-2xs'
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    Standart
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFontScale('LARGE')}
+                    className={`py-1.5 px-2 rounded-lg border text-xs font-bold transition cursor-pointer text-center ${
+                      fontScale === 'LARGE'
+                        ? 'bg-blue-700 text-white border-blue-700 shadow-2xs'
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    Büyük Yazı
+                  </button>
+                </div>
+              </div>
+
               {/* Custom Dimensions (Width / Height mm) & Dimension Swap */}
               <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 space-y-2">
                 <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
@@ -1397,51 +1556,57 @@ export const LabelPrinterModal: React.FC = () => {
                         : printLayout === 'ROTATED_VERTICAL'
                         ? `${labelHeight} / ${labelWidth}`
                         : `${labelWidth} / ${labelHeight}`,
-                      padding: printLayout === 'HORIZONTAL' ? '10px 12px' : '12px 10px',
+                      padding: printLayout === 'HORIZONTAL' ? '8px 10px' : '10px 8px',
                     }}
                   >
                     {printLayout === 'HORIZONTAL' ? (
                       /* YATAY CANLI ÖNİZLEME */
-                      <div className="h-full flex flex-col justify-between text-center">
-                        <div className="flex justify-between items-center text-xs font-black border-b border-black pb-0.5">
-                          <span className="uppercase tracking-wider">{showStoreName ? effectiveStoreName : ''}</span>
-                          <span className="font-mono text-[11px]">KOD: {selectedVariant.sku || '-'}</span>
+                      <div className="h-full flex flex-col justify-between text-center overflow-hidden">
+                        <div className="flex justify-between items-center text-[11px] font-black border-b border-black pb-0.5">
+                          <span className="uppercase tracking-wider truncate max-w-[60%] text-left">
+                            {showStoreName ? effectiveStoreName : ''}
+                          </span>
+                          <span className="font-mono text-[10px] shrink-0">KOD: {selectedVariant.sku || '-'}</span>
                         </div>
 
-                        <div className="my-auto py-1">
-                          <div className="font-black text-[15px] text-black leading-snug line-clamp-2">
+                        <div className="my-auto py-0.5">
+                          <div className={`font-black text-black leading-snug line-clamp-2 ${
+                            fontScale === 'COMPACT' ? 'text-xs' : fontScale === 'LARGE' ? 'text-sm' : 'text-[13px]'
+                          }`}>
                             {selectedVariant.product?.name}
                           </div>
-                          <div className="text-xs font-black text-black mt-0.5">
+                          <div className="text-[10px] font-bold text-black mt-0.5 truncate">
                             Renk: {selectedVariant.attributes?.color || '-'} | Beden: {selectedVariant.attributes?.size || '-'}
                           </div>
                         </div>
 
                         <div className="my-0.5 flex flex-col items-center">
                           <div
-                            className="w-[90%] max-h-[26px] flex items-center justify-center overflow-hidden"
+                            className="w-[85%] max-h-[22px] flex items-center justify-center overflow-hidden"
                             dangerouslySetInnerHTML={{ __html: previewBarcodeSvg }}
                           />
-                          <div className="font-mono text-xs font-black tracking-widest text-black mt-0.5">
+                          <div className="font-mono text-[11px] font-black tracking-widest text-black mt-0.5">
                             {selectedVariant.barcode}
                           </div>
                         </div>
 
-                        {/* FİYAT ALANI (DEVASA) */}
+                        {/* FİYAT ALANI (DENGELİ VE TAŞMAZ) */}
                         {isDiscounted ? (
                           <div className="flex justify-between items-center border-t-2 border-black pt-1">
-                            <div className="flex flex-col text-left">
+                            <div className="flex flex-col text-left shrink-0">
                               <span className="text-[8px] font-black text-slate-600 leading-none">ESKİ FİYAT</span>
-                              <span className="text-xs font-black text-slate-500 line-through leading-tight">
+                              <span className="text-[11px] font-black text-slate-500 line-through leading-tight">
                                 {origPriceNum.toFixed(2)} TL
                               </span>
                             </div>
-                            <span className="bg-black text-white px-2 py-0.5 rounded text-xs font-black tracking-wider">
+                            <span className="bg-black text-white px-1.5 py-0.5 rounded text-[10px] font-black tracking-wider shrink-0 mx-1">
                               -%{discountPct}
                             </span>
-                            <div className="flex flex-col text-right">
+                            <div className="flex flex-col text-right shrink-0">
                               <span className="text-[8px] font-black text-black leading-none">İSKONTOLU FİYAT</span>
-                              <span className="text-3xl font-black text-black leading-none tracking-tight">
+                              <span className={`font-black text-black leading-none tracking-tight ${
+                                fontScale === 'COMPACT' ? 'text-lg' : fontScale === 'LARGE' ? 'text-2xl' : 'text-xl'
+                              }`}>
                                 {discPriceNum.toFixed(2)} TL
                               </span>
                             </div>
@@ -1449,7 +1614,9 @@ export const LabelPrinterModal: React.FC = () => {
                         ) : (
                           <div className="flex justify-between items-end border-t-2 border-black pt-1">
                             <span className="text-[9px] font-black text-black">KDV DAHİLDİR</span>
-                            <span className="text-3xl font-black text-black leading-none tracking-tight">
+                            <span className={`font-black text-black leading-none tracking-tight ${
+                              fontScale === 'COMPACT' ? 'text-xl' : fontScale === 'LARGE' ? 'text-3xl' : 'text-2xl'
+                            }`}>
                               {selectedVariant.salePrice?.toFixed(2)} TL
                             </span>
                           </div>
@@ -1457,21 +1624,23 @@ export const LabelPrinterModal: React.FC = () => {
                       </div>
                     ) : (
                       /* DİKEY / 90° DÖNDÜRÜLMÜŞ CANLI ÖNİZLEME */
-                      <div className="h-full flex flex-col justify-between text-center">
-                        <div className="border-b-2 border-black pb-1 mb-1">
-                          <div className="font-black text-sm uppercase tracking-wider">
+                      <div className="h-full flex flex-col justify-between text-center overflow-hidden">
+                        <div className="border-b-2 border-black pb-0.5 mb-0.5">
+                          <div className="font-black text-xs uppercase tracking-wider truncate">
                             {showStoreName ? effectiveStoreName : ''}
                           </div>
                         </div>
 
-                        <div className="font-black text-sm text-black leading-snug line-clamp-2 my-1">
+                        <div className={`font-black text-black leading-snug line-clamp-2 my-0.5 ${
+                          fontScale === 'COMPACT' ? 'text-[11px]' : fontScale === 'LARGE' ? 'text-sm' : 'text-xs'
+                        }`}>
                           {selectedVariant.product?.name}
                         </div>
 
-                        <div className="border-2 border-black rounded p-1.5 my-1 text-left text-xs space-y-0.5 font-black">
+                        <div className="border border-black rounded p-1 my-0.5 text-left text-[10px] space-y-0.5 font-black">
                           <div className="flex justify-between">
                             <span className="text-slate-800">RENK:</span>
-                            <span>{selectedVariant.attributes?.color || '-'}</span>
+                            <span className="truncate">{selectedVariant.attributes?.color || '-'}</span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-slate-800">BEDEN:</span>
@@ -1485,33 +1654,37 @@ export const LabelPrinterModal: React.FC = () => {
 
                         <div className="my-0.5 flex flex-col items-center">
                           <div
-                            className="w-[92%] max-h-[26px] flex items-center justify-center overflow-hidden"
+                            className="w-[88%] max-h-[20px] flex items-center justify-center overflow-hidden"
                             dangerouslySetInnerHTML={{ __html: previewBarcodeSvg }}
                           />
-                          <div className="font-mono text-xs font-black tracking-widest text-black mt-0.5">
+                          <div className="font-mono text-[10px] font-black tracking-widest text-black mt-0.5">
                             {selectedVariant.barcode}
                           </div>
                         </div>
 
-                        {/* DİKEY FİYAT KUTUSU (DEVASA) */}
+                        {/* DİKEY FİYAT KUTUSU */}
                         {isDiscounted ? (
-                          <div className="border-2 border-black p-1.5 text-center mt-1 bg-white">
-                            <div className="flex justify-between items-center text-[10px] border-b border-black pb-0.5 mb-0.5 font-bold">
+                          <div className="border-2 border-black p-1 text-center mt-0.5 bg-white">
+                            <div className="flex justify-between items-center text-[9px] border-b border-black pb-0.5 mb-0.5 font-bold">
                               <span className="text-slate-600">LİSTE:</span>
                               <span className="line-through text-slate-500 font-black">{origPriceNum.toFixed(2)} TL</span>
                             </div>
-                            <div className="bg-black text-white text-[11px] font-black py-0.5 px-1 rounded uppercase tracking-wider mb-0.5">
+                            <div className="bg-black text-white text-[9px] font-black py-0.5 px-1 rounded uppercase tracking-wider mb-0.5">
                               %{discountPct} İSKONTOLU
                             </div>
-                            <div className="text-[8px] font-black text-black">İNDİRİMLİ SATIŞ FİYATI</div>
-                            <div className="text-3xl font-black text-black leading-none mt-0.5 tracking-tight">
+                            <div className="text-[7.5px] font-black text-black">İNDİRİMLİ SATIŞ FİYATI</div>
+                            <div className={`font-black text-black leading-none mt-0.5 tracking-tight ${
+                              fontScale === 'COMPACT' ? 'text-base' : fontScale === 'LARGE' ? 'text-xl' : 'text-lg'
+                            }`}>
                               {discPriceNum.toFixed(2)} TL
                             </div>
                           </div>
                         ) : (
-                          <div className="border-2 border-black p-1.5 text-center mt-1 bg-white">
-                            <div className="text-[9px] font-bold tracking-wider">FİYAT (KDV DAHİL)</div>
-                            <div className="text-3xl font-black text-black leading-none mt-0.5 tracking-tight">
+                          <div className="border-2 border-black p-1 text-center mt-0.5 bg-white">
+                            <div className="text-[8px] font-bold tracking-wider">FİYAT (KDV DAHİL)</div>
+                            <div className={`font-black text-black leading-none mt-0.5 tracking-tight ${
+                              fontScale === 'COMPACT' ? 'text-lg' : fontScale === 'LARGE' ? 'text-2xl' : 'text-xl'
+                            }`}>
                               {selectedVariant.salePrice?.toFixed(2)} TL
                             </div>
                           </div>
