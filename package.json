@@ -44,6 +44,10 @@
       {
         "from": "prisma/dev.db",
         "to": "dev.db"
+      },
+      {
+        "from": "prisma/dev.db",
+        "to": "prisma/dev.db"
       }
     ],
     "win": {
