@@ -10,6 +10,14 @@ interface CheckoutModalProps {
   onSuccess: () => void
 }
 
+const parseDecimal = (val: any): number => {
+  if (typeof val === 'number') return isNaN(val) ? 0 : val
+  if (!val) return 0
+  const clean = String(val).replace(/\s/g, '').replace(',', '.')
+  const num = parseFloat(clean)
+  return isNaN(num) ? 0 : num
+}
+
 export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, onSuccess }) => {
   const { cartItems, discountAmount, surchargeAmount, getTotal, getSubtotal, cashierName, clearCart, selectedCustomer, storeName, receiptPrefix } = usePosStore()
 
@@ -26,6 +34,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
   useEffect(() => {
     if (!isOpen) return
 
+    const parsedCash = parseDecimal(givenCash)
     if (completedSale) {
       syncCustomerDisplay({
         status: 'completed',
@@ -37,8 +46,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
         selectedCustomer,
         paymentInfo: {
           mode: paymentMode,
-          givenCash: parseFloat(givenCash || '0'),
-          changeDue: Math.max(0, parseFloat(givenCash || '0') - total),
+          givenCash: parsedCash,
+          changeDue: Math.max(0, parsedCash - total),
           receiptNo: completedSale.receiptNo,
           isFinished: true,
         },
@@ -54,8 +63,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
         selectedCustomer,
         paymentInfo: {
           mode: paymentMode,
-          givenCash: parseFloat(givenCash || '0'),
-          changeDue: Math.max(0, parseFloat(givenCash || '0') - total),
+          givenCash: parsedCash,
+          changeDue: Math.max(0, parsedCash - total),
         },
       })
     }
@@ -79,6 +88,14 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
   }
 
   const handleCheckoutSubmit = async () => {
+    if (paymentMode === 'SPLIT' && total > 0) {
+      const splitSum = Math.round((cashAmount + cardAmount) * 100) / 100
+      if (Math.abs(splitSum - total) > 0.05) {
+        alert(`Parçalı ödeme toplamı (${splitSum.toFixed(2)} ₺), ödenecek tutara (${total.toFixed(2)} ₺) eşit olmalıdır!`)
+        return
+      }
+    }
+
     setIsProcessing(true)
     try {
       const payload = {
@@ -199,7 +216,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
     }
   }
 
-  const changeDue = parseFloat(givenCash || '0') - total
+  const changeDue = parseDecimal(givenCash) - total
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 font-sans">
@@ -325,7 +342,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
                           type="number"
                           value={cashAmount}
                           onChange={(e) => {
-                            const val = parseFloat(e.target.value) || 0
+                            const val = parseDecimal(e.target.value)
                             setCashAmount(val)
                             setCardAmount(Math.max(0, Number((total - val).toFixed(2))))
                           }}
@@ -338,7 +355,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
                           type="number"
                           value={cardAmount}
                           onChange={(e) => {
-                            const val = parseFloat(e.target.value) || 0
+                            const val = parseDecimal(e.target.value)
                             setCardAmount(val)
                             setCashAmount(Math.max(0, Number((total - val).toFixed(2))))
                           }}

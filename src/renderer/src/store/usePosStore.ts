@@ -430,6 +430,7 @@ usePosStore.subscribe((state) => {
     items: state.cartItems.map((i) => ({ id: i.variantId, q: i.quantity, p: i.totalPrice })),
     discount: state.discountAmount,
     surcharge: state.surchargeAmount,
+    customTotal: state.customTotal,
     campaign: state.activeCampaign?.id,
     customer: state.selectedCustomer?.id,
     stockMode: state.isStockOnlyMode,

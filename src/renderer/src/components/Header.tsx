@@ -82,6 +82,10 @@ export const Header: React.FC = () => {
             setIsFullscreen(!!document.fullscreenElement)
           }
         }, 150)
+      } else if (e.key === 'F10') {
+        e.preventDefault()
+        setPendingAdminAction('settings')
+        setIsAdminPinOpen(true)
       }
     }
 
@@ -148,15 +152,15 @@ export const Header: React.FC = () => {
   }
 
   return (
-    <header className="h-16 navbar-gradient border-b border-blue-200/50 px-2.5 sm:px-4 lg:px-5 flex items-center justify-between gap-1.5 sm:gap-2 select-none shadow-md z-20 transition-all overflow-hidden">
+    <header className="h-16 navbar-gradient border-b border-blue-200/50 px-2 sm:px-3 lg:px-4 flex items-center justify-between gap-1.5 sm:gap-2 select-none shadow-md z-20 transition-all">
       {/* Brand Logos: LUFIAN & JACK & JONES */}
       <div className="flex items-center shrink-0">
         {/* Logo Container: Crisp White Pill */}
-        <div className="bg-white px-2 sm:px-2.5 py-1 rounded-xl shadow-xs flex items-center justify-center space-x-1.5 sm:space-x-2 h-9 sm:h-10 border border-white/50 transition-transform hover:scale-[1.02] shrink-0">
+        <div className="bg-white px-1.5 sm:px-2.5 py-1 rounded-xl shadow-xs flex items-center justify-center space-x-1.5 sm:space-x-2 h-9 sm:h-10 border border-white/50 transition-transform hover:scale-[1.02] shrink-0">
           <img
             src={lufianLogo}
             alt="LUFIAN"
-            className="h-5 sm:h-6 w-auto max-w-[65px] sm:max-w-[78px] object-contain select-none"
+            className="h-4.5 sm:h-5.5 xl:h-6 w-auto max-w-[55px] sm:max-w-[70px] xl:max-w-[78px] object-contain select-none"
             onError={(e) => {
               const target = e.target as HTMLImageElement
               if (!target.dataset.triedFallback) {
@@ -171,7 +175,7 @@ export const Header: React.FC = () => {
           <img
             src={jackJonesLogo}
             alt="JACK & JONES"
-            className="h-3 sm:h-3.5 w-auto max-w-[75px] sm:max-w-[95px] object-contain select-none"
+            className="h-2.5 sm:h-3 xl:h-3.5 w-auto max-w-[65px] sm:max-w-[80px] xl:max-w-[95px] object-contain select-none"
             onError={(e) => {
               const target = e.target as HTMLImageElement
               if (!target.dataset.triedFallback) {
@@ -186,26 +190,28 @@ export const Header: React.FC = () => {
       </div>
 
       {/* Tabs Navigation */}
-      <nav className="relative z-10 flex items-center gap-1 xl:gap-1.5 bg-[#001a61]/85 p-1 sm:p-1.5 rounded-2xl border border-white/20 backdrop-blur-md shadow-inner shrink-0">
+      <nav className="relative z-10 flex items-center gap-0.5 sm:gap-1 xl:gap-1.5 bg-[#001a61]/85 p-1 rounded-2xl border border-white/20 backdrop-blur-md shadow-inner shrink min-w-0 overflow-x-auto no-scrollbar">
         <button
           onClick={() => setActiveTab('pos')}
-          className={`flex items-center gap-1.5 xl:gap-2 px-2.5 sm:px-3 xl:px-4 py-1.5 xl:py-2 rounded-xl text-xs sm:text-sm font-extrabold whitespace-nowrap shrink-0 transition-all ${
+          className={`flex items-center gap-1 xl:gap-2 px-2 sm:px-2.5 xl:px-3.5 py-1.5 rounded-xl text-xs xl:text-sm font-extrabold whitespace-nowrap shrink-0 transition-all ${
             activeTab === 'pos'
               ? 'bg-white text-[#00268A] shadow-md scale-[1.02]'
               : 'text-blue-100 hover:text-white hover:bg-white/10'
           }`}
+          title="Kasa (POS) Ekranı"
         >
           <ShoppingBag className="w-3.5 h-3.5 xl:w-4 xl:h-4 stroke-[2.2] shrink-0" />
-          <span className="whitespace-nowrap">Kasa (POS)</span>
+          <span className="whitespace-nowrap">Kasa<span className="hidden xl:inline"> (POS)</span></span>
         </button>
 
         <button
           onClick={() => setActiveTab('customers')}
-          className={`flex items-center gap-1.5 xl:gap-2 px-2.5 sm:px-3 xl:px-4 py-1.5 xl:py-2 rounded-xl text-xs sm:text-sm font-extrabold whitespace-nowrap shrink-0 transition-all ${
+          className={`flex items-center gap-1 xl:gap-2 px-2 sm:px-2.5 xl:px-3.5 py-1.5 rounded-xl text-xs xl:text-sm font-extrabold whitespace-nowrap shrink-0 transition-all ${
             activeTab === 'customers'
               ? 'bg-white text-[#00268A] shadow-md scale-[1.02]'
               : 'text-blue-100 hover:text-white hover:bg-white/10'
           }`}
+          title="Müşteri Yönetimi ve Bakiye Takibi"
         >
           <Users className="w-3.5 h-3.5 xl:w-4 xl:h-4 stroke-[2.2] shrink-0" />
           <span className="whitespace-nowrap">Müşteriler</span>
@@ -213,61 +219,64 @@ export const Header: React.FC = () => {
 
         <button
           onClick={() => setActiveTab('stock')}
-          className={`flex items-center gap-1.5 xl:gap-2 px-2.5 sm:px-3 xl:px-4 py-1.5 xl:py-2 rounded-xl text-xs sm:text-sm font-extrabold whitespace-nowrap shrink-0 transition-all ${
+          className={`flex items-center gap-1 xl:gap-2 px-2 sm:px-2.5 xl:px-3.5 py-1.5 rounded-xl text-xs xl:text-sm font-extrabold whitespace-nowrap shrink-0 transition-all ${
             activeTab === 'stock'
               ? 'bg-white text-[#00268A] shadow-md scale-[1.02]'
               : 'text-blue-100 hover:text-white hover:bg-white/10'
           }`}
+          title="Stok ve Varyant Yönetimi"
         >
           <Package className="w-3.5 h-3.5 xl:w-4 xl:h-4 stroke-[2.2] shrink-0" />
-          <span className="whitespace-nowrap">Stok & Varyant</span>
+          <span className="whitespace-nowrap">Stok<span className="hidden xl:inline"> & Varyant</span></span>
         </button>
 
         <button
           onClick={() => setActiveTab('labels')}
-          className={`flex items-center gap-1.5 xl:gap-2 px-2.5 sm:px-3 xl:px-4 py-1.5 xl:py-2 rounded-xl text-xs sm:text-sm font-extrabold whitespace-nowrap shrink-0 transition-all ${
+          className={`flex items-center gap-1 xl:gap-2 px-2 sm:px-2.5 xl:px-3.5 py-1.5 rounded-xl text-xs xl:text-sm font-extrabold whitespace-nowrap shrink-0 transition-all ${
             activeTab === 'labels'
               ? 'bg-white text-[#00268A] shadow-md scale-[1.02]'
               : 'text-blue-100 hover:text-white hover:bg-white/10'
           }`}
+          title="Barkodlu Raf ve Ürün Etiketi Basımı"
         >
           <Printer className="w-3.5 h-3.5 xl:w-4 xl:h-4 stroke-[2.2] shrink-0" />
-          <span className="whitespace-nowrap">Etiket Basımı</span>
+          <span className="whitespace-nowrap">Etiket<span className="hidden xl:inline"> Basımı</span></span>
         </button>
 
         {!isStockOnlyMode && (
           <button
             onClick={() => handleProtectedAction('sales')}
-            className={`flex items-center gap-1.5 xl:gap-2 px-2.5 sm:px-3 xl:px-4 py-1.5 xl:py-2 rounded-xl text-xs sm:text-sm font-extrabold whitespace-nowrap shrink-0 transition-all ${
+            className={`flex items-center gap-1 xl:gap-2 px-2 sm:px-2.5 xl:px-3.5 py-1.5 rounded-xl text-xs xl:text-sm font-extrabold whitespace-nowrap shrink-0 transition-all ${
               activeTab === 'sales'
                 ? 'bg-white text-[#00268A] shadow-md scale-[1.02]'
                 : 'text-blue-100 hover:text-white hover:bg-white/10'
             }`}
+            title="Ciro & Satış Raporları (Yönetici PIN)"
           >
             <Receipt className="w-3.5 h-3.5 xl:w-4 xl:h-4 stroke-[2.2] shrink-0" />
             <span className="whitespace-nowrap hidden 2xl:inline">Ciro & Satış Raporları</span>
-            <span className="whitespace-nowrap 2xl:hidden">Ciro & Raporlar</span>
-            <Lock className="w-3 h-3 xl:w-3.5 xl:h-3.5 text-blue-200 stroke-[2.2] shrink-0" />
+            <span className="whitespace-nowrap hidden lg:inline 2xl:hidden">Ciro & Raporlar</span>
+            <span className="whitespace-nowrap lg:hidden">Raporlar</span>
+            <Lock className="w-2.5 h-2.5 xl:w-3 xl:h-3 text-blue-200 stroke-[2.2] shrink-0" />
           </button>
         )}
       </nav>
 
       {/* Campaign & Settings Controls */}
-      <div className="relative z-10 flex items-center gap-1 sm:gap-1.5 text-sm bg-white/85 p-1 sm:p-1.5 rounded-2xl border border-white/60 shadow-xs backdrop-blur-sm shrink-0">
+      <div className="relative z-10 flex items-center gap-1 sm:gap-1.5 text-sm bg-white/90 p-1 rounded-2xl border border-white/60 shadow-xs backdrop-blur-sm shrink-0">
         <button
           onClick={() => setIsCampaignModalOpen(true)}
-          className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-black transition shadow-xs whitespace-nowrap shrink-0"
+          className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-black transition shadow-xs whitespace-nowrap shrink-0"
           title="Kampanya ve İndirim Yönetimi"
         >
           <Sparkles className="w-3.5 h-3.5 text-amber-200 shrink-0" />
-          <span className="hidden sm:inline">Kampanyalar</span>
-          <span className="sm:hidden">Kampanya</span>
+          <span className="hidden lg:inline">Kampanyalar</span>
         </button>
 
         {/* Store Music Button */}
         <button
           onClick={() => setIsMusicModalOpen(true)}
-          className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 text-white rounded-xl text-xs font-black transition shadow-xs whitespace-nowrap shrink-0 ${
+          className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 text-white rounded-xl text-xs font-black transition shadow-xs whitespace-nowrap shrink-0 ${
             isPlaying
               ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 ring-2 ring-emerald-300'
               : 'bg-indigo-600 hover:bg-indigo-700'
@@ -275,18 +284,27 @@ export const Header: React.FC = () => {
           title="Mağaza Müzik & Ses Sistemi (Amfi Kontrolü)"
         >
           <Music className={`w-3.5 h-3.5 shrink-0 ${isPlaying ? 'animate-bounce text-emerald-200' : 'text-indigo-200'}`} />
-          <span className="hidden sm:inline">Müzik</span>
+          <span className="hidden lg:inline">Müzik</span>
           {isPlaying && (
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-ping shrink-0" />
           )}
         </button>
 
-        <div className="h-5 w-px bg-slate-300 mx-0.5 shrink-0" />
+        <div className="h-4 sm:h-5 w-px bg-slate-300 mx-0.5 shrink-0" />
+
+        {/* System Settings Gear Icon Button — Admin PIN Protected (Prominently placed) */}
+        <button
+          onClick={() => handleProtectedAction('settings')}
+          className="w-7 h-7 sm:w-8 sm:h-8 bg-blue-50/80 hover:bg-[#00268A] text-slate-700 hover:text-white rounded-xl border border-blue-200/80 hover:border-[#00268A] transition-all shadow-xs flex items-center justify-center shrink-0 group"
+          title="Sistem ve Kasa Ayarları (F10 - Yönetici PIN Gerekli)"
+        >
+          <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.2] group-hover:rotate-45 transition-transform duration-300" />
+        </button>
 
         {/* Customer Display (Müşteri Ekranı) Dual-Screen Button */}
         <button
           onClick={handleToggleCustomerDisplay}
-          className={`w-8 h-8 sm:w-8.5 sm:h-8.5 rounded-xl border transition shadow-xs flex items-center justify-center shrink-0 relative ${
+          className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl border transition shadow-xs flex items-center justify-center shrink-0 relative ${
             customerDisplayStatus.isOpen
               ? 'bg-[#00268A] text-white border-[#00268A] shadow-sm ring-2 ring-emerald-400'
               : 'bg-white hover:bg-blue-50 text-slate-700 hover:text-[#00268A] border-slate-200'
@@ -308,7 +326,7 @@ export const Header: React.FC = () => {
         {/* Fiyatsız Stok / Gizlilik Modu Butonu (Açık Kırmızı, Simgesiz) */}
         <button
           onClick={toggleStockOnlyMode}
-          className={`w-8 h-8 sm:w-8.5 sm:h-8.5 rounded-xl border transition-all shadow-xs flex items-center justify-center shrink-0 relative ${
+          className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl border transition-all shadow-xs flex items-center justify-center shrink-0 relative ${
             isStockOnlyMode
               ? 'bg-rose-500 hover:bg-rose-600 border-rose-600 shadow-sm ring-2 ring-rose-300'
               : 'bg-rose-100 hover:bg-rose-200 border-rose-200 hover:border-rose-300'
@@ -316,7 +334,7 @@ export const Header: React.FC = () => {
           title={isStockOnlyMode ? 'Stok Modundan Çık (Fiyatları Göster)' : 'Stok Moduna Geç (Fiyatları Gizle)'}
         >
           <span
-            className={`w-2.5 h-2.5 rounded-full transition-colors ${
+            className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full transition-colors ${
               isStockOnlyMode ? 'bg-white shadow-xs' : 'bg-rose-400'
             }`}
           />
@@ -325,7 +343,7 @@ export const Header: React.FC = () => {
         {/* On-Screen Touch Virtual Keyboard Toggle */}
         <button
           onClick={toggleKeyboard}
-          className={`w-8 h-8 sm:w-8.5 sm:h-8.5 rounded-xl border transition shadow-xs flex items-center justify-center shrink-0 ${
+          className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl border transition shadow-xs flex items-center justify-center shrink-0 ${
             isKeyboardOpen
               ? 'bg-[#00268A] text-white border-[#00268A] shadow-sm ring-2 ring-blue-300'
               : 'bg-white hover:bg-blue-50 text-slate-700 hover:text-[#00268A] border-slate-200'
@@ -338,7 +356,7 @@ export const Header: React.FC = () => {
         {/* Fullscreen Mode Button */}
         <button
           onClick={handleToggleFullscreen}
-          className={`w-8 h-8 sm:w-8.5 sm:h-8.5 rounded-xl border transition shadow-xs flex items-center justify-center shrink-0 ${
+          className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl border transition shadow-xs flex items-center justify-center shrink-0 ${
             isFullscreen
               ? 'bg-[#00268A] text-white border-[#00268A] shadow-sm'
               : 'bg-white hover:bg-blue-50 text-slate-700 hover:text-[#00268A] border-slate-200'
@@ -355,19 +373,10 @@ export const Header: React.FC = () => {
         {/* Quick Lock Button */}
         <button
           onClick={lockApp}
-          className="w-8 h-8 sm:w-8.5 sm:h-8.5 bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-600 rounded-xl border border-slate-200 transition shadow-xs flex items-center justify-center shrink-0"
+          className="w-7 h-7 sm:w-8 sm:h-8 bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-600 rounded-xl border border-slate-200 transition shadow-xs flex items-center justify-center shrink-0"
           title="Kayıtı Kilitle (PIN Girişi İster)"
         >
           <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2]" />
-        </button>
-
-        {/* System Settings Gear Icon Button — Admin PIN Protected */}
-        <button
-          onClick={() => handleProtectedAction('settings')}
-          className="w-8 h-8 sm:w-8.5 sm:h-8.5 bg-white hover:bg-slate-100 text-slate-700 rounded-xl border border-slate-200 transition shadow-xs flex items-center justify-center shrink-0"
-          title="Sistem ve Kasa Ayarları (Yönetici PIN Gerekli)"
-        >
-          <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2]" />
         </button>
       </div>
 

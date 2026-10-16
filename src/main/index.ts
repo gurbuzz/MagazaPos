@@ -216,6 +216,26 @@ ipcMain.handle('print-silent', async (_, htmlContent: string, printerName?: stri
   printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`)
 
   return new Promise((resolve) => {
+    let resolved = false
+    const cleanupAndResolve = (result: { success: boolean; failureReason?: string }) => {
+      if (resolved) return
+      resolved = true
+      clearTimeout(failsafeTimer)
+      if (printWindow && !printWindow.isDestroyed()) {
+        try { printWindow.close() } catch {}
+        printWindow = null
+      }
+      resolve(result)
+    }
+
+    const failsafeTimer = setTimeout(() => {
+      cleanupAndResolve({ success: false, failureReason: 'Yazdırma zaman aşımına uğradı (15sn)' })
+    }, 15000)
+
+    printWindow?.webContents.on('did-fail-load', (_, errorCode, errorDescription) => {
+      cleanupAndResolve({ success: false, failureReason: `Yükleme hatası: ${errorDescription} (${errorCode})` })
+    })
+
     printWindow?.webContents.on('did-finish-load', () => {
       const printOptions: any = {
         silent: true,
@@ -230,9 +250,7 @@ ipcMain.handle('print-silent', async (_, htmlContent: string, printerName?: stri
         printOptions,
         (success, failureReason) => {
           if (!success) console.error('Print failed:', failureReason)
-          printWindow?.close()
-          printWindow = null
-          resolve({ success, failureReason })
+          cleanupAndResolve({ success, failureReason })
         }
       )
     })

@@ -27,6 +27,9 @@ import {
   ExternalLink,
 } from 'lucide-react'
 import { usePosStore } from '../../store/usePosStore'
+import { useKeyboardStore } from '../../store/useKeyboardStore'
+import lufianLogo from '../../assets/lufian-og.png'
+import jackJonesLogo from '../../assets/org_logo.svg'
 
 interface SystemSettingsModalProps {
   isOpen: boolean
@@ -70,6 +73,9 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
   const [formCustomIp, setFormCustomIp] = useState(customIp)
   const [formAutoOpenCustomerDisplay, setFormAutoOpenCustomerDisplay] = useState(autoOpenCustomerDisplay)
   const [formCustomerDisplayMessage, setFormCustomerDisplayMessage] = useState(customerDisplayMessage)
+
+  const { autoOpen: autoOpenKeyboard, setAutoOpen: setAutoOpenKeyboard } = useKeyboardStore()
+  const [formAutoOpenKeyboard, setFormAutoOpenKeyboard] = useState(autoOpenKeyboard)
 
   const [customerDisplayHardware, setCustomerDisplayHardware] = useState<{
     isOpen: boolean
@@ -135,6 +141,7 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
     setFormCustomIp(customIp)
     setFormAutoOpenCustomerDisplay(autoOpenCustomerDisplay)
     setFormCustomerDisplayMessage(customerDisplayMessage)
+    setFormAutoOpenKeyboard(autoOpenKeyboard)
 
     // Check display hardware
     if (window.electron?.getCustomerDisplayStatus) {
@@ -164,6 +171,7 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
     customIp,
     autoOpenCustomerDisplay,
     customerDisplayMessage,
+    autoOpenKeyboard,
   ])
 
   // Focus PIN input when dialog opens
@@ -198,6 +206,8 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
       autoOpenCustomerDisplay: formAutoOpenCustomerDisplay,
       customerDisplayMessage: formCustomerDisplayMessage.trim(),
     })
+
+    setAutoOpenKeyboard(formAutoOpenKeyboard)
 
     // Sync PIN to backend security manager
     fetch('/api/system/update-pin', {
@@ -443,9 +453,31 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
         <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
           <div className="flex items-center space-x-3">
             <div className="bg-white px-2 py-1 rounded-md border border-slate-200 shadow-2xs flex items-center space-x-1.5">
-              <img src="/lufian-og.png" alt="LUFIAN" className="h-4 w-auto max-w-[65px] object-contain" />
+              <img
+                src={lufianLogo}
+                alt="LUFIAN"
+                className="h-4 w-auto max-w-[65px] object-contain"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement
+                  if (!target.dataset.triedFallback) {
+                    target.dataset.triedFallback = 'true'
+                    target.src = './lufian-og.png'
+                  }
+                }}
+              />
               <div className="h-3.5 w-px bg-slate-300" />
-              <img src="/org_logo.svg" alt="JACK & JONES" className="h-3 w-auto max-w-[75px] object-contain" />
+              <img
+                src={jackJonesLogo}
+                alt="JACK & JONES"
+                className="h-3 w-auto max-w-[75px] object-contain"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement
+                  if (!target.dataset.triedFallback) {
+                    target.dataset.triedFallback = 'true'
+                    target.src = './org_logo.svg'
+                  }
+                }}
+              />
             </div>
             <div>
               <h3 className="font-bold text-slate-900 text-sm">Sistem ve Kasa Ayarları</h3>
@@ -664,6 +696,25 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
                 >
                   Yönetici PIN'i Güncelle
                 </button>
+              </div>
+
+              {/* Virtual Keyboard Behavior */}
+              <div className="flex items-center space-x-2.5 p-3 bg-white border border-slate-200 rounded-xl shadow-2xs">
+                <input
+                  type="checkbox"
+                  id="autoOpenVirtualKeyboard"
+                  checked={formAutoOpenKeyboard}
+                  onChange={(e) => setFormAutoOpenKeyboard(e.target.checked)}
+                  className="w-4 h-4 text-blue-700 rounded focus:ring-blue-600 border-slate-300"
+                />
+                <div>
+                  <label htmlFor="autoOpenVirtualKeyboard" className="text-xs font-bold text-slate-800 cursor-pointer block">
+                    Kutulara Tıklandığında Sanal Ekran Klavyesini Otomatik Aç
+                  </label>
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    Kapalıyken dokunmatik sanal klavye yalnızca sol alttaki veya üst bardaki "Klavye" butonuna tıklandığında açılır.
+                  </p>
+                </div>
               </div>
             </div>
           )}

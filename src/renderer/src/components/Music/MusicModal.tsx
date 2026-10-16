@@ -21,6 +21,7 @@ import {
   Wifi,
 } from 'lucide-react'
 import { useMusicStore, MusicTrack } from '../../store/useMusicStore'
+import customerBg from '../../assets/customerbackground.jpg'
 
 export const MusicModal: React.FC = () => {
   const {
@@ -234,7 +235,7 @@ export const MusicModal: React.FC = () => {
                 <div className="relative shrink-0">
                   <div className={`w-28 h-28 rounded-2xl overflow-hidden bg-slate-800 border-2 border-white/20 shadow-md ${isPlaying ? 'ring-4 ring-emerald-500/30' : ''}`}>
                     <img
-                      src={currentTrack?.albumArt || '/customerbackground.jpg'}
+                      src={currentTrack?.albumArt || customerBg}
                       alt="Album Art"
                       className="w-full h-full object-cover"
                     />
@@ -423,7 +424,7 @@ export const MusicModal: React.FC = () => {
                     <div className="flex items-center space-x-3 truncate">
                       <div className="w-10 h-10 rounded-lg overflow-hidden bg-slate-100 shrink-0 border border-slate-200">
                         <img
-                          src={track.albumArt || '/customerbackground.jpg'}
+                          src={track.albumArt || customerBg}
                           alt={track.title}
                           className="w-full h-full object-cover"
                         />

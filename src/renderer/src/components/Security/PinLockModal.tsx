@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { Lock, Delete, ArrowRight, ShieldCheck, KeyRound } from 'lucide-react'
 import { usePosStore } from '../../store/usePosStore'
+import lufianLogo from '../../assets/lufian-og.png'
+import jackJonesLogo from '../../assets/org_logo.svg'
 
 export const PinLockModal: React.FC = () => {
   const { isLocked, unlockApp, storeName, cashierName } = usePosStore()
@@ -86,17 +88,31 @@ export const PinLockModal: React.FC = () => {
       >
         {/* Top Logo & Lock Icon */}
         <div className="space-y-3">
-          <div className="glass-card p-2.5 rounded-2xl shadow-sm flex items-center justify-center space-x-2.5 max-w-[220px] mx-auto bg-white/90">
+          <div className="glass-card p-3 rounded-2xl shadow-sm flex items-center justify-center space-x-3 max-w-[240px] mx-auto bg-white/95 border border-white">
             <img
-              src="/lufian-og.png"
+              src={lufianLogo}
               alt="LUFIAN"
-              className="h-6 w-auto max-w-[85px] object-contain select-none"
+              className="h-7 w-auto max-w-[95px] object-contain select-none"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement
+                if (!target.dataset.triedFallback) {
+                  target.dataset.triedFallback = 'true'
+                  target.src = './lufian-og.png'
+                }
+              }}
             />
-            <div className="h-4 w-px bg-slate-300" />
+            <div className="h-5 w-px bg-slate-300" />
             <img
-              src="/org_logo.svg"
+              src={jackJonesLogo}
               alt="JACK & JONES"
-              className="h-3.5 w-auto max-w-[95px] object-contain select-none"
+              className="h-4.5 w-auto max-w-[110px] object-contain select-none"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement
+                if (!target.dataset.triedFallback) {
+                  target.dataset.triedFallback = 'true'
+                  target.src = './org_logo.svg'
+                }
+              }}
             />
           </div>
           <div>

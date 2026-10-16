@@ -122,9 +122,13 @@ export const SalesHistoryView: React.FC = () => {
 
     let matchesPayment = true
     if (paymentFilter === 'CASH') {
-      matchesPayment = (sale.paymentType?.cash || 0) > 0 && (sale.paymentType?.card || 0) === 0
+      const isCash = (sale.paymentType?.cash || 0) > 0 && (sale.paymentType?.card || 0) === 0
+      const isLegacyCash = typeof sale.paymentType === 'string' && sale.paymentType === 'CASH'
+      matchesPayment = isCash || isLegacyCash
     } else if (paymentFilter === 'CARD') {
-      matchesPayment = (sale.paymentType?.card || 0) > 0 && (sale.paymentType?.cash || 0) === 0
+      const isCard = (sale.paymentType?.card || 0) > 0 && (sale.paymentType?.cash || 0) === 0
+      const isLegacyCard = typeof sale.paymentType === 'string' && sale.paymentType === 'CARD'
+      matchesPayment = isCard || isLegacyCard
     }
 
     return matchesSearch && matchesPayment

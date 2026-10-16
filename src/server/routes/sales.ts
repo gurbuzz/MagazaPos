@@ -3,10 +3,24 @@ import { prisma } from '../db'
 
 export const salesRouter = Router()
 
+function parseDecimal(val: any): number {
+  if (typeof val === 'number') return isNaN(val) ? 0 : val
+  if (!val) return 0
+  const clean = String(val).replace(/\s/g, '').replace(',', '.')
+  const num = parseFloat(clean)
+  return isNaN(num) ? 0 : num
+}
+
 function formatSale(s: any) {
   let pay = s.paymentType
   if (typeof pay === 'string') {
-    try { pay = JSON.parse(pay) } catch (e) { pay = {} }
+    try {
+      pay = JSON.parse(pay)
+    } catch (e) {
+      if (pay === 'CASH') pay = { cash: s.totalAmount || 0, card: 0 }
+      else if (pay === 'CARD') pay = { cash: 0, card: s.totalAmount || 0 }
+      else pay = { note: pay }
+    }
   }
   const items = s.items?.map((item: any) => {
     let attrs = item.variant?.attributes
@@ -109,8 +123,8 @@ salesRouter.post('/', async (req, res) => {
     // Transaction to create sale, items, update stock and log movements atomically
     const result = await prisma.$transaction(async (tx) => {
       // 1. Create Sale record
-      const parsedTotal = parseFloat(totalAmount) || 0
-      const parsedDiscount = parseFloat(discountAmount || 0) || 0
+      const parsedTotal = parseDecimal(totalAmount)
+      const parsedDiscount = parseDecimal(discountAmount)
       const sale = await tx.sale.create({
         data: {
           receiptNo,
@@ -123,8 +137,8 @@ salesRouter.post('/', async (req, res) => {
             create: items.map((item: any) => ({
               variantId: item.variantId,
               quantity: parseInt(item.quantity) || 1,
-              unitPrice: parseFloat(item.unitPrice) || 0,
-              totalPrice: parseFloat(item.totalPrice) || 0
+              unitPrice: parseDecimal(item.unitPrice),
+              totalPrice: parseDecimal(item.totalPrice)
             }))
           }
         },

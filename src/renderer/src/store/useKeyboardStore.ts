@@ -17,7 +17,7 @@ interface KeyboardState {
 export const useKeyboardStore = create<KeyboardState>((set) => ({
   isOpen: false,
   mode: 'qwerty',
-  autoOpen: localStorage.getItem('pos_auto_keyboard') !== 'false',
+  autoOpen: localStorage.getItem('pos_auto_keyboard') === 'true',
   targetElement: null,
   setIsOpen: (isOpen) => set((state) => ({ isOpen, mode: isOpen ? 'qwerty' : state.mode })),
   toggleKeyboard: () =>

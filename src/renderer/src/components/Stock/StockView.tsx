@@ -25,6 +25,14 @@ import { CategoryModal } from './CategoryModal'
 import { AdminPinModal } from '../Security/AdminPinModal'
 import { notifyDataChanged } from '../../utils/events'
 
+const parseDecimal = (val: any): number => {
+  if (typeof val === 'number') return isNaN(val) ? 0 : val
+  if (!val) return 0
+  const clean = String(val).replace(/\s/g, '').replace(',', '.')
+  const num = parseFloat(clean)
+  return isNaN(num) ? 0 : num
+}
+
 export const StockView: React.FC = () => {
   const [products, setProducts] = useState<any[]>([])
   const [categories, setCategories] = useState<any[]>([])
@@ -55,6 +63,7 @@ export const StockView: React.FC = () => {
   // Barcode Scanner Quick Stock Entry Modal State
   const [isBarcodeStockModalOpen, setIsBarcodeStockModalOpen] = useState(false)
   const [scannedBarcode, setScannedBarcode] = useState('')
+  const [unregisteredBarcode, setUnregisteredBarcode] = useState<string | null>(null)
   const [scannedQty, setScannedQty] = useState('1')
   const [lastScannedResult, setLastScannedResult] = useState<string | null>(null)
   const scanInputRef = useRef<HTMLInputElement>(null)
@@ -123,6 +132,11 @@ export const StockView: React.FC = () => {
 
   useEffect(() => {
     if (isBarcodeStockModalOpen) {
+      setScannedBarcode('')
+      setUnregisteredBarcode(null)
+      setLastScannedResult(null)
+      setScannedQty('1')
+      setQuickName('')
       setTimeout(() => scanInputRef.current?.focus(), 150)
     }
   }, [isBarcodeStockModalOpen])
@@ -214,8 +228,13 @@ export const StockView: React.FC = () => {
 
   const handleBarcodeStockSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    const cleanBarcode = scannedBarcode.trim()
+    if (!cleanBarcode) return
+
     if (!foundScannedVariant) {
-      setLastScannedResult('⚠️ Bu barkod sistemde kayıtlı değil! Aşağıdaki formu doldurarak yeni ürün olarak sisteme kaydedebilirsiniz.')
+      setUnregisteredBarcode(cleanBarcode)
+      setLastScannedResult(null)
+      setTimeout(() => scanInputRef.current?.select(), 50)
       return
     }
 
@@ -240,6 +259,7 @@ export const StockView: React.FC = () => {
           `✅ "${foundScannedVariant.product.name}" (${foundScannedVariant.attributes?.color} / ${foundScannedVariant.attributes?.size}) -> +${qty} adet stoğa eklendi!`
         )
         setScannedBarcode('')
+        setUnregisteredBarcode(null)
         setScannedQty('1')
         fetchProducts()
         notifyDataChanged()
@@ -255,15 +275,15 @@ export const StockView: React.FC = () => {
 
   // --- QUICK CREATE AND STOCK INTAKE (UNREGISTERED BARCODE) ---
   const handleQuickCreateAndStock = async () => {
-    if (!quickName.trim() || !scannedBarcode.trim()) {
+    const cleanBarcode = (unregisteredBarcode || scannedBarcode).trim()
+    if (!quickName.trim() || !cleanBarcode) {
       alert('Lütfen ürün adını giriniz!')
       return
     }
-    const salePriceNum = parseFloat(quickSalePrice) || 0
+    const salePriceNum = parseDecimal(quickSalePrice)
     const qtyNum = parseInt(quickQty) || 1
-    const costPriceNum = parseFloat(quickCostPrice) || salePriceNum * 0.5
+    const costPriceNum = parseDecimal(quickCostPrice) || salePriceNum * 0.5
 
-    const cleanBarcode = scannedBarcode.trim()
     const barcodeSuffix = cleanBarcode.length >= 6 ? cleanBarcode.slice(-6) : cleanBarcode.padStart(6, '0')
     const code = `PRD-${barcodeSuffix}-${Date.now().toString().slice(-4)}`
     const clr = quickColor.trim() || 'Standart'
@@ -298,10 +318,11 @@ export const StockView: React.FC = () => {
 
       if (res.ok) {
         setLastScannedResult(
-          `✅ Yeni ürün "${quickName}" (${quickColor} / ${quickSize}) tanımlandı ve +${qtyNum} adet stoğa eklendi!`
+          `✅ Yeni ürün "${quickName}" (${clr} / ${sz}) tanımlandı ve +${qtyNum} adet stoğa eklendi!`
         )
         setQuickName('')
         setScannedBarcode('')
+        setUnregisteredBarcode(null)
         setScannedQty('1')
         fetchProducts()
         fetchCategories()
@@ -319,50 +340,75 @@ export const StockView: React.FC = () => {
   }
 
   // --- EXCEL / CSV BULK IMPORT HANDLERS ---
+  // --- EXCEL / CSV BULK IMPORT HANDLERS ---
   const downloadExcelTemplate = () => {
     const templateData = [
       {
-        'Ürün Kodu': 'TSH-001',
-        'Ürün Adı': 'Oversize Basic Tişört',
-        'Kategori': 'Tişört',
-        'Marka': 'Mağaza',
-        'Barkod': '8690001112223',
-        'Renk': 'Siyah',
-        'Beden': 'M',
-        'Alış Fiyatı': 100,
-        'Satış Fiyatı': 250,
-        'Stok Adedi': 20,
+        'Barkod': '8682030133891',
+        'Madde Kodu': '111230300',
+        'Madde Açıklaması': 'MAX',
+        'ÜRÜN GRUBU': 'AYAKKABI',
+        'Renk Açıklaması': 'BEYAZ',
+        'Renk Kodu': '100500',
+        'Beden': '42',
+        'PSFTL': 6249.99,
+        'TSFTL': 3124.995,
+        'Fiyat İskontolu': 1249.998,
+        'Miktar Toplam': 1,
+        'CİNSİYET': 'ERKEK',
+        'Müşteri Firma Adı': 'Muhammet Güneysu'
       },
       {
-        'Ürün Kodu': 'TSH-001',
-        'Ürün Adı': 'Oversize Basic Tişört',
-        'Kategori': 'Tişört',
-        'Marka': 'Mağaza',
-        'Barkod': '8690001112224',
-        'Renk': 'Siyah',
+        'Barkod': '8684195457690',
+        'Madde Kodu': '111200243',
+        'Madde Açıklaması': 'LUTA',
+        'ÜRÜN GRUBU': 'DENİM',
+        'Renk Açıklaması': 'ANTRASİT',
+        'Renk Kodu': '100110',
+        'Beden': '32/32',
+        'PSFTL': 4499.99,
+        'TSFTL': 2249.995,
+        'Fiyat İskontolu': 899.998,
+        'Miktar Toplam': 2,
+        'CİNSİYET': 'ERKEK',
+        'Müşteri Firma Adı': 'Muhammet Güneysu'
+      },
+      {
+        'Barkod': '8684195532120',
+        'Madde Kodu': '112030204',
+        'Madde Açıklaması': 'STORM',
+        'ÜRÜN GRUBU': 'SWEAT SHIRT',
+        'Renk Açıklaması': 'SİYAH',
+        'Renk Kodu': '100100',
         'Beden': 'L',
-        'Alış Fiyatı': 100,
-        'Satış Fiyatı': 250,
-        'Stok Adedi': 15,
+        'PSFTL': 3999.99,
+        'TSFTL': 1999.995,
+        'Fiyat İskontolu': 879.998,
+        'Miktar Toplam': 2,
+        'CİNSİYET': 'ERKEK',
+        'Müşteri Firma Adı': 'Muhammet Güneysu'
       },
       {
-        'Ürün Kodu': 'PNT-101',
-        'Ürün Adı': 'Slim Fit Chino Pantolon',
-        'Kategori': 'Pantolon',
-        'Marka': 'JACK & JONES',
-        'Barkod': '8690001112225',
-        'Renk': 'Bej',
-        'Beden': '32',
-        'Alış Fiyatı': 250,
-        'Satış Fiyatı': 550,
-        'Stok Adedi': 10,
-      },
+        'Barkod': '8684195523364',
+        'Madde Kodu': '122050011',
+        'Madde Açıklaması': 'CESSIE',
+        'ÜRÜN GRUBU': 'EŞOFMAN',
+        'Renk Açıklaması': 'KIRIK BEYAZ',
+        'Renk Kodu': '100510',
+        'Beden': 'L',
+        'PSFTL': 4499.99,
+        'TSFTL': 2249.99,
+        'Fiyat İskontolu': 989.996,
+        'Miktar Toplam': 1,
+        'CİNSİYET': 'ERKEK',
+        'Müşteri Firma Adı': 'Muhammet Güneysu'
+      }
     ]
 
     const ws = XLSX.utils.json_to_sheet(templateData)
     const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Ürünler')
-    XLSX.writeFile(wb, 'JackJones_Urun_Sablonu.xlsx')
+    XLSX.utils.book_append_sheet(wb, ws, 'Ürün Listesi')
+    XLSX.writeFile(wb, 'Guneysu_Lufian_Urun_Sablonu.xlsx')
   }
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -380,30 +426,216 @@ export const StockView: React.FC = () => {
         const wb = XLSX.read(bstr, { type: 'array' })
         const wsname = wb.SheetNames[0]
         const ws = wb.Sheets[wsname]
-        const rawJson: any[] = XLSX.utils.sheet_to_json(ws)
+        const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1 })
 
-        if (rawJson.length === 0) {
+        if (!rows || rows.length === 0) {
           setExcelError('Dosya boş görünüyor.')
           return
         }
 
-        const mapped = rawJson
-          .map((row: any) => ({
-            code: row['Ürün Kodu'] || row['Urun Kodu'] || row['Kod'] || row['Code'] || '',
-            name: row['Ürün Adı'] || row['Urun Adi'] || row['Ad'] || row['Name'] || '',
-            category: row['Kategori'] || row['Category'] || '',
-            brand: row['Marka'] || row['Brand'] || 'Mağaza',
-            barcode: String(row['Barkod'] || row['Barcode'] || '').trim(),
-            color: String(row['Renk'] || row['Color'] || 'Standart').trim(),
-            size: String(row['Beden'] || row['Size'] || 'Standart').trim(),
-            costPrice: parseFloat(row['Alış Fiyatı'] || row['Alis Fiyati'] || row['Cost'] || 0),
-            salePrice: parseFloat(row['Satış Fiyatı'] || row['Satis Fiyati'] || row['Price'] || 0),
-            quantity: parseInt(row['Stok Adedi'] || row['Stok'] || row['Adet'] || row['Quantity'] || 0),
-          }))
-          .filter((r) => r.name && r.barcode)
+        // 1. Find Header Row (the row containing 'barkod' or 'barcode' or 'madde' or 'ürün')
+        let headerRowIdx = -1
+        for (let i = 0; i < Math.min(10, rows.length); i++) {
+          const row = rows[i] || []
+          if (
+            row.some((cell) => {
+              const s = String(cell || '').toLowerCase().trim()
+              return (
+                s.includes('barkod') ||
+                s.includes('barcode') ||
+                s.includes('madde') ||
+                s.includes('ürün') ||
+                s.includes('urun')
+              )
+            })
+          ) {
+            headerRowIdx = i
+            break
+          }
+        }
+
+        if (headerRowIdx === -1) {
+          headerRowIdx = 0
+        }
+
+        const headerRow = rows[headerRowIdx] || []
+        const nextRow = rows[headerRowIdx + 1] || []
+
+        // Merge headers if second row has column titles (e.g. 'Miktar Toplam' in row 1 of Güneysu)
+        const combinedHeaders: string[] = []
+        const maxCols = Math.max(headerRow.length, nextRow.length)
+        for (let c = 0; c < maxCols; c++) {
+          let name = headerRow[c] != null ? String(headerRow[c]).trim() : ''
+          if (!name && nextRow[c] != null && typeof nextRow[c] === 'string' && isNaN(Number(nextRow[c]))) {
+            name = String(nextRow[c]).trim()
+          }
+          combinedHeaders.push(name)
+        }
+
+        let dataStartIdx = headerRowIdx + 1
+        if (nextRow.some((c) => String(c || '').toLowerCase().includes('miktar toplam'))) {
+          dataStartIdx = headerRowIdx + 2
+        }
+
+        const itemsMap = new Map<string, any>()
+
+        for (let r = dataStartIdx; r < rows.length; r++) {
+          const row = rows[r] || []
+          if (row.length === 0 || !row.some((c) => c !== null && c !== undefined && c !== '')) continue
+
+          const dict: Record<string, any> = {}
+          for (let c = 0; c < combinedHeaders.length; c++) {
+            const h = combinedHeaders[c]
+            if (h) {
+              dict[h.toLowerCase().trim()] = row[c]
+            }
+          }
+
+          const rawBarcode = String(
+            dict['barkod'] ||
+            dict['barcode'] ||
+            dict['bar kod'] ||
+            row[6] ||
+            ''
+          ).trim()
+
+          // Skip total / subtotal rows or invalid barcodes
+          if (
+            !rawBarcode ||
+            rawBarcode.length < 4 ||
+            rawBarcode.toLowerCase().includes('toplam') ||
+            row.some((cell) => String(cell || '').toLowerCase().includes('toplam') && !rawBarcode)
+          ) {
+            continue
+          }
+
+          const code = String(
+            dict['madde kodu'] ||
+            dict['ürün kodu'] ||
+            dict['urun kodu'] ||
+            dict['model kodu'] ||
+            dict['stok kodu'] ||
+            dict['kod'] ||
+            dict['code'] ||
+            row[8] ||
+            ''
+          ).trim()
+
+          const rawName = String(
+            dict['ürün adı'] ||
+            dict['urun adi'] ||
+            dict['madde açıklaması'] ||
+            dict['madde aciklamasi'] ||
+            dict['model'] ||
+            dict['ad'] ||
+            dict['name'] ||
+            row[9] ||
+            ''
+          ).trim()
+
+          const category = String(
+            dict['ürün grubu'] ||
+            dict['urun grubu'] ||
+            dict['kategori'] ||
+            dict['category'] ||
+            row[7] ||
+            ''
+          ).trim()
+
+          const color = String(
+            dict['renk açıklaması'] ||
+            dict['renk aciklamasi'] ||
+            dict['renk'] ||
+            dict['color'] ||
+            row[10] ||
+            'Standart'
+          ).trim()
+
+          const size = String(
+            dict['beden'] ||
+            dict['size'] ||
+            row[12] ||
+            'Standart'
+          ).trim()
+
+          const salePrice = parseDecimal(
+            dict['psftl'] ||
+            dict['psf'] ||
+            dict['satış fiyatı'] ||
+            dict['satis fiyati'] ||
+            dict['fiyat'] ||
+            dict['price'] ||
+            row[13]
+          )
+
+          const costPrice = parseDecimal(
+            dict['fiyat iskontolu'] ||
+            dict['iskontolu fiyat'] ||
+            dict['tsftl'] ||
+            dict['tsf'] ||
+            dict['alış fiyatı'] ||
+            dict['alis fiyati'] ||
+            dict['maliyet'] ||
+            dict['cost'] ||
+            row[15]
+          )
+
+          const rawQty = parseInt(
+            dict['miktar toplam'] ||
+            dict['miktar'] ||
+            dict['stok adedi'] ||
+            dict['stok'] ||
+            dict['adet'] ||
+            dict['quantity'] ||
+            row[16] ||
+            1
+          )
+          const quantity = isNaN(rawQty) || rawQty < 0 ? 0 : rawQty
+
+          let fullName = rawName
+          if (
+            (dict['madde açıklaması'] || dict['madde aciklamasi']) &&
+            !dict['ürün adı'] &&
+            !dict['urun adi'] &&
+            category &&
+            !rawName.toLowerCase().includes(category.toLowerCase())
+          ) {
+            fullName = `${rawName} (${category})`
+          } else if (!fullName) {
+            fullName = category || 'Ürün'
+          }
+
+          const brand = String(
+            dict['marka'] ||
+            dict['brand'] ||
+            (dict['müşteri firma adı'] ? 'Lufian' : 'Mağaza')
+          ).trim()
+
+          if (itemsMap.has(rawBarcode)) {
+            const existing = itemsMap.get(rawBarcode)
+            existing.quantity += quantity
+            if (salePrice > 0) existing.salePrice = Math.round(salePrice * 100) / 100
+            if (costPrice > 0) existing.costPrice = Math.round(costPrice * 100) / 100
+          } else {
+            itemsMap.set(rawBarcode, {
+              code: code || `PRD-${rawBarcode.slice(-6)}`,
+              name: fullName,
+              category: category || 'Giyim',
+              brand: brand || 'Lufian',
+              barcode: rawBarcode,
+              color: color || 'Standart',
+              size: size || 'Standart',
+              costPrice: isNaN(costPrice) ? 0 : Math.round(costPrice * 100) / 100,
+              salePrice: isNaN(salePrice) ? 0 : Math.round(salePrice * 100) / 100,
+              quantity,
+            })
+          }
+        }
+
+        const mapped = Array.from(itemsMap.values())
 
         if (mapped.length === 0) {
-          setExcelError('Geçerli ürün bulunamadı. Lütfen "Ürün Adı" ve "Barkod" sütunlarının dolu olduğundan emin olun.')
+          setExcelError('Geçerli ürün bulunamadı. Lütfen "Barkod" ve "Ürün Adı / Madde Açıklaması" sütunlarının dolu olduğundan emin olun.')
           return
         }
 
@@ -477,8 +709,8 @@ export const StockView: React.FC = () => {
         body: JSON.stringify({
           color: editColor,
           size: editSize,
-          salePrice: parseFloat(editSalePrice || '0'),
-          costPrice: parseFloat(editCostPrice || '0'),
+          salePrice: parseDecimal(editSalePrice),
+          costPrice: parseDecimal(editCostPrice),
           barcode: editBarcode,
           stockQuantity: parseInt(editStockVal || '0', 10),
           note: 'Varyant detay ve stok düzeltme',
@@ -538,7 +770,7 @@ export const StockView: React.FC = () => {
           code: editProdCode,
           brand: editProdBrand,
           categoryId: editProdCategoryId || null,
-          basePrice: parseFloat(editProdBasePrice || '0'),
+          basePrice: parseDecimal(editProdBasePrice),
         }),
       })
 
@@ -621,8 +853,8 @@ export const StockView: React.FC = () => {
           color: newVarColor,
           size: newVarSize,
           barcode: newVarBarcode.trim(),
-          salePrice: parseFloat(newVarSalePrice) || selectedProduct.basePrice,
-          costPrice: parseFloat(newVarCostPrice) || ((parseFloat(newVarSalePrice) || selectedProduct.basePrice) * 0.5),
+          salePrice: parseDecimal(newVarSalePrice) || selectedProduct.basePrice,
+          costPrice: parseDecimal(newVarCostPrice) || ((parseDecimal(newVarSalePrice) || selectedProduct.basePrice) * 0.5),
           stockQuantity: parseInt(newVarStockQty) || 0,
         }),
       })
@@ -690,14 +922,14 @@ export const StockView: React.FC = () => {
       name: newName,
       brand: newBrand || 'Marka',
       categoryId: newCategoryId || null,
-      basePrice: parseFloat(newBasePrice || '100'),
+      basePrice: parseDecimal(newBasePrice || '100'),
       variants: [
         {
           sku: `${newCode}-${newColor}-${newSize}`,
           barcode: trimmedBarcode,
           attributes: { color: newColor, size: newSize },
-          costPrice: parseFloat(newBasePrice || '100') * 0.5,
-          salePrice: parseFloat(newBasePrice || '100'),
+          costPrice: parseDecimal(newBasePrice || '100') * 0.5,
+          salePrice: parseDecimal(newBasePrice || '100'),
           stockQuantity: parseInt(newStockQuantity || '0', 10),
         },
       ],
@@ -907,6 +1139,7 @@ export const StockView: React.FC = () => {
                   setIsBarcodeStockModalOpen(true)
                   setLastScannedResult(null)
                   setScannedBarcode('')
+                  setUnregisteredBarcode(null)
                   setScannedQty('1')
                 }}
                 className="px-2 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-semibold flex items-center space-x-1 transition shadow-xs"
@@ -1224,7 +1457,7 @@ export const StockView: React.FC = () => {
       {/* BARCODE SCANNER FAST STOCK ENTRY MODAL (MAL KABUL) */}
       {isBarcodeStockModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-lg p-5 w-full max-w-lg shadow-xl space-y-4">
+          <div className="bg-white border border-slate-200 rounded-lg p-5 w-full max-w-lg shadow-xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center space-x-2">
                 <Scan className="w-5 h-5 text-emerald-600" />
@@ -1234,7 +1467,11 @@ export const StockView: React.FC = () => {
                 </div>
               </div>
               <button
-                onClick={() => setIsBarcodeStockModalOpen(false)}
+                onClick={() => {
+                  setIsBarcodeStockModalOpen(false)
+                  setScannedBarcode('')
+                  setUnregisteredBarcode(null)
+                }}
                 className="text-slate-400 hover:text-slate-600 font-bold text-base px-2"
               >
                 ✕
@@ -1256,181 +1493,223 @@ export const StockView: React.FC = () => {
                     Otomatik Odaklı ⚡
                   </span>
                 </label>
-                <div className="relative">
+                <div className="relative flex items-center">
                   <input
                     ref={scanInputRef}
                     type="text"
                     placeholder="Barkod okuyucu hazır..."
                     value={scannedBarcode}
-                    onChange={(e) => setScannedBarcode(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2.5 text-slate-900 font-mono font-bold text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    onChange={(e) => {
+                      const val = e.target.value
+                      setScannedBarcode(val)
+                      if (unregisteredBarcode && val.trim() !== unregisteredBarcode) {
+                        setUnregisteredBarcode(null)
+                      }
+                    }}
+                    className="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2.5 text-slate-900 font-mono font-bold text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 pr-16"
                     autoFocus
                   />
-                  {scannedBarcode && (
-                    <div className="absolute right-3 top-3">
-                      {foundScannedVariant ? (
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                      ) : (
-                        <AlertCircle className="w-4 h-4 text-amber-500" />
-                      )}
-                    </div>
-                  )}
+                  <div className="absolute right-2.5 flex items-center space-x-1.5">
+                    {scannedBarcode && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setScannedBarcode('')
+                          setUnregisteredBarcode(null)
+                          scanInputRef.current?.focus()
+                        }}
+                        className="text-slate-400 hover:text-slate-600 text-xs px-1.5 py-0.5 rounded hover:bg-slate-200 transition"
+                        title="Temizle"
+                      >
+                        ✕
+                      </button>
+                    )}
+                    {foundScannedVariant ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    ) : (
+                      scannedBarcode.trim() && <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
+                    )}
+                  </div>
                 </div>
               </div>
 
-              {/* Matched Product Details Card */}
-              {scannedBarcode.trim() && (
-                <div>
-                  {foundScannedVariant ? (
-                    <div className="p-3.5 bg-slate-50 border border-emerald-300 rounded-lg space-y-2">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <span className="text-[10px] font-bold text-emerald-700 uppercase">
-                            {foundScannedVariant.product.category?.name || 'Giyim'}
-                          </span>
-                          <h4 className="font-bold text-slate-900 text-sm">{foundScannedVariant.product.name}</h4>
-                          <p className="text-xs text-slate-600 font-medium">
-                            Varyant: <span className="font-bold text-slate-900">{foundScannedVariant.attributes?.color} / {foundScannedVariant.attributes?.size}</span>
-                          </p>
-                          <p className="text-[11px] text-slate-400 font-mono">SKU: {foundScannedVariant.sku} | Barkod: {foundScannedVariant.barcode}</p>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-[10px] text-slate-500 block font-semibold">Mevcut Stok</span>
-                          <span className="text-sm font-bold text-slate-900">{foundScannedVariant.stockQuantity} Adet</span>
-                          <span className="block text-xs font-bold text-emerald-700 mt-0.5">{(Number(foundScannedVariant.salePrice) || 0).toFixed(2)} ₺</span>
-                        </div>
-                      </div>
+              {/* Matched Product Details Card (Found in database) */}
+              {foundScannedVariant && (
+                <div className="p-3.5 bg-slate-50 border border-emerald-300 rounded-lg space-y-2 animate-fadeIn">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <span className="text-[10px] font-bold text-emerald-700 uppercase">
+                        {foundScannedVariant.product.category?.name || 'Giyim'}
+                      </span>
+                      <h4 className="font-bold text-slate-900 text-sm">{foundScannedVariant.product.name}</h4>
+                      <p className="text-xs text-slate-600 font-medium">
+                        Varyant: <span className="font-bold text-slate-900">{foundScannedVariant.attributes?.color} / {foundScannedVariant.attributes?.size}</span>
+                      </p>
+                      <p className="text-[11px] text-slate-400 font-mono">SKU: {foundScannedVariant.sku} | Barkod: {foundScannedVariant.barcode}</p>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] text-slate-500 block font-semibold">Mevcut Stok</span>
+                      <span className="text-sm font-bold text-slate-900">{foundScannedVariant.stockQuantity} Adet</span>
+                      <span className="block text-xs font-bold text-emerald-700 mt-0.5">{(Number(foundScannedVariant.salePrice) || 0).toFixed(2)} ₺</span>
+                    </div>
+                  </div>
 
-                      <div className="pt-2 border-t border-slate-200 flex items-center space-x-3">
-                        <div className="w-1/2">
-                          <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Stoğa Eklenecek Adet (+)</label>
+                  <div className="pt-2 border-t border-slate-200 flex items-center space-x-3">
+                    <div className="w-1/2">
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Stoğa Eklenecek Adet (+)</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={scannedQty}
+                        onChange={(e) => setScannedQty(e.target.value)}
+                        className="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 font-bold text-sm focus:ring-1 focus:ring-emerald-500"
+                        required
+                      />
+                    </div>
+                    <div className="w-1/2 pt-4">
+                      <button
+                        type="submit"
+                        className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold shadow-xs flex items-center justify-center space-x-1 transition cursor-pointer"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Stoğa Ekle (Enter)</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Unregistered Barcode: Quick Register Card */}
+              {/* Only shown after user/scanner enters barcode and Enter confirms it does NOT exist */}
+              {!foundScannedVariant && unregisteredBarcode && (
+                <div className="p-3.5 bg-amber-50/80 border border-amber-300 rounded-lg space-y-3 animate-fadeIn">
+                  <div className="flex items-center space-x-2 text-amber-800 text-xs font-semibold">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>Bu barkod (<strong>{unregisteredBarcode}</strong>) sistemde kayıtlı değil!</span>
+                  </div>
+
+                  <div className="bg-white p-3 rounded border border-amber-200 space-y-2.5 shadow-2xs">
+                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
+                      <span className="font-bold text-xs text-slate-800 flex items-center space-x-1">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                        <span>⚡ Bu Barkodla Hızlı Ürün Tanımla ve Stoğa Ekle</span>
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-mono">Barkod: {unregisteredBarcode}</span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="col-span-2">
+                        <label className="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Ürün Adı *</label>
+                        <input
+                          type="text"
+                          placeholder="Örn: Pamuklu Polo Tişört"
+                          value={quickName}
+                          onChange={(e) => setQuickName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                              handleQuickCreateAndStock()
+                            }
+                          }}
+                          className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-amber-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Kategori</label>
+                        <select
+                          value={quickCategoryId}
+                          onChange={(e) => setQuickCategoryId(e.target.value)}
+                          className="w-full px-2 py-1.5 bg-slate-50 border border-slate-300 rounded text-xs font-medium focus:outline-none"
+                        >
+                          <option value="">Kategorisiz</option>
+                          {categories.map((c) => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1">
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Renk</label>
                           <input
-                            type="number"
-                            min="1"
-                            value={scannedQty}
-                            onChange={(e) => setScannedQty(e.target.value)}
-                            className="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 font-bold text-sm focus:ring-1 focus:ring-emerald-500"
-                            required
+                            type="text"
+                            placeholder="Renk"
+                            value={quickColor}
+                            onChange={(e) => setQuickColor(e.target.value)}
+                            className="w-full px-2 py-1.5 bg-slate-50 border border-slate-300 rounded text-xs font-medium"
                           />
                         </div>
-                        <div className="w-1/2 pt-4">
-                          <button
-                            type="submit"
-                            className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold shadow-xs flex items-center justify-center space-x-1"
-                          >
-                            <Plus className="w-4 h-4" />
-                            <span>Stoğa Ekle (Enter)</span>
-                          </button>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Beden</label>
+                          <input
+                            type="text"
+                            placeholder="Beden"
+                            value={quickSize}
+                            onChange={(e) => setQuickSize(e.target.value)}
+                            className="w-full px-2 py-1.5 bg-slate-50 border border-slate-300 rounded text-xs font-medium"
+                          />
                         </div>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Satış Fiyatı (₺) *</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={quickSalePrice}
+                          onChange={(e) => setQuickSalePrice(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                              handleQuickCreateAndStock()
+                            }
+                          }}
+                          className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded text-xs font-bold text-emerald-700"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Giriş Stoğu (Adet) *</label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={quickQty}
+                          onChange={(e) => setQuickQty(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                              handleQuickCreateAndStock()
+                            }
+                          }}
+                          className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded text-xs font-bold text-slate-900"
+                        />
                       </div>
                     </div>
-                  ) : (
-                    <div className="p-3.5 bg-amber-50/80 border border-amber-300 rounded-lg space-y-3">
-                      <div className="flex items-center space-x-2 text-amber-800 text-xs font-semibold">
-                        <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                        <span>Bu barkod (<strong>{scannedBarcode}</strong>) sistemde kayıtlı değil!</span>
-                      </div>
 
-                      <div className="bg-white p-3 rounded border border-amber-200 space-y-2.5 shadow-2xs">
-                        <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
-                          <span className="font-bold text-xs text-slate-800 flex items-center space-x-1">
-                            <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                            <span>⚡ Bu Barkodla Hızlı Ürün Tanımla ve Stoğa Ekle</span>
-                          </span>
-                          <span className="text-[10px] text-slate-400 font-mono">Barkod: {scannedBarcode}</span>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2 text-xs">
-                          <div className="col-span-2">
-                            <label className="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Ürün Adı *</label>
-                            <input
-                              type="text"
-                              placeholder="Örn: Pamuklu Polo Tişört"
-                              value={quickName}
-                              onChange={(e) => setQuickName(e.target.value)}
-                              className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-amber-500"
-                              autoFocus
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Kategori</label>
-                            <select
-                              value={quickCategoryId}
-                              onChange={(e) => setQuickCategoryId(e.target.value)}
-                              className="w-full px-2 py-1.5 bg-slate-50 border border-slate-300 rounded text-xs font-medium focus:outline-none"
-                            >
-                              <option value="">Kategorisiz</option>
-                              {categories.map((c) => (
-                                <option key={c.id} value={c.id}>{c.name}</option>
-                              ))}
-                            </select>
-                          </div>
-                          <div className="grid grid-cols-2 gap-1">
-                            <div>
-                              <label className="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Renk</label>
-                              <input
-                                type="text"
-                                placeholder="Renk"
-                                value={quickColor}
-                                onChange={(e) => setQuickColor(e.target.value)}
-                                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-300 rounded text-xs font-medium"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Beden</label>
-                              <input
-                                type="text"
-                                placeholder="Beden"
-                                value={quickSize}
-                                onChange={(e) => setQuickSize(e.target.value)}
-                                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-300 rounded text-xs font-medium"
-                              />
-                            </div>
-                          </div>
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Satış Fiyatı (₺) *</label>
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={quickSalePrice}
-                              onChange={(e) => setQuickSalePrice(e.target.value)}
-                              className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded text-xs font-bold text-emerald-700"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Giriş Stoğu (Adet) *</label>
-                            <input
-                              type="number"
-                              min="1"
-                              value={quickQty}
-                              onChange={(e) => setQuickQty(e.target.value)}
-                              className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded text-xs font-bold text-slate-900"
-                            />
-                          </div>
-                        </div>
-
-                        <div className="pt-2 border-t border-slate-100 flex justify-end">
-                          <button
-                            type="button"
-                            onClick={handleQuickCreateAndStock}
-                            disabled={isQuickSubmitting || !quickName.trim()}
-                            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded text-xs font-bold shadow-xs flex items-center space-x-1 disabled:opacity-50"
-                          >
-                            <Plus className="w-4 h-4" />
-                            <span>{isQuickSubmitting ? 'Kaydediliyor...' : 'Kaydet ve Stoğa Al'}</span>
-                          </button>
-                        </div>
-                      </div>
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                      <span className="text-[11px] text-slate-500">
+                        Veya yeni bir barkod okutarak devam edin
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleQuickCreateAndStock}
+                        disabled={isQuickSubmitting || !quickName.trim()}
+                        className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded text-xs font-bold shadow-xs flex items-center space-x-1 disabled:opacity-50 transition cursor-pointer"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>{isQuickSubmitting ? 'Kaydediliyor...' : 'Kaydet ve Stoğa Al'}</span>
+                      </button>
                     </div>
-                  )}
+                  </div>
                 </div>
               )}
 
               <div className="flex justify-end pt-2">
                 <button
                   type="button"
-                  onClick={() => setIsBarcodeStockModalOpen(false)}
-                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded text-xs font-semibold hover:bg-slate-200 border border-slate-200"
+                  onClick={() => {
+                    setIsBarcodeStockModalOpen(false)
+                    setScannedBarcode('')
+                    setUnregisteredBarcode(null)
+                  }}
+                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded text-xs font-semibold hover:bg-slate-200 border border-slate-200 transition"
                 >
                   Kapat
                 </button>
@@ -1999,7 +2278,7 @@ export const StockView: React.FC = () => {
             {excelRows.length > 0 && !excelResult && (
               <div className="flex-1 overflow-hidden flex flex-col border border-slate-200 rounded-lg">
                 <div className="p-2.5 bg-slate-50 border-b border-slate-200 flex justify-between items-center text-xs font-semibold text-slate-700">
-                  <span>Önizleme ({excelRows.length} Geçerli Satır Okundu)</span>
+                  <span>Önizleme ({excelRows.length} Benzersiz Ürün / Varyant - Toplam {excelRows.reduce((s, r) => s + r.quantity, 0)} Adet Stok)</span>
                   <span className="text-[11px] text-slate-500 font-normal">İlk 10 satır gösteriliyor</span>
                 </div>
                 <div className="overflow-auto flex-1 max-h-48 text-[11px]">
@@ -2038,7 +2317,9 @@ export const StockView: React.FC = () => {
             {/* Footer Buttons */}
             <div className="flex justify-between items-center pt-2 border-t border-slate-100">
               <span className="text-xs text-slate-500 font-medium">
-                {excelRows.length > 0 && !excelResult ? `${excelRows.length} ürün aktarılmaya hazır.` : ''}
+                {excelRows.length > 0 && !excelResult
+                  ? `${excelRows.length} benzersiz ürün/barkod (Toplam ${excelRows.reduce((s, r) => s + r.quantity, 0)} adet stok) aktarılmaya hazır.`
+                  : ''}
               </span>
               <div className="flex space-x-2">
                 <button

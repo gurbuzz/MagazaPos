@@ -18,6 +18,7 @@ import {
   AlertCircle,
   CheckCircle2,
   PackageMinus,
+  Edit2,
 } from 'lucide-react'
 import { usePosStore } from '../../store/usePosStore'
 import { CheckoutModal } from './CheckoutModal'
@@ -409,7 +410,8 @@ export const PosView: React.FC = () => {
 
   const handleCustomTotalSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault()
-    const parsed = parseFloat(tempTotalInput)
+    const clean = tempTotalInput.replace(/\s/g, '').replace(',', '.')
+    const parsed = parseFloat(clean)
     if (!isNaN(parsed) && parsed >= 0) {
       setCustomTotal(parsed)
     }
@@ -885,12 +887,14 @@ export const PosView: React.FC = () => {
                     </form>
                   ) : (
                     <div
-                      onDoubleClick={handleStartEditTotal}
-                      className="cursor-pointer hover:bg-emerald-50 hover:scale-[1.02] px-2 py-0.5 rounded transition-all select-none"
+                      onClick={handleStartEditTotal}
+                      title="Tutarı elle değiştirmek için tıklayın"
+                      className="cursor-pointer hover:bg-emerald-50 hover:scale-[1.02] px-2 py-0.5 rounded transition-all select-none flex items-center space-x-1.5 group"
                     >
                       <span className="text-emerald-700 text-lg font-bold">
                         {total.toFixed(2)} ₺
                       </span>
+                      <Edit2 className="w-3.5 h-3.5 text-emerald-600 opacity-40 group-hover:opacity-100 transition-opacity" />
                     </div>
                   )}
                 </div>

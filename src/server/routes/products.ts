@@ -13,6 +13,14 @@ function formatVariant(v: any) {
   return { ...v, attributes: attrs }
 }
 
+function parseDecimal(val: any): number {
+  if (typeof val === 'number') return isNaN(val) ? 0 : val
+  if (!val) return 0
+  const clean = String(val).replace(/\s/g, '').replace(',', '.')
+  const num = parseFloat(clean)
+  return isNaN(num) ? 0 : num
+}
+
 function formatProduct(p: any) {
   return {
     ...p,
@@ -326,8 +334,8 @@ productRouter.post('/import', async (req, res) => {
         const color = String(row.color || 'Standart').trim()
         const size = String(row.size || 'Standart').trim()
         const brand = String(row.brand || 'Marka').trim()
-        const costPrice = parseFloat(row.costPrice) || 0
-        const salePrice = parseFloat(row.salePrice) || 0
+        const costPrice = parseDecimal(row.costPrice)
+        const salePrice = parseDecimal(row.salePrice)
         const quantity = parseInt(row.quantity) || 0
 
         if (!name || !barcode) {
@@ -352,15 +360,21 @@ productRouter.post('/import', async (req, res) => {
         })
 
         if (existingVariant) {
+          const updateData: any = {}
           if (quantity > 0) {
+            updateData.stockQuantity = { increment: quantity }
+          }
+          if (salePrice > 0) updateData.salePrice = salePrice
+          if (costPrice > 0) updateData.costPrice = costPrice
+
+          if (Object.keys(updateData).length > 0) {
             await tx.productVariant.update({
               where: { id: existingVariant.id },
-              data: {
-                stockQuantity: { increment: quantity },
-                ...(salePrice > 0 && { salePrice }),
-                ...(costPrice > 0 && { costPrice })
-              }
+              data: updateData
             })
+          }
+
+          if (quantity > 0) {
             await tx.stockMovement.create({
               data: {
                 variantId: existingVariant.id,

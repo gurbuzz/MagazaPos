@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { ShieldAlert, KeyRound, Copy, Check, CheckCircle2, Lock, ArrowRight, Delete } from 'lucide-react'
+import lufianLogo from '../../assets/lufian-og.png'
+import jackJonesLogo from '../../assets/org_logo.svg'
 
 export const LicenseLockModal: React.FC = () => {
   const [isChecking, setIsChecking] = useState(true)
@@ -136,9 +138,31 @@ export const LicenseLockModal: React.FC = () => {
             </div>
           </div>
           <div className="bg-white px-2.5 py-1.5 rounded-lg shadow-xs flex items-center justify-center space-x-2">
-            <img src="/lufian-og.png" alt="LUFIAN" className="h-5 w-auto max-w-[75px] object-contain" />
+            <img
+              src={lufianLogo}
+              alt="LUFIAN"
+              className="h-5 w-auto max-w-[75px] object-contain"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement
+                if (!target.dataset.triedFallback) {
+                  target.dataset.triedFallback = 'true'
+                  target.src = './lufian-og.png'
+                }
+              }}
+            />
             <div className="h-4 w-px bg-slate-300" />
-            <img src="/org_logo.svg" alt="JACK & JONES" className="h-3.5 w-auto max-w-[85px] object-contain" />
+            <img
+              src={jackJonesLogo}
+              alt="JACK & JONES"
+              className="h-3.5 w-auto max-w-[85px] object-contain"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement
+                if (!target.dataset.triedFallback) {
+                  target.dataset.triedFallback = 'true'
+                  target.src = './org_logo.svg'
+                }
+              }}
+            />
           </div>
         </div>
 

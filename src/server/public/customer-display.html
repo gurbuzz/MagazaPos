@@ -171,43 +171,43 @@
   <div id="transitionPortal" class="hidden absolute inset-0 z-50 flex flex-col items-center justify-center pointer-events-none animate-portal-card">
     <div class="relative p-7 rounded-3xl bg-slate-900/90 border border-blue-400/50 shadow-2xl backdrop-blur-2xl flex flex-col items-center space-y-3.5 max-w-sm text-center">
       <div class="absolute inset-0 rounded-3xl bg-blue-500/20 blur-xl animate-pulse"></div>
-      <div class="relative bg-white h-11 px-5 rounded-2xl shadow-xl border border-white/95 flex items-center justify-center space-x-3">
-        <img src="/lufian-og.png" alt="LUFIAN" class="h-6 w-auto max-w-[95px] object-contain select-none" />
-        <div class="h-5 w-px bg-slate-200"></div>
-        <img src="/org_logo.svg" alt="JACK & JONES" class="h-4 w-auto max-w-[110px] object-contain select-none" />
+      <div class="relative bg-white h-13 px-6 rounded-2xl shadow-xl border border-white/95 flex items-center justify-center space-x-3.5">
+        <img src="./lufian-og.png" onerror="if(!this.dataset.tried){this.dataset.tried='1';this.src='/lufian-og.png';}" alt="LUFIAN" class="h-7 w-auto max-w-[110px] object-contain select-none" />
+        <div class="h-5 w-px bg-slate-300"></div>
+        <img src="./org_logo.svg" onerror="if(!this.dataset.tried){this.dataset.tried='1';this.src='/org_logo.svg';}" alt="JACK & JONES" class="h-4.5 w-auto max-w-[125px] object-contain select-none" />
       </div>
-      <div class="relative flex items-center space-x-2 text-blue-300 text-sm font-black tracking-wider uppercase">
+      <div class="relative flex items-center space-x-2 text-blue-300 text-base font-black tracking-wider uppercase">
         <span class="w-2.5 h-2.5 rounded-full bg-blue-400 animate-ping"></span>
         <span id="transitionPortalText">Ödeme Aşaması Aktifleştiriliyor</span>
       </div>
-      <div class="relative text-xs text-blue-200/80 font-medium">Lütfen Bekleyiniz • Güvenli Terminal Hazırlandı</div>
+      <div class="relative text-sm text-blue-200/90 font-medium">Lütfen Bekleyiniz • Güvenli Terminal Hazırlandı</div>
     </div>
   </div>
 
   <!-- Header: Centered Jack & Jones Logo, No Fullscreen Screen Icon -->
-  <header class="h-18 bg-slate-900/60 backdrop-blur-2xl border-b border-white/10 px-8 flex items-center justify-between z-20 shrink-0 shadow-lg relative">
+  <header class="h-[72px] bg-slate-900/70 backdrop-blur-2xl border-b border-white/10 px-6 md:px-8 flex items-center justify-between z-20 shrink-0 shadow-lg relative">
     <!-- Left: Customer Greeting or Active Status Pill -->
-    <div class="flex items-center shrink-0 min-w-[200px]">
-      <div id="customerGreeting" class="hidden flex items-center space-x-2.5 bg-white/10 border border-white/15 px-4 py-1.5 rounded-xl backdrop-blur-xl shadow-md"></div>
-      <div id="defaultKasaBadge" class="flex items-center space-x-2 bg-white/[0.05] border border-white/10 px-3.5 py-1.5 rounded-xl text-xs text-blue-200/90 shadow-xs">
-        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-        <span class="font-bold text-[11px] text-blue-100">Kasa Aktif</span>
+    <div class="flex items-center shrink-0 min-w-[200px] max-w-[340px]">
+      <div id="customerGreeting" class="hidden flex items-center space-x-2.5 bg-white/10 border border-white/15 px-4 py-2 rounded-xl backdrop-blur-xl shadow-md"></div>
+      <div id="defaultKasaBadge" class="flex items-center space-x-2.5 bg-white/[0.06] border border-white/12 px-4 py-2 rounded-xl text-blue-200/90 shadow-xs">
+        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span class="font-black text-xs md:text-sm text-blue-100 uppercase tracking-wide">Kasa Aktif</span>
       </div>
     </div>
 
-    <!-- Center: Mathematically Centered Jack & Jones Logo Pill (Enlarged) -->
-    <div class="absolute left-1/2 -translate-x-1/2 flex items-center justify-center pointer-events-none">
-      <div class="bg-white h-12 md:h-13 px-6 md:px-7 rounded-2xl shadow-2xl flex items-center justify-center space-x-3 md:space-x-4 border border-white/95 shrink-0 transition-transform">
-        <img src="/lufian-og.png" alt="LUFIAN" class="h-6 md:h-7 w-auto max-w-[110px] md:max-w-[130px] object-contain select-none" />
-        <div class="h-6 w-px bg-slate-300"></div>
-        <img src="/org_logo.svg" alt="JACK & JONES" class="h-4 md:h-4.5 w-auto max-w-[120px] md:max-w-[145px] object-contain select-none" />
+    <!-- Center: Mathematically Centered Both Logos Pill (Enlarged) -->
+    <div class="absolute left-1/2 -translate-x-1/2 flex items-center justify-center pointer-events-auto">
+      <div class="bg-white h-13 md:h-14 px-6 md:px-8 rounded-2xl shadow-2xl flex items-center justify-center space-x-3.5 md:space-x-4 border border-white/95 shrink-0 transition-transform">
+        <img src="./lufian-og.png" onerror="if(!this.dataset.tried){this.dataset.tried='1';this.src='/lufian-og.png';}" alt="LUFIAN" class="h-7 md:h-8 w-auto max-w-[115px] md:max-w-[135px] object-contain select-none" />
+        <div class="h-6 md:h-7 w-px bg-slate-300"></div>
+        <img src="./org_logo.svg" onerror="if(!this.dataset.tried){this.dataset.tried='1';this.src='/org_logo.svg';}" alt="JACK & JONES" class="h-4.5 md:h-5.5 w-auto max-w-[125px] md:max-w-[155px] object-contain select-none" />
       </div>
     </div>
 
-    <!-- Right: Clock & Date Only (Screen Icon Removed) -->
+    <!-- Right: Clock & Date Only -->
     <div class="text-right shrink-0 min-w-[200px]">
-      <div id="liveClock" class="text-xl font-black font-mono tracking-wider text-white leading-tight">--:--:--</div>
-      <div id="liveDate" class="text-[11px] font-bold text-blue-300/80 capitalize">--</div>
+      <div id="liveClock" class="text-2xl md:text-3xl font-black font-mono tracking-wider text-white leading-tight">--:--:--</div>
+      <div id="liveDate" class="text-xs md:text-sm font-bold text-blue-200 capitalize">--</div>
     </div>
   </header>
 
@@ -216,11 +216,11 @@
     <!-- Populated dynamically by JS -->
   </main>
 
-  <!-- Footer: Ultra-slim compact height -->
-  <footer class="h-7 bg-slate-900/70 backdrop-blur-2xl border-t border-white/10 px-6 flex items-center justify-between text-[11px] text-blue-300/70 z-10 shrink-0">
-    <div class="flex items-center space-x-2">
-      <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-      <span class="font-bold text-[11px] text-blue-100">Kasa Aktif & Canlı Bağlantı</span>
+  <!-- Footer: Crisp, Legible Footer -->
+  <footer class="h-8 md:h-9 bg-slate-900/70 backdrop-blur-2xl border-t border-white/10 px-6 flex items-center justify-between text-xs md:text-sm text-blue-300/80 z-10 shrink-0">
+    <div class="flex items-center space-x-2.5">
+      <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+      <span class="font-bold text-xs md:text-sm text-blue-100">Kasa Aktif & Canlı Bağlantı</span>
     </div>
     <div>
       <span class="text-[9px] text-blue-300/50 font-semibold tracking-wider uppercase">
@@ -329,10 +329,10 @@
       const defaultBadge = document.getElementById('defaultKasaBadge');
       if (state.selectedCustomer) {
         custGreet.innerHTML = `
-          <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span class="text-xs text-blue-200 font-medium">Sayın</span>
-          <span class="text-sm font-extrabold text-white">${state.selectedCustomer.firstName} ${state.selectedCustomer.lastName}</span>
-          <span class="px-2 py-0.5 rounded-full bg-blue-500/30 text-blue-200 border border-blue-400/40 text-[10.5px] font-black uppercase ml-1 shadow-2xs">VIP</span>
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
+          <span class="text-xs md:text-sm text-blue-200 font-semibold shrink-0">Sayın</span>
+          <span class="text-base md:text-lg font-black text-white truncate">${state.selectedCustomer.firstName} ${state.selectedCustomer.lastName}</span>
+          <span class="px-2.5 py-0.5 rounded-full bg-blue-500/30 text-blue-200 border border-blue-400/40 text-xs font-black uppercase shrink-0 shadow-2xs">VIP</span>
         `;
         custGreet.classList.remove('hidden');
         if (defaultBadge) defaultBadge.classList.add('hidden');
@@ -705,11 +705,12 @@
       // 4. STANDBY / IDLE STATE (WELCOME SCREEN - ENLARGED TYPOGRAPHY & COMPACT SLIM FOOTER)
       const p = PROMOS[promoIdx];
       main.innerHTML = `
-        <div class="flex-1 flex flex-col items-center justify-center p-6 md:p-8 border border-white/20 rounded-3xl shadow-2xl relative overflow-hidden animate-slowmotion-fade gap-5 md:gap-7">
+        <div class="flex-1 flex flex-col items-center justify-center p-6 md:p-8 border border-white/20 rounded-3xl shadow-2xl relative overflow-hidden animate-slowmotion-fade gap-6 md:gap-8">
           <!-- Cinematic Store Atmosphere Background Image -->
           <div class="absolute inset-0 z-0">
             <img
-              src="/customerbackground.jpg"
+              src="./customerbackground.jpg"
+              onerror="if(!this.dataset.tried){this.dataset.tried='1';this.src='/customerbackground.jpg';}"
               alt="Karşılama Arka Planı"
               class="w-full h-full object-cover object-center scale-100 filter brightness-[0.92] contrast-[1.05]"
             />
@@ -718,35 +719,35 @@
           </div>
 
           <!-- Welcome Message -->
-          <div class="text-center space-y-3 z-10 max-w-2xl shrink-0">
+          <div class="text-center space-y-3.5 z-10 max-w-3xl shrink-0">
             <div>
-              <span class="px-5 py-1.5 rounded-full bg-blue-500/30 text-blue-100 border border-blue-400/50 text-xs md:text-sm font-black tracking-widest uppercase inline-block shadow-lg backdrop-blur-md">
+              <span class="px-6 py-2 rounded-full bg-blue-500/30 text-blue-100 border border-blue-400/50 text-sm md:text-base font-black tracking-widest uppercase inline-block shadow-lg backdrop-blur-md">
                 PREMIUM RETAIL EXPERIENCE
               </span>
             </div>
-            <h2 class="text-5xl md:text-6xl lg:text-7xl font-black text-white tracking-tight leading-tight drop-shadow-2xl">
+            <h2 class="text-6xl md:text-7xl lg:text-8xl font-black text-white tracking-tight leading-tight drop-shadow-2xl">
               Hoş Geldiniz
             </h2>
-            <p class="text-lg md:text-xl text-blue-100 font-bold drop-shadow-lg max-w-xl mx-auto">
+            <p class="text-xl md:text-2xl text-blue-100 font-bold drop-shadow-lg max-w-2xl mx-auto">
               Yeni sezon koleksiyonumuz ve ayrıcalıklı alışveriş deneyimi için buradayız.
             </p>
           </div>
 
           <!-- Auto-Rotating Campaign Banner -->
           <div class="w-full max-w-2xl z-10 shrink-0">
-            <div class="bg-slate-900/45 border border-white/25 rounded-3xl p-5 md:p-6 backdrop-blur-xl shadow-2xl transition-all duration-500">
+            <div class="bg-slate-900/45 border border-white/25 rounded-3xl p-6 md:p-7 backdrop-blur-xl shadow-2xl transition-all duration-500">
               <div class="flex items-start space-x-4">
                 <div class="p-3.5 md:p-4 rounded-2xl ${p.iconBg} shadow-lg text-3xl shrink-0 border border-white/20">
                   ${p.icon}
                 </div>
-                <div class="flex-1 space-y-1.5">
-                  <span class="px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider border inline-block ${p.badgeColor}">
+                <div class="flex-1 space-y-2">
+                  <span class="px-3.5 py-1 rounded-full text-xs md:text-sm font-black uppercase tracking-wider border inline-block ${p.badgeColor}">
                     ${p.badge}
                   </span>
-                  <h3 class="text-2xl md:text-3xl font-black text-white tracking-tight drop-shadow-md">
+                  <h3 class="text-3xl md:text-4xl font-black text-white tracking-tight drop-shadow-md">
                     ${p.title}
                   </h3>
-                  <p class="text-sm md:text-base text-blue-100 font-medium leading-relaxed drop-shadow-sm">
+                  <p class="text-base md:text-lg text-blue-100 font-semibold leading-relaxed drop-shadow-sm">
                     ${p.subtitle}
                   </p>
                 </div>
@@ -754,12 +755,12 @@
             </div>
           </div>
 
-          <!-- Sleek Compact Single-Line Bottom Badge Row (Replaced Bulky Cards) -->
-          <div class="z-10 flex flex-wrap items-center justify-center gap-3 text-xs md:text-sm font-bold text-blue-100/90 shrink-0">
-            <span class="px-4 py-1.5 rounded-full bg-slate-900/50 border border-white/20 backdrop-blur-md flex items-center gap-2 shadow-md">
+          <!-- Sleek Compact Single-Line Bottom Badge Row -->
+          <div class="z-10 flex flex-wrap items-center justify-center gap-3.5 text-sm md:text-base font-bold text-blue-100/90 shrink-0">
+            <span class="px-5 py-2 rounded-full bg-slate-900/50 border border-white/20 backdrop-blur-md flex items-center gap-2.5 shadow-md">
               <span>💳</span> Nakit & Tüm Banka Kartları
             </span>
-            <span class="px-4 py-1.5 rounded-full bg-slate-900/50 border border-white/20 backdrop-blur-md flex items-center gap-2 shadow-md">
+            <span class="px-5 py-2 rounded-full bg-slate-900/50 border border-white/20 backdrop-blur-md flex items-center gap-2.5 shadow-md">
               <span>🔄</span> 14 Gün İçinde Fiş ile Değişim
             </span>
           </div>

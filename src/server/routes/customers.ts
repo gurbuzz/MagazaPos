@@ -69,7 +69,13 @@ customersRouter.get('/:id', async (req, res) => {
     const formattedSales = customer.sales.map((s: any) => {
       let pay = s.paymentType
       if (typeof pay === 'string') {
-        try { pay = JSON.parse(pay) } catch (e) { pay = {} }
+        try {
+          pay = JSON.parse(pay)
+        } catch (e) {
+          if (pay === 'CASH') pay = { cash: s.totalAmount || 0, card: 0 }
+          else if (pay === 'CARD') pay = { cash: 0, card: s.totalAmount || 0 }
+          else pay = { note: pay }
+        }
       }
       const items = s.items?.map((item: any) => {
         let attrs = item.variant?.attributes

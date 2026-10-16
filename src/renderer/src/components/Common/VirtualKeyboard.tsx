@@ -351,8 +351,22 @@ export const VirtualKeyboard: React.FC = () => {
             </div>
           </div>
 
-          {/* Right: Actions (Clear, Auto-toggle, Close) */}
+          {/* Right: Actions (Auto-toggle, Clear, Close) */}
           <div className="flex items-center space-x-2">
+            <button
+              type="button"
+              onClick={() => setAutoOpen(!autoOpen)}
+              className={`px-3 py-1.5 border rounded-xl text-xs font-bold transition flex items-center space-x-1.5 shadow-2xs ${
+                autoOpen
+                  ? 'bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border-slate-200'
+              }`}
+              title="Kutulara tıklandığında klavyenin otomatik açılmasını açar veya kapatır"
+            >
+              <span className={`w-2 h-2 rounded-full ${autoOpen ? 'bg-blue-600' : 'bg-slate-400'}`} />
+              <span>Oto Açılma: {autoOpen ? 'Açık' : 'Kapalı'}</span>
+            </button>
+
             <button
               type="button"
               onClick={handleClear}
