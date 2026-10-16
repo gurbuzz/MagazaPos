@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="tr">
+<html lang="tr" class="h-full w-full overflow-hidden">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>LUFIAN - Müşteri Ekranı</title>
   <link rel="icon" type="image/png" href="/lufian-og.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -155,7 +155,7 @@
     }
   </style>
 </head>
-<body class="h-screen w-screen bg-gradient-to-br from-[#0c1322] via-[#101b33] to-[#0c1424] text-white select-none overflow-hidden flex flex-col relative text-base">
+<body class="h-full w-full bg-gradient-to-br from-[#0c1322] via-[#101b33] to-[#0c1424] text-white select-none overflow-hidden flex flex-col relative text-base m-0 p-0">
 
   <!-- Ambient Light (Balanced twilight atmosphere) -->
   <div class="absolute -top-32 -left-32 w-[420px] h-[420px] bg-blue-600/20 rounded-full blur-[110px] pointer-events-none"></div>
@@ -184,46 +184,46 @@
     </div>
   </div>
 
-  <!-- Header: Centered Jack & Jones Logo, No Fullscreen Screen Icon -->
-  <header class="h-[72px] bg-slate-900/70 backdrop-blur-2xl border-b border-white/10 px-6 md:px-8 flex items-center justify-between z-20 shrink-0 shadow-lg relative">
+  <!-- Header: Centered Brands Logo Pill & Clock -->
+  <header class="h-[64px] bg-slate-900/70 backdrop-blur-2xl border-b border-white/10 px-5 md:px-7 flex items-center justify-between z-20 shrink-0 shadow-lg relative">
     <!-- Left: Customer Greeting or Active Status Pill -->
-    <div class="flex items-center shrink-0 min-w-[200px] max-w-[340px]">
-      <div id="customerGreeting" class="hidden flex items-center space-x-2.5 bg-white/10 border border-white/15 px-4 py-2 rounded-xl backdrop-blur-xl shadow-md"></div>
-      <div id="defaultKasaBadge" class="flex items-center space-x-2.5 bg-white/[0.06] border border-white/12 px-4 py-2 rounded-xl text-blue-200/90 shadow-xs">
+    <div class="flex items-center shrink-0 min-w-[180px] max-w-[320px]">
+      <div id="customerGreeting" class="hidden flex items-center space-x-2.5 bg-white/10 border border-white/15 px-3.5 py-1.5 rounded-xl backdrop-blur-xl shadow-md"></div>
+      <div id="defaultKasaBadge" class="flex items-center space-x-2 bg-white/[0.06] border border-white/12 px-3.5 py-1.5 rounded-xl text-blue-200/90 shadow-xs">
         <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
         <span class="font-black text-xs md:text-sm text-blue-100 uppercase tracking-wide">Kasa Aktif</span>
       </div>
     </div>
 
-    <!-- Center: Mathematically Centered Both Logos Pill (Enlarged) -->
+    <!-- Center: Mathematically Centered Both Logos Pill -->
     <div class="absolute left-1/2 -translate-x-1/2 flex items-center justify-center pointer-events-auto">
-      <div class="bg-white h-13 md:h-14 px-6 md:px-8 rounded-2xl shadow-2xl flex items-center justify-center space-x-3.5 md:space-x-4 border border-white/95 shrink-0 transition-transform">
-        <img src="./lufian-og.png" onerror="if(!this.dataset.tried){this.dataset.tried='1';this.src='/lufian-og.png';}" alt="LUFIAN" class="h-7 md:h-8 w-auto max-w-[115px] md:max-w-[135px] object-contain select-none" />
-        <div class="h-6 md:h-7 w-px bg-slate-300"></div>
-        <img src="./org_logo.svg" onerror="if(!this.dataset.tried){this.dataset.tried='1';this.src='/org_logo.svg';}" alt="JACK & JONES" class="h-4.5 md:h-5.5 w-auto max-w-[125px] md:max-w-[155px] object-contain select-none" />
+      <div class="bg-white h-12 md:h-13 px-5 md:px-7 rounded-2xl shadow-2xl flex items-center justify-center space-x-3 md:space-x-4 border border-white/95 shrink-0 transition-transform">
+        <img src="./lufian-og.png" onerror="if(!this.dataset.tried){this.dataset.tried='1';this.src='/lufian-og.png';}" alt="LUFIAN" class="h-6 md:h-7 w-auto max-w-[105px] md:max-w-[125px] object-contain select-none" />
+        <div class="h-5 md:h-6 w-px bg-slate-300"></div>
+        <img src="./org_logo.svg" onerror="if(!this.dataset.tried){this.dataset.tried='1';this.src='/org_logo.svg';}" alt="JACK & JONES" class="h-4 md:h-5 w-auto max-w-[115px] md:max-w-[140px] object-contain select-none" />
       </div>
     </div>
 
     <!-- Right: Clock & Date Only -->
-    <div class="text-right shrink-0 min-w-[200px]">
-      <div id="liveClock" class="text-2xl md:text-3xl font-black font-mono tracking-wider text-white leading-tight">--:--:--</div>
-      <div id="liveDate" class="text-xs md:text-sm font-bold text-blue-200 capitalize">--</div>
+    <div class="text-right shrink-0 min-w-[180px]">
+      <div id="liveClock" class="text-xl md:text-2xl font-black font-mono tracking-wider text-white leading-tight">--:--:--</div>
+      <div id="liveDate" class="text-[11px] md:text-xs font-bold text-blue-200 capitalize">--</div>
     </div>
   </header>
 
-  <!-- Main View -->
-  <main id="mainContainer" class="flex-1 flex overflow-hidden p-4 md:p-5 z-10 gap-4 md:gap-5 min-h-0">
+  <!-- Main View Container -->
+  <main id="mainContainer" class="flex-1 flex overflow-hidden p-3 md:p-4 z-10 gap-3 md:gap-4 min-h-0">
     <!-- Populated dynamically by JS -->
   </main>
 
-  <!-- Footer: Crisp, Legible Footer -->
-  <footer class="h-8 md:h-9 bg-slate-900/70 backdrop-blur-2xl border-t border-white/10 px-6 flex items-center justify-between text-xs md:text-sm text-blue-300/80 z-10 shrink-0">
-    <div class="flex items-center space-x-2.5">
-      <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-      <span class="font-bold text-xs md:text-sm text-blue-100">Kasa Aktif & Canlı Bağlantı</span>
+  <!-- Footer: Crisp, Legible Footer Pinned to Bottom -->
+  <footer class="h-7 md:h-8 bg-slate-900/80 backdrop-blur-2xl border-t border-white/10 px-5 md:px-6 flex items-center justify-between text-xs text-blue-300/80 z-10 shrink-0">
+    <div class="flex items-center space-x-2">
+      <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+      <span class="font-bold text-xs text-blue-100">Kasa Aktif & Canlı Bağlantı</span>
     </div>
     <div>
-      <span class="text-[9px] text-blue-300/50 font-semibold tracking-wider uppercase">
+      <span class="text-[10px] md:text-xs text-blue-300/60 font-semibold tracking-wider uppercase">
         Design & Architecture by Atacan Gürbüz
       </span>
     </div>
@@ -702,10 +702,10 @@
         return;
       }
 
-      // 4. STANDBY / IDLE STATE (WELCOME SCREEN - ENLARGED TYPOGRAPHY & COMPACT SLIM FOOTER)
+      // 4. STANDBY / IDLE STATE (WELCOME SCREEN - PROPORTIONATE 13.3" & ALL DISPLAYS)
       const p = PROMOS[promoIdx];
       main.innerHTML = `
-        <div class="flex-1 flex flex-col items-center justify-center p-6 md:p-8 border border-white/20 rounded-3xl shadow-2xl relative overflow-hidden animate-slowmotion-fade gap-6 md:gap-8">
+        <div class="flex-1 flex flex-col items-center justify-between p-4 md:p-6 lg:p-7 border border-white/20 rounded-3xl shadow-2xl relative overflow-hidden animate-slowmotion-fade gap-3 md:gap-4">
           <!-- Cinematic Store Atmosphere Background Image -->
           <div class="absolute inset-0 z-0">
             <img
@@ -719,35 +719,35 @@
           </div>
 
           <!-- Welcome Message -->
-          <div class="text-center space-y-3.5 z-10 max-w-3xl shrink-0">
+          <div class="text-center space-y-2 md:space-y-2.5 z-10 max-w-3xl shrink-0 pt-1.5">
             <div>
-              <span class="px-6 py-2 rounded-full bg-blue-500/30 text-blue-100 border border-blue-400/50 text-sm md:text-base font-black tracking-widest uppercase inline-block shadow-lg backdrop-blur-md">
+              <span class="px-5 py-1.5 rounded-full bg-blue-500/30 text-blue-100 border border-blue-400/50 text-xs md:text-sm font-black tracking-widest uppercase inline-block shadow-lg backdrop-blur-md">
                 PREMIUM RETAIL EXPERIENCE
               </span>
             </div>
-            <h2 class="text-6xl md:text-7xl lg:text-8xl font-black text-white tracking-tight leading-tight drop-shadow-2xl">
+            <h2 class="text-4xl md:text-5xl lg:text-6xl font-black text-white tracking-tight leading-tight drop-shadow-2xl">
               Hoş Geldiniz
             </h2>
-            <p class="text-xl md:text-2xl text-blue-100 font-bold drop-shadow-lg max-w-2xl mx-auto">
+            <p class="text-base md:text-lg text-blue-100 font-bold drop-shadow-lg max-w-2xl mx-auto">
               Yeni sezon koleksiyonumuz ve ayrıcalıklı alışveriş deneyimi için buradayız.
             </p>
           </div>
 
           <!-- Auto-Rotating Campaign Banner -->
           <div class="w-full max-w-2xl z-10 shrink-0">
-            <div class="bg-slate-900/45 border border-white/25 rounded-3xl p-6 md:p-7 backdrop-blur-xl shadow-2xl transition-all duration-500">
-              <div class="flex items-start space-x-4">
-                <div class="p-3.5 md:p-4 rounded-2xl ${p.iconBg} shadow-lg text-3xl shrink-0 border border-white/20">
+            <div class="bg-slate-900/50 border border-white/25 rounded-2xl md:rounded-3xl p-4 md:p-5 backdrop-blur-xl shadow-2xl transition-all duration-500">
+              <div class="flex items-start space-x-3.5 md:space-x-4">
+                <div class="p-3 md:p-3.5 rounded-2xl ${p.iconBg} shadow-lg text-2xl md:text-3xl shrink-0 border border-white/20">
                   ${p.icon}
                 </div>
-                <div class="flex-1 space-y-2">
-                  <span class="px-3.5 py-1 rounded-full text-xs md:text-sm font-black uppercase tracking-wider border inline-block ${p.badgeColor}">
+                <div class="flex-1 space-y-1.5">
+                  <span class="px-3 py-0.5 rounded-full text-xs font-black uppercase tracking-wider border inline-block ${p.badgeColor}">
                     ${p.badge}
                   </span>
-                  <h3 class="text-3xl md:text-4xl font-black text-white tracking-tight drop-shadow-md">
+                  <h3 class="text-2xl md:text-3xl font-black text-white tracking-tight drop-shadow-md">
                     ${p.title}
                   </h3>
-                  <p class="text-base md:text-lg text-blue-100 font-semibold leading-relaxed drop-shadow-sm">
+                  <p class="text-xs md:text-sm text-blue-100 font-semibold leading-relaxed drop-shadow-sm">
                     ${p.subtitle}
                   </p>
                 </div>
@@ -756,11 +756,11 @@
           </div>
 
           <!-- Sleek Compact Single-Line Bottom Badge Row -->
-          <div class="z-10 flex flex-wrap items-center justify-center gap-3.5 text-sm md:text-base font-bold text-blue-100/90 shrink-0">
-            <span class="px-5 py-2 rounded-full bg-slate-900/50 border border-white/20 backdrop-blur-md flex items-center gap-2.5 shadow-md">
+          <div class="z-10 flex flex-wrap items-center justify-center gap-3 text-xs md:text-sm font-bold text-blue-100/90 shrink-0 pb-1">
+            <span class="px-4 py-1.5 md:px-5 md:py-2 rounded-full bg-slate-900/60 border border-white/20 backdrop-blur-md flex items-center gap-2 shadow-md">
               <span>💳</span> Nakit & Tüm Banka Kartları
             </span>
-            <span class="px-5 py-2 rounded-full bg-slate-900/50 border border-white/20 backdrop-blur-md flex items-center gap-2.5 shadow-md">
+            <span class="px-4 py-1.5 md:px-5 md:py-2 rounded-full bg-slate-900/60 border border-white/20 backdrop-blur-md flex items-center gap-2 shadow-md">
               <span>🔄</span> 14 Gün İçinde Fiş ile Değişim
             </span>
           </div>

@@ -9,6 +9,7 @@ import { PinLockModal } from './components/Security/PinLockModal'
 import { LicenseLockModal } from './components/Security/LicenseLockModal'
 import { VirtualKeyboard } from './components/Common/VirtualKeyboard'
 import { CustomerDisplayView } from './components/CustomerDisplay/CustomerDisplayView'
+import { MusicPlayerAudio } from './components/Music/MusicPlayerAudio'
 import { usePosStore } from './store/usePosStore'
 
 export const App: React.FC = () => {
@@ -58,6 +59,9 @@ export const App: React.FC = () => {
 
       {/* On-Screen Touch Virtual Keyboard */}
       <VirtualKeyboard />
+
+      {/* Store Radio Audio Engine */}
+      <MusicPlayerAudio />
     </div>
   )
 }

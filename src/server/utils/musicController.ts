@@ -19,6 +19,7 @@ export interface PlaylistPreset {
   description: string
   badge: string
   icon: string
+  streamUrl?: string
   tracks: MusicTrack[]
 }
 
@@ -44,6 +45,7 @@ export const PRESET_PLAYLISTS: PlaylistPreset[] = [
     description: 'Sıcak akustik melodiler, modern lounge ve yumuşak vokal tınıları.',
     badge: 'Akustik & Sakin',
     icon: '☕',
+    streamUrl: 'https://ice1.somafm.com/lush-128-mp3',
     tracks: [
       {
         id: 'luf_1',
@@ -85,6 +87,7 @@ export const PRESET_PLAYLISTS: PlaylistPreset[] = [
     description: 'Dinamik ritimler, indie pop ve genç mağaza enerjisi.',
     badge: 'Dinamik & Enerjik',
     icon: '⚡',
+    streamUrl: 'https://ice1.somafm.com/poptron-128-mp3',
     tracks: [
       {
         id: 'jj_1',
@@ -118,6 +121,7 @@ export const PRESET_PLAYLISTS: PlaylistPreset[] = [
     description: 'Akşam alışverişi için dinlendirici saksafon, piyano ve yumuşak caz.',
     badge: 'Akşam Cazı',
     icon: '🌆',
+    streamUrl: 'https://ice1.somafm.com/illstreet-128-mp3',
     tracks: [
       {
         id: 'jazz_1',
@@ -143,6 +147,7 @@ export const PRESET_PLAYLISTS: PlaylistPreset[] = [
     description: 'Kalabalık saatlerde tempoyu artıran neşeli ve modern mağaza akışı.',
     badge: 'Hafta Sonu Modu',
     icon: '🛍️',
+    streamUrl: 'https://ice1.somafm.com/groovesalad-128-mp3',
     tracks: [
       {
         id: 'wk_1',
@@ -254,6 +259,7 @@ class MusicController {
         name: activePlaylist.name,
         badge: activePlaylist.badge,
         totalTracks: activePlaylist.tracks.length,
+        streamUrl: activePlaylist.streamUrl,
       },
       sourceMode: this.config.sourceMode,
       spotify: {

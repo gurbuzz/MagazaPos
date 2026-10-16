@@ -2,7 +2,12 @@ import { contextBridge, ipcRenderer } from 'electron'
 
 // Expose protected methods that allow the renderer process to use IPC
 contextBridge.exposeInMainWorld('electron', {
-  printSilent: (htmlContent: string, printerName?: string) => ipcRenderer.invoke('print-silent', htmlContent, printerName),
+  printSilent: (
+    htmlContent: string,
+    printerName?: string,
+    customPageSize?: { width: number; height: number },
+    silent: boolean = true
+  ) => ipcRenderer.invoke('print-silent', htmlContent, printerName, customPageSize, silent),
   getPrinters: () => ipcRenderer.invoke('get-printers'),
   getLocalIp: () => ipcRenderer.invoke('get-local-ip'),
   toggleFullscreen: () => ipcRenderer.invoke('toggle-fullscreen'),

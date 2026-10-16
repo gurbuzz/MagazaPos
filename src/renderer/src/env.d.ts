@@ -10,7 +10,12 @@ export interface CustomerDisplayStatus {
 declare global {
   interface Window {
     electron?: {
-      printSilent: (htmlContent: string, printerName?: string) => Promise<{ success: boolean; failureReason?: string }>
+      printSilent: (
+        htmlContent: string,
+        printerName?: string,
+        customPageSize?: { width: number; height: number },
+        silent?: boolean
+      ) => Promise<{ success: boolean; failureReason?: string }>
       getPrinters: () => Promise<any[]>
       getLocalIp: () => Promise<string>
       toggleFullscreen: () => Promise<boolean>

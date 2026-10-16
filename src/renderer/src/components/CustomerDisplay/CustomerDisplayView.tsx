@@ -175,7 +175,7 @@ export const CustomerDisplayView: React.FC = () => {
   const SlideIcon = PROMO_SLIDES[currentSlide].icon
 
   return (
-    <div className="h-screen w-screen bg-gradient-to-br from-[#0c1322] via-[#101b33] to-[#0c1424] text-white flex flex-col font-sans select-none overflow-hidden relative">
+    <div className="h-full w-full bg-gradient-to-br from-[#0c1322] via-[#101b33] to-[#0c1424] text-white flex flex-col font-sans select-none overflow-hidden relative">
       {/* Ambient Fullscreen Background for Idle State */}
       {!hasCart && !isCheckout && !isCompleted && (
         <div className="absolute inset-0 z-0 pointer-events-none transition-opacity duration-1000 ease-in-out opacity-45">
@@ -252,22 +252,22 @@ export const CustomerDisplayView: React.FC = () => {
       )}
 
       {/* TOP HEADER: Centered Brand Logos & Clock */}
-      <header className="h-[72px] bg-slate-900/70 backdrop-blur-2xl border-b border-white/10 px-6 md:px-8 flex items-center justify-between z-20 shrink-0 shadow-lg relative">
+      <header className="h-[64px] bg-slate-900/70 backdrop-blur-2xl border-b border-white/10 px-5 md:px-7 flex items-center justify-between z-20 shrink-0 shadow-lg relative">
         {/* Left: Customer Recognition Badge or Active Status */}
-        <div className="flex items-center shrink-0 min-w-[200px] max-w-[340px]">
+        <div className="flex items-center shrink-0 min-w-[180px] max-w-[320px]">
           {data.selectedCustomer ? (
-            <div className="flex items-center space-x-2.5 bg-white/10 border border-white/15 px-4 py-2 rounded-xl backdrop-blur-xl shadow-md">
+            <div className="flex items-center space-x-2 bg-white/10 border border-white/15 px-3.5 py-1.5 rounded-xl backdrop-blur-xl shadow-md">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-              <span className="text-xs md:text-sm text-blue-200 font-semibold shrink-0">Sayın</span>
-              <span className="text-base md:text-lg font-black text-white truncate">
+              <span className="text-xs text-blue-200 font-semibold shrink-0">Sayın</span>
+              <span className="text-sm md:text-base font-black text-white truncate">
                 {data.selectedCustomer.firstName} {data.selectedCustomer.lastName}
               </span>
-              <span className="px-2.5 py-0.5 rounded-full bg-blue-500/30 text-blue-200 border border-blue-400/40 text-xs font-black uppercase shrink-0 shadow-2xs">
+              <span className="px-2 py-0.5 rounded-full bg-blue-500/30 text-blue-200 border border-blue-400/40 text-xs font-black uppercase shrink-0 shadow-2xs">
                 VIP
               </span>
             </div>
           ) : (
-            <div className="flex items-center space-x-2.5 bg-white/[0.06] border border-white/12 px-4 py-2 rounded-xl text-blue-200/90 shadow-xs">
+            <div className="flex items-center space-x-2 bg-white/[0.06] border border-white/12 px-3.5 py-1.5 rounded-xl text-blue-200/90 shadow-xs">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
               <span className="font-black text-xs md:text-sm text-blue-100 uppercase tracking-wide">Kasa Aktif</span>
             </div>
@@ -276,11 +276,11 @@ export const CustomerDisplayView: React.FC = () => {
 
         {/* Center: Mathematically Centered Both Logos Pill */}
         <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center z-10 pointer-events-auto">
-          <div className="bg-white h-13 md:h-14 px-6 md:px-8 rounded-2xl shadow-2xl flex items-center justify-center space-x-3.5 md:space-x-4 border border-white/95 shrink-0 transition-transform">
+          <div className="bg-white h-12 md:h-13 px-5 md:px-7 rounded-2xl shadow-2xl flex items-center justify-center space-x-3 md:space-x-4 border border-white/95 shrink-0 transition-transform">
             <img
               src={lufianLogo}
               alt="LUFIAN"
-              className="h-7 md:h-8 w-auto max-w-[115px] md:max-w-[135px] object-contain select-none"
+              className="h-6 md:h-7 w-auto max-w-[105px] md:max-w-[125px] object-contain select-none"
               onError={(e) => {
                 const target = e.target as HTMLImageElement
                 if (!target.dataset.triedFallback) {
@@ -289,11 +289,11 @@ export const CustomerDisplayView: React.FC = () => {
                 }
               }}
             />
-            <div className="h-6 md:h-7 w-px bg-slate-300" />
+            <div className="h-5 md:h-6 w-px bg-slate-300" />
             <img
               src={jackJonesLogo}
               alt="JACK & JONES"
-              className="h-4.5 md:h-5.5 w-auto max-w-[125px] md:max-w-[155px] object-contain select-none"
+              className="h-4 md:h-5 w-auto max-w-[115px] md:max-w-[140px] object-contain select-none"
               onError={(e) => {
                 const target = e.target as HTMLImageElement
                 if (!target.dataset.triedFallback) {
@@ -306,18 +306,18 @@ export const CustomerDisplayView: React.FC = () => {
         </div>
 
         {/* Right: Clock & Date */}
-        <div className="text-right shrink-0 min-w-[200px]">
-          <div className="text-2xl md:text-3xl font-black font-mono tracking-wider text-white leading-tight">
+        <div className="text-right shrink-0 min-w-[180px]">
+          <div className="text-xl md:text-2xl font-black font-mono tracking-wider text-white leading-tight">
             {currentTime}
           </div>
-          <div className="text-xs md:text-sm font-bold text-blue-200 capitalize">
+          <div className="text-[11px] md:text-xs font-bold text-blue-200 capitalize">
             {currentDate}
           </div>
         </div>
       </header>
 
-      {/* MAIN VIEW CONTAINER: Perfectly Proportioned for 13.3" Displays */}
-      <main className="flex-1 flex overflow-hidden p-4 md:p-5 z-10 gap-4 md:gap-5 min-h-0">
+      {/* MAIN VIEW CONTAINER: Perfectly Proportioned for 13.3" & All Displays */}
+      <main className="flex-1 flex overflow-hidden p-3 md:p-4 z-10 gap-3 md:gap-4 min-h-0">
         {/* CASE 1: COMPLETED SALE CELEBRATION */}
         {isCompleted ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-6 bg-slate-900/55 border border-white/15 rounded-3xl backdrop-blur-2xl shadow-2xl animate-slowmotion-enter overflow-y-auto">
@@ -904,7 +904,7 @@ export const CustomerDisplayView: React.FC = () => {
           </div>
         ) : (
           /* CASE 4: STANDBY / IDLE STATE (EMPTY CART) - WITH CUSTOMER BACKGROUND & HIGH TRANSPARENCY */
-          <div className="flex-1 flex flex-col items-center justify-center p-6 md:p-8 border border-white/20 rounded-3xl shadow-2xl relative overflow-hidden animate-slowmotion-fade gap-6 md:gap-8">
+          <div className="flex-1 flex flex-col items-center justify-between p-4 md:p-6 lg:p-7 border border-white/20 rounded-3xl shadow-2xl relative overflow-hidden animate-slowmotion-fade gap-3 md:gap-4">
             {/* Cinematic Store Atmosphere Background Image */}
             <div className="absolute inset-0 z-0">
               <img
@@ -924,57 +924,57 @@ export const CustomerDisplayView: React.FC = () => {
             </div>
 
             {/* Top Standby Welcome */}
-            <div className="text-center space-y-3.5 z-10 max-w-3xl shrink-0">
+            <div className="text-center space-y-2 md:space-y-2.5 z-10 max-w-3xl shrink-0 pt-1.5">
               <div>
-                <span className="px-6 py-2 rounded-full bg-blue-500/30 text-blue-100 border border-blue-400/50 text-sm md:text-base font-black tracking-widest uppercase inline-block shadow-lg backdrop-blur-md">
+                <span className="px-5 py-1.5 rounded-full bg-blue-500/30 text-blue-100 border border-blue-400/50 text-xs md:text-sm font-black tracking-widest uppercase inline-block shadow-lg backdrop-blur-md">
                   PREMIUM RETAIL EXPERIENCE
                 </span>
               </div>
 
-              <h2 className="text-6xl md:text-7xl lg:text-8xl font-black text-white tracking-tight leading-tight drop-shadow-2xl">
+              <h2 className="text-4xl md:text-5xl lg:text-6xl font-black text-white tracking-tight leading-tight drop-shadow-2xl">
                 Hoş Geldiniz
               </h2>
 
-              <p className="text-xl md:text-2xl text-blue-100 font-bold drop-shadow-lg max-w-2xl mx-auto">
+              <p className="text-base md:text-lg text-blue-100 font-bold drop-shadow-lg max-w-2xl mx-auto">
                 Yeni sezon koleksiyonumuz ve ayrıcalıklı alışveriş deneyimi için buradayız.
               </p>
             </div>
 
             {/* Center: Dynamic Auto-Rotating Campaign Banner (High Transparency Frosted Glass) */}
             <div className="w-full max-w-2xl z-10 shrink-0">
-              <div className="bg-slate-900/45 border border-white/25 rounded-3xl p-6 md:p-7 backdrop-blur-xl shadow-2xl transition-all duration-500">
-                <div className="flex items-start space-x-4">
+              <div className="bg-slate-900/50 border border-white/25 rounded-2xl md:rounded-3xl p-4 md:p-5 backdrop-blur-xl shadow-2xl transition-all duration-500">
+                <div className="flex items-start space-x-3.5 md:space-x-4">
                   <div
-                    className={`p-3.5 md:p-4 rounded-2xl ${PROMO_SLIDES[currentSlide].iconBg} shadow-lg shrink-0 border border-white/20 text-3xl`}
+                    className={`p-3 md:p-3.5 rounded-2xl ${PROMO_SLIDES[currentSlide].iconBg} shadow-lg shrink-0 border border-white/20 text-2xl md:text-3xl`}
                   >
-                    <SlideIcon className="w-9 h-9" />
+                    <SlideIcon className="w-7 h-7 md:w-8 md:h-8" />
                   </div>
 
-                  <div className="flex-1 space-y-2">
+                  <div className="flex-1 space-y-1.5">
                     <span
-                      className={`px-3.5 py-1 rounded-full text-xs md:text-sm font-black uppercase tracking-wider border inline-block ${PROMO_SLIDES[currentSlide].badgeColor}`}
+                      className={`px-3 py-0.5 rounded-full text-xs font-black uppercase tracking-wider border inline-block ${PROMO_SLIDES[currentSlide].badgeColor}`}
                     >
                       {PROMO_SLIDES[currentSlide].badge}
                     </span>
-                    <h3 className="text-3xl md:text-4xl font-black text-white tracking-tight drop-shadow-md">
+                    <h3 className="text-2xl md:text-3xl font-black text-white tracking-tight drop-shadow-md">
                       {PROMO_SLIDES[currentSlide].title}
                     </h3>
-                    <p className="text-base md:text-lg text-blue-100 font-semibold leading-relaxed drop-shadow-sm">
+                    <p className="text-xs md:text-sm text-blue-100 font-semibold leading-relaxed drop-shadow-sm">
                       {PROMO_SLIDES[currentSlide].subtitle}
                     </p>
                   </div>
                 </div>
 
                 {/* Carousel Dots */}
-                <div className="flex justify-center space-x-2 mt-4 pt-3 border-t border-white/10">
+                <div className="flex justify-center space-x-2 mt-3 pt-2.5 border-t border-white/10">
                   {PROMO_SLIDES.map((_, idx) => (
                     <button
                       key={idx}
                       onClick={() => setCurrentSlide(idx)}
-                      className={`h-2 rounded-full transition-all ${
+                      className={`h-1.5 md:h-2 rounded-full transition-all ${
                         idx === currentSlide
-                          ? 'w-8 bg-blue-400 shadow-xs'
-                          : 'w-2 bg-white/30 hover:bg-white/50'
+                          ? 'w-7 md:w-8 bg-blue-400 shadow-xs'
+                          : 'w-1.5 md:w-2 bg-white/30 hover:bg-white/50'
                       }`}
                     />
                   ))}
@@ -982,12 +982,12 @@ export const CustomerDisplayView: React.FC = () => {
               </div>
             </div>
 
-            {/* Bottom Standby Badge Pills (Replaced bulky double cards) */}
-            <div className="z-10 flex flex-wrap items-center justify-center gap-3.5 text-sm md:text-base font-bold text-blue-100/90 shrink-0">
-              <span className="px-5 py-2 rounded-full bg-slate-900/50 border border-white/20 backdrop-blur-md flex items-center gap-2.5 shadow-md">
+            {/* Bottom Standby Badge Pills */}
+            <div className="z-10 flex flex-wrap items-center justify-center gap-3 text-xs md:text-sm font-bold text-blue-100/90 shrink-0 pb-1">
+              <span className="px-4 py-1.5 md:px-5 md:py-2 rounded-full bg-slate-900/60 border border-white/20 backdrop-blur-md flex items-center gap-2 shadow-md">
                 <span>💳</span> Nakit & Tüm Banka Kartları
               </span>
-              <span className="px-5 py-2 rounded-full bg-slate-900/50 border border-white/20 backdrop-blur-md flex items-center gap-2.5 shadow-md">
+              <span className="px-4 py-1.5 md:px-5 md:py-2 rounded-full bg-slate-900/60 border border-white/20 backdrop-blur-md flex items-center gap-2 shadow-md">
                 <span>🔄</span> 14 Gün İçinde Fiş ile Değişim
               </span>
             </div>
@@ -995,11 +995,11 @@ export const CustomerDisplayView: React.FC = () => {
         )}
       </main>
 
-      {/* FOOTER: Crisp, Legible Footer */}
-      <footer className="h-8 md:h-9 bg-slate-900/70 backdrop-blur-2xl border-t border-white/10 px-6 flex items-center justify-between text-xs md:text-sm text-blue-300/80 z-10 shrink-0">
-        <div className="flex items-center space-x-2.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="font-bold text-xs md:text-sm text-blue-100">Kasa Aktif & Canlı Bağlantı</span>
+      {/* FOOTER: Crisp, Legible Footer Pinned to Bottom */}
+      <footer className="h-7 md:h-8 bg-slate-900/80 backdrop-blur-2xl border-t border-white/10 px-5 md:px-6 flex items-center justify-between text-xs text-blue-300/80 z-10 shrink-0">
+        <div className="flex items-center space-x-2">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="font-bold text-xs text-blue-100">Kasa Aktif & Canlı Bağlantı</span>
         </div>
 
         <div>

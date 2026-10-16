@@ -5,13 +5,16 @@ export const printRouter = Router()
 // POST /api/print/label - Dispatch label printing job
 printRouter.post('/label', async (req, res) => {
   try {
-    const { variant, quantity, labelType, printerName } = req.body
+    const { variant, quantity, labelType, printerName, orientation, width, height } = req.body
 
     // Thermal label payload (HTML or ZPL)
     const printJob = {
       variant,
       quantity: quantity || 1,
       labelType: labelType || 'BARCODE_SHEET',
+      orientation: orientation || 'HORIZONTAL',
+      width: width || 50,
+      height: height || 30,
       printerName: printerName || 'Default Thermal Printer',
       timestamp: new Date().toISOString()
     }

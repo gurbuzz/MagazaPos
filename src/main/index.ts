@@ -7,6 +7,9 @@ import { getLocalIpAddress } from '../server/utils/network'
 // MağazaPOS Main Electron Process & Express Server Entry
 app.setName('MagazaPOS')
 
+app.commandLine.appendSwitch('high-dpi-support', '1')
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
+
 try {
   const userDataPath = app.getPath('userData')
   process.env.MAGAZAPOS_USER_DATA = userDataPath
@@ -63,14 +66,18 @@ function openCustomerDisplayWindow() {
 
   if (secondaryDisplay) {
     // Çift ekranlı POS donanımı: 2. ekran koordinatlarına çerçevesiz tam ekran (kiosk) oturt
+    const { x, y, width, height } = secondaryDisplay.bounds
+
     customerWindow = new BrowserWindow({
-      x: secondaryDisplay.bounds.x,
-      y: secondaryDisplay.bounds.y,
-      width: secondaryDisplay.bounds.width,
-      height: secondaryDisplay.bounds.height,
+      x,
+      y,
+      width,
+      height,
       frame: false,
-      fullscreen: true,
-      kiosk: true,
+      resizable: false,
+      movable: false,
+      alwaysOnTop: true,
+      skipTaskbar: true,
       autoHideMenuBar: true,
       title: 'LUFIAN - Müşteri Ekranı',
       backgroundColor: '#020b24',
@@ -81,7 +88,16 @@ function openCustomerDisplayWindow() {
         contextIsolation: true,
       },
     })
-    customerWindow.setBounds(secondaryDisplay.bounds)
+
+    // Windows çoklu monitör DPI & taskbar sızıntısını önlemek için koordinat ve kiosk kilitlemesi
+    customerWindow.setPosition(x, y)
+    customerWindow.setBounds({ x, y, width, height })
+    customerWindow.setKiosk(true)
+    try {
+      customerWindow.setAlwaysOnTop(true, 'screen-saver')
+    } catch {
+      customerWindow.setAlwaysOnTop(true)
+    }
   } else {
     // Tek ekran (geliştirme veya tek monitörlü test modu): Ayrı önizleme penceresi
     customerWindow = new BrowserWindow({
@@ -207,53 +223,100 @@ function createWindow() {
 }
 
 // IPC Handler: Silent Thermal Label/Receipt Printing
-ipcMain.handle('print-silent', async (_, htmlContent: string, printerName?: string) => {
-  let printWindow: BrowserWindow | null = new BrowserWindow({
-    show: false,
-    webPreferences: { nodeIntegration: false }
-  })
+ipcMain.handle('print-silent', async (_, htmlContent: string, printerName?: string, customPageSize?: { width: number; height: number }, silent: boolean = true) => {
+  const tempPath = path.join(app.getPath('temp'), `magazapos_print_${Date.now()}.html`)
 
-  printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`)
+  try {
+    fs.writeFileSync(tempPath, htmlContent, 'utf-8')
+  } catch (err: any) {
+    console.error('Failed to write print temp file:', err)
+  }
+
+  // Calculate pixel size for the window from mm to prevent blank viewport
+  const winWidth = customPageSize?.width ? Math.max(300, Math.round(customPageSize.width * 4)) : 400
+  const winHeight = customPageSize?.height ? Math.max(300, Math.round(customPageSize.height * 4)) : 600
+
+  let printWindow: BrowserWindow | null = new BrowserWindow({
+    width: winWidth,
+    height: winHeight,
+    show: false,
+    webPreferences: {
+      nodeIntegration: false,
+      backgroundThrottling: false, // CRITICAL: Never pause paint/rasterization in background
+    }
+  })
 
   return new Promise((resolve) => {
     let resolved = false
-    const cleanupAndResolve = (result: { success: boolean; failureReason?: string }) => {
+
+    const safeCleanup = (result: { success: boolean; failureReason?: string }) => {
       if (resolved) return
       resolved = true
       clearTimeout(failsafeTimer)
-      if (printWindow && !printWindow.isDestroyed()) {
-        try { printWindow.close() } catch {}
-        printWindow = null
-      }
       resolve(result)
+
+      // CRITICAL: Keep window alive for 2 seconds after print call so Windows Print Spooler (spoolsv.exe)
+      // completely flushes the EMF/GDI raster data to the printer driver. Immediate destruction cuts off the spool!
+      setTimeout(() => {
+        if (printWindow && !printWindow.isDestroyed()) {
+          try { printWindow.close() } catch {}
+          printWindow = null
+        }
+        try {
+          if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath)
+        } catch {}
+      }, 2000)
     }
 
     const failsafeTimer = setTimeout(() => {
-      cleanupAndResolve({ success: false, failureReason: 'Yazdırma zaman aşımına uğradı (15sn)' })
+      safeCleanup({ success: false, failureReason: 'Yazdırma zaman aşımına uğradı (15sn)' })
     }, 15000)
 
     printWindow?.webContents.on('did-fail-load', (_, errorCode, errorDescription) => {
-      cleanupAndResolve({ success: false, failureReason: `Yükleme hatası: ${errorDescription} (${errorCode})` })
+      safeCleanup({ success: false, failureReason: `Yükleme hatası: ${errorDescription} (${errorCode})` })
     })
 
     printWindow?.webContents.on('did-finish-load', () => {
-      const printOptions: any = {
-        silent: true,
-        printBackground: true,
-      }
+      // 450ms delay to guarantee full CSS layout, font rasterization and SVG paint before dispatching to print spooler
+      setTimeout(() => {
+        if (!printWindow || printWindow.isDestroyed()) return
 
-      if (printerName) {
-        printOptions.deviceName = printerName
-      }
-
-      printWindow?.webContents.print(
-        printOptions,
-        (success, failureReason) => {
-          if (!success) console.error('Print failed:', failureReason)
-          cleanupAndResolve({ success, failureReason })
+        const printOptions: any = {
+          silent: silent !== false,
+          printBackground: true,
+          margins: { marginType: 'none' },
         }
-      )
+
+        if (printerName && printerName.trim()) {
+          printOptions.deviceName = printerName.trim()
+        }
+
+        if (customPageSize && customPageSize.width && customPageSize.height) {
+          // Electron pageSize in microns (1 mm = 1000 microns)
+          printOptions.pageSize = {
+            width: Math.round(customPageSize.width * 1000),
+            height: Math.round(customPageSize.height * 1000),
+          }
+        }
+
+        printWindow.webContents.print(
+          printOptions,
+          (success, failureReason) => {
+            if (!success) console.error('Print failed:', failureReason)
+            safeCleanup({ success, failureReason })
+          }
+        )
+      }, 450)
     })
+
+    // Load local temp file (more reliable than data: URLs on Windows drivers)
+    if (printWindow) {
+      if (fs.existsSync(tempPath)) {
+        printWindow.loadFile(tempPath)
+      } else {
+        printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`)
+      }
+    }
   })
 })
 

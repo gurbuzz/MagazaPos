@@ -29,7 +29,7 @@ interface MusicState {
   liveVolume: number
   trackProgressSec: number
   currentTrack: MusicTrack | null
-  activePlaylist: { id: string; name: string; badge: string; totalTracks: number } | null
+  activePlaylist: { id: string; name: string; badge: string; totalTracks: number; streamUrl?: string } | null
   sourceMode: 'spotify' | 'store_radio'
   spotify: { hasKeys: boolean; isConnected: boolean }
   schedule: { enabled: boolean; startTime: string; endTime: string }

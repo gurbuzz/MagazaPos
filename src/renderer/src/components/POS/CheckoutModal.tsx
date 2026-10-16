@@ -168,10 +168,23 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
     if (!completedSale) return
     const custInfo = completedSale.customer || selectedCustomer
     const receiptHtml = `
+      <!DOCTYPE html>
       <html>
         <head>
+          <meta charset="utf-8">
           <style>
-            body { font-family: monospace; width: 280px; padding: 10px; font-size: 12px; }
+            @page { margin: 0; }
+            * { box-sizing: border-box; }
+            body {
+              font-family: monospace;
+              width: 280px;
+              padding: 10px;
+              font-size: 12px;
+              color: #000000 !important;
+              background-color: #ffffff !important;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
             .header { text-align: center; border-bottom: 1px dashed #000; padding-bottom: 5px; }
             .item { display: flex; justify-content: space-between; margin: 4px 0; }
             .total { border-top: 1px dashed #000; margin-top: 8px; padding-top: 5px; font-weight: bold; }
