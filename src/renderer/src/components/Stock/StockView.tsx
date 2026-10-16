@@ -1707,7 +1707,7 @@ export const StockView: React.FC = () => {
                           />
                         </div>
                         <div>
-                          <label className="block text-[10px] font-bold text-rose-700 uppercase mb-0.5">İskontolu Fiyat (₺)</label>
+                          <label className="block text-[10px] font-bold text-rose-700 uppercase mb-0.5">İndirimli Fiyat (₺)</label>
                           <input
                             type="number"
                             step="0.01"
@@ -1832,7 +1832,7 @@ export const StockView: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1">İskontolu Fiyat (₺)</label>
+                  <label className="block text-slate-700 font-semibold mb-1">İndirimli Fiyat (₺)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -2113,7 +2113,7 @@ export const StockView: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1">İskontolu Fiyat (TL)</label>
+                  <label className="block text-slate-700 font-semibold mb-1">İndirimli Fiyat (TL)</label>
                   <input
                     type="number"
                     value={newDiscountPrice}
@@ -2524,7 +2524,7 @@ export const StockView: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1">İskontolu Fiyat (₺)</label>
+                  <label className="block text-slate-700 font-semibold mb-1">İndirimli Fiyat (₺)</label>
                   <input
                     type="number"
                     step="0.01"

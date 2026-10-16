@@ -379,11 +379,8 @@ export const LabelPrinterModal: React.FC = () => {
             <span class="old-price-lbl">ESKİ FİYAT</span>
             <span class="old-price-val">${formattedOrigPrice} TL</span>
           </div>
-          <div class="badge-col">
-            <span class="discount-badge">-%${discountPct}</span>
-          </div>
           <div class="new-price-col">
-            <span class="new-price-lbl">İSKONTOLU FİYAT</span>
+            <span class="new-price-lbl">İNDİRİMLİ FİYAT</span>
             <span class="new-price-val">${formattedDiscPrice} TL</span>
           </div>
         </div>
@@ -399,12 +396,11 @@ export const LabelPrinterModal: React.FC = () => {
       ? `
         <div class="price-box discounted-box">
           <div class="v-old-row">
-            <span class="v-old-lbl">LİSTE:</span>
+            <span class="v-old-lbl">ESKİ FİYAT:</span>
             <span class="v-old-val">${formattedOrigPrice} TL</span>
           </div>
-          <div class="v-badge-tag">%${discountPct} İSKONTOLU</div>
           <div class="v-new-row">
-            <div class="v-new-lbl">İNDİRİMLİ SATIŞ FİYATI</div>
+            <div class="v-new-lbl">İNDİRİMLİ FİYAT</div>
             <div class="v-new-val">${formattedDiscPrice} TL</div>
           </div>
         </div>
@@ -1357,14 +1353,9 @@ export const LabelPrinterModal: React.FC = () => {
                     />
                     <span className="flex items-center space-x-1">
                       <BadgePercent className="w-4 h-4 text-amber-700" />
-                      <span>İndirimli / İskontolu Etiket Bas</span>
+                      <span>İndirimli Fiyatlı Etiket Bas</span>
                     </span>
                   </label>
-                  {isDiscounted && (
-                    <span className="bg-amber-700 text-white font-extrabold text-[10px] px-2 py-0.5 rounded-full shadow-2xs">
-                      %{discountPct} İNDİRİM
-                    </span>
-                  )}
                 </div>
 
                 {isDiscountMode && (
@@ -1384,7 +1375,7 @@ export const LabelPrinterModal: React.FC = () => {
                       </div>
                       <div>
                         <label className="block text-[10px] font-bold text-rose-700 mb-0.5">
-                          İskontolu Fiyat (₺)
+                          İndirimli Fiyat (₺)
                         </label>
                         <input
                           type="number"
@@ -1398,7 +1389,7 @@ export const LabelPrinterModal: React.FC = () => {
 
                     {/* Hızlı İndirim Oranları */}
                     <div className="flex items-center justify-between gap-1 pt-0.5">
-                      <span className="text-[10px] font-semibold text-slate-600">Hızlı İskonto:</span>
+                      <span className="text-[10px] font-semibold text-slate-600">Hızlı İndirim Oranı:</span>
                       <div className="flex items-center space-x-1">
                         {[10, 20, 25, 30, 40, 50].map((pct) => (
                           <button
@@ -1599,11 +1590,8 @@ export const LabelPrinterModal: React.FC = () => {
                                 {origPriceNum.toFixed(2)} TL
                               </span>
                             </div>
-                            <span className="bg-black text-white px-1.5 py-0.5 rounded text-[10px] font-black tracking-wider shrink-0 mx-1">
-                              -%{discountPct}
-                            </span>
                             <div className="flex flex-col text-right shrink-0">
-                              <span className="text-[8px] font-black text-black leading-none">İSKONTOLU FİYAT</span>
+                              <span className="text-[8px] font-black text-black leading-none">İNDİRİMLİ FİYAT</span>
                               <span className={`font-black text-black leading-none tracking-tight ${
                                 fontScale === 'COMPACT' ? 'text-lg' : fontScale === 'LARGE' ? 'text-2xl' : 'text-xl'
                               }`}>
@@ -1666,13 +1654,10 @@ export const LabelPrinterModal: React.FC = () => {
                         {isDiscounted ? (
                           <div className="border-2 border-black p-1 text-center mt-0.5 bg-white">
                             <div className="flex justify-between items-center text-[9px] border-b border-black pb-0.5 mb-0.5 font-bold">
-                              <span className="text-slate-600">LİSTE:</span>
+                              <span className="text-slate-600">ESKİ FİYAT:</span>
                               <span className="line-through text-slate-500 font-black">{origPriceNum.toFixed(2)} TL</span>
                             </div>
-                            <div className="bg-black text-white text-[9px] font-black py-0.5 px-1 rounded uppercase tracking-wider mb-0.5">
-                              %{discountPct} İSKONTOLU
-                            </div>
-                            <div className="text-[7.5px] font-black text-black">İNDİRİMLİ SATIŞ FİYATI</div>
+                            <div className="text-[7.5px] font-black text-black">İNDİRİMLİ FİYAT</div>
                             <div className={`font-black text-black leading-none mt-0.5 tracking-tight ${
                               fontScale === 'COMPACT' ? 'text-base' : fontScale === 'LARGE' ? 'text-xl' : 'text-lg'
                             }`}>

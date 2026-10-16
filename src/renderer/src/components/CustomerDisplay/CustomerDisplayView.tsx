@@ -752,7 +752,7 @@ export const CustomerDisplayView: React.FC = () => {
                                   {(item.originalPrice ?? 0).toFixed(2)} ₺
                                 </span>
                                 <span className="text-[11px] text-emerald-300 font-bold leading-tight">
-                                  İskontolu: {item.unitPrice.toFixed(2)} ₺
+                                  İndirimli: {item.unitPrice.toFixed(2)} ₺
                                 </span>
                               </div>
                             ) : (
