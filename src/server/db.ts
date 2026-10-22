@@ -236,24 +236,24 @@ export const prisma = new PrismaClient({
 async function seedDefaultData() {
   try {
     const catUst = await prisma.category.upsert({
-      where: { name: 'Üst Giyim' },
+      where: { name: 'ÜST GİYİM' },
       update: {},
-      create: { name: 'Üst Giyim' },
+      create: { name: 'ÜST GİYİM' },
     })
     const catAlt = await prisma.category.upsert({
-      where: { name: 'Alt Giyim' },
+      where: { name: 'ALT GİYİM' },
       update: {},
-      create: { name: 'Alt Giyim' },
+      create: { name: 'ALT GİYİM' },
     })
     const catDis = await prisma.category.upsert({
-      where: { name: 'Dış Giyim' },
+      where: { name: 'DIŞ GİYİM' },
       update: {},
-      create: { name: 'Dış Giyim' },
+      create: { name: 'DIŞ GİYİM' },
     })
     const catAksesuar = await prisma.category.upsert({
-      where: { name: 'Aksesuar' },
+      where: { name: 'AKSESUAR' },
       update: {},
-      create: { name: 'Aksesuar' },
+      create: { name: 'AKSESUAR' },
     })
 
     const attr = (color: string, size: string) => JSON.stringify({ color, size })
@@ -526,6 +526,22 @@ export async function ensureDatabaseSchema() {
       }
     } catch (countErr: any) {
       logDebug('DB_INIT', 'Error checking product count', countErr)
+    }
+
+    // 4. Tüm kategorilerin büyük harf olmasını garantiye al
+    try {
+      const allCategories = await prisma.category.findMany()
+      for (const cat of allCategories) {
+        const upper = cat.name.toLocaleUpperCase('tr-TR')
+        if (cat.name !== upper) {
+          await prisma.category.update({
+            where: { id: cat.id },
+            data: { name: upper },
+          }).catch(() => {})
+        }
+      }
+    } catch (catErr: any) {
+      logDebug('DB_INIT', 'Error normalizing category names to uppercase', catErr)
     }
   } catch (err: any) {
     logDebug('DB_INIT', 'Error in ensureDatabaseSchema', err)

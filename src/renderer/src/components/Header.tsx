@@ -193,7 +193,7 @@ export const Header: React.FC = () => {
       <nav className="relative z-10 flex items-center gap-0.5 sm:gap-1 xl:gap-1.5 bg-[#001a61]/85 p-1 rounded-2xl border border-white/20 backdrop-blur-md shadow-inner shrink min-w-0 overflow-x-auto no-scrollbar">
         <button
           onClick={() => setActiveTab('pos')}
-          className={`flex items-center gap-1 xl:gap-2 px-2 sm:px-2.5 xl:px-3.5 py-1.5 rounded-xl text-xs xl:text-sm font-extrabold whitespace-nowrap shrink-0 transition-all ${
+          className={`flex items-center gap-1 xl:gap-1.5 px-2 sm:px-2.5 xl:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs xl:text-[13px] font-extrabold whitespace-nowrap shrink-0 transition-all ${
             activeTab === 'pos'
               ? 'bg-white text-[#00268A] shadow-md scale-[1.02]'
               : 'text-blue-100 hover:text-white hover:bg-white/10'
@@ -206,7 +206,7 @@ export const Header: React.FC = () => {
 
         <button
           onClick={() => setActiveTab('customers')}
-          className={`flex items-center gap-1 xl:gap-2 px-2 sm:px-2.5 xl:px-3.5 py-1.5 rounded-xl text-xs xl:text-sm font-extrabold whitespace-nowrap shrink-0 transition-all ${
+          className={`flex items-center gap-1 xl:gap-1.5 px-2 sm:px-2.5 xl:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs xl:text-[13px] font-extrabold whitespace-nowrap shrink-0 transition-all ${
             activeTab === 'customers'
               ? 'bg-white text-[#00268A] shadow-md scale-[1.02]'
               : 'text-blue-100 hover:text-white hover:bg-white/10'
@@ -219,7 +219,7 @@ export const Header: React.FC = () => {
 
         <button
           onClick={() => setActiveTab('stock')}
-          className={`flex items-center gap-1 xl:gap-2 px-2 sm:px-2.5 xl:px-3.5 py-1.5 rounded-xl text-xs xl:text-sm font-extrabold whitespace-nowrap shrink-0 transition-all ${
+          className={`flex items-center gap-1 xl:gap-1.5 px-2 sm:px-2.5 xl:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs xl:text-[13px] font-extrabold whitespace-nowrap shrink-0 transition-all ${
             activeTab === 'stock'
               ? 'bg-white text-[#00268A] shadow-md scale-[1.02]'
               : 'text-blue-100 hover:text-white hover:bg-white/10'
@@ -232,7 +232,7 @@ export const Header: React.FC = () => {
 
         <button
           onClick={() => setActiveTab('labels')}
-          className={`flex items-center gap-1 xl:gap-2 px-2 sm:px-2.5 xl:px-3.5 py-1.5 rounded-xl text-xs xl:text-sm font-extrabold whitespace-nowrap shrink-0 transition-all ${
+          className={`flex items-center gap-1 xl:gap-1.5 px-2 sm:px-2.5 xl:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs xl:text-[13px] font-extrabold whitespace-nowrap shrink-0 transition-all ${
             activeTab === 'labels'
               ? 'bg-white text-[#00268A] shadow-md scale-[1.02]'
               : 'text-blue-100 hover:text-white hover:bg-white/10'
@@ -246,7 +246,7 @@ export const Header: React.FC = () => {
         {!isStockOnlyMode && (
           <button
             onClick={() => handleProtectedAction('sales')}
-            className={`flex items-center gap-1 xl:gap-2 px-2 sm:px-2.5 xl:px-3.5 py-1.5 rounded-xl text-xs xl:text-sm font-extrabold whitespace-nowrap shrink-0 transition-all ${
+            className={`flex items-center gap-1 xl:gap-1.5 px-2 sm:px-2.5 xl:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs xl:text-[13px] font-extrabold whitespace-nowrap shrink-0 transition-all ${
               activeTab === 'sales'
                 ? 'bg-white text-[#00268A] shadow-md scale-[1.02]'
                 : 'text-blue-100 hover:text-white hover:bg-white/10'
@@ -266,7 +266,7 @@ export const Header: React.FC = () => {
       <div className="relative z-10 flex items-center gap-1 sm:gap-1.5 text-sm bg-white/90 p-1 rounded-2xl border border-white/60 shadow-xs backdrop-blur-sm shrink-0">
         <button
           onClick={() => setIsCampaignModalOpen(true)}
-          className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-black transition shadow-xs whitespace-nowrap shrink-0"
+          className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-[11px] xl:text-xs font-black transition shadow-xs whitespace-nowrap shrink-0"
           title="Kampanya ve İndirim Yönetimi"
         >
           <Sparkles className="w-3.5 h-3.5 text-amber-200 shrink-0" />
@@ -276,7 +276,7 @@ export const Header: React.FC = () => {
         {/* Store Music Button */}
         <button
           onClick={() => setIsMusicModalOpen(true)}
-          className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 text-white rounded-xl text-xs font-black transition shadow-xs whitespace-nowrap shrink-0 ${
+          className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 text-white rounded-xl text-[11px] xl:text-xs font-black transition shadow-xs whitespace-nowrap shrink-0 ${
             isPlaying
               ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 ring-2 ring-emerald-300'
               : 'bg-indigo-600 hover:bg-indigo-700'

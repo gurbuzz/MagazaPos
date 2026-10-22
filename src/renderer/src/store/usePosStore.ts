@@ -246,9 +246,12 @@ export const usePosStore = create<PosState>((set, get) => ({
     try {
       localStorage.setItem('pos_campaigns', JSON.stringify(updated))
     } catch (e) {}
+    const wasActive = get().activeCampaign?.id === id
     set({
       campaigns: updated,
-      activeCampaign: get().activeCampaign?.id === id ? null : get().activeCampaign,
+      activeCampaign: wasActive ? null : get().activeCampaign,
+      discountAmount: wasActive ? 0 : get().discountAmount,
+      surchargeAmount: wasActive ? 0 : get().surchargeAmount,
     })
   },
 
@@ -336,13 +339,15 @@ export const usePosStore = create<PosState>((set, get) => ({
     }
   },
 
-  applyDiscount: (amount) =>
+  applyDiscount: (amount) => {
+    const subtotal = get().getSubtotal()
     set({
-      discountAmount: Math.max(0, Math.round(amount * 100) / 100),
+      discountAmount: Math.min(subtotal, Math.max(0, Math.round(amount * 100) / 100)),
       surchargeAmount: 0,
       activeCampaign: null,
       customTotal: null,
-    }),
+    })
+  },
 
   setCustomTotal: (amount) => {
     if (amount === null) {
@@ -378,6 +383,17 @@ export const usePosStore = create<PosState>((set, get) => ({
 
     const subtotal = get().getSubtotal()
     const isSurcharge = campaign.action === 'SURCHARGE'
+
+    // If cart is currently empty, save the campaign for upcoming items without showing ghost totals
+    if (subtotal === 0) {
+      set({
+        discountAmount: 0,
+        surchargeAmount: 0,
+        activeCampaign: campaign,
+        customTotal: null,
+      })
+      return
+    }
 
     let calculated = 0
     if (campaign.type === 'PERCENTAGE') {
@@ -420,7 +436,8 @@ export const usePosStore = create<PosState>((set, get) => ({
   },
 
   getTotal: () => {
-    const { customTotal, discountAmount, surchargeAmount } = get()
+    const { customTotal, discountAmount, surchargeAmount, cartItems } = get()
+    if (cartItems.length === 0) return 0
     if (customTotal !== null) {
       return customTotal
     }

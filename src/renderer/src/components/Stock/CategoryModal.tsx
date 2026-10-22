@@ -25,7 +25,8 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
 
   const handleCreateCategory = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newCatName.trim() || isSubmitting) return
+    const trimmed = newCatName.trim().toLocaleUpperCase('tr-TR')
+    if (!trimmed || isSubmitting) return
 
     setIsSubmitting(true)
     setErrorMsg('')
@@ -33,33 +34,33 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
       const res = await fetch('/api/products/categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newCatName.trim() }),
+        body: JSON.stringify({ name: trimmed }),
       })
 
       if (res.ok) {
         setNewCatName('')
-        setIsSubmitting(false)
-        onRefresh()
+        await onRefresh()
         notifyDataChanged()
       } else {
         const data = await res.json()
         setErrorMsg(data.error || 'Kategori eklenemedi.')
-        setIsSubmitting(false)
       }
     } catch (err: any) {
       setErrorMsg(err.message || 'Bağlantı hatası.')
+    } finally {
       setIsSubmitting(false)
     }
   }
 
   const handleStartEdit = (cat: any) => {
     setEditingId(cat.id)
-    setEditingName(cat.name)
+    setEditingName(cat.name.toLocaleUpperCase('tr-TR'))
     setErrorMsg('')
   }
 
   const handleSaveEdit = async (id: string) => {
-    if (!editingName.trim() || isSubmitting) return
+    const trimmed = editingName.trim().toLocaleUpperCase('tr-TR')
+    if (!trimmed || isSubmitting) return
     setIsSubmitting(true)
     setErrorMsg('')
 
@@ -67,22 +68,21 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
       const res = await fetch(`/api/products/categories/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: editingName.trim() }),
+        body: JSON.stringify({ name: trimmed }),
       })
 
       if (res.ok) {
         setEditingId(null)
         setEditingName('')
-        setIsSubmitting(false)
-        onRefresh()
+        await onRefresh()
         notifyDataChanged()
       } else {
         const data = await res.json()
         setErrorMsg(data.error || 'Kategori güncellenemedi.')
-        setIsSubmitting(false)
       }
     } catch (err: any) {
       setErrorMsg(err.message || 'Güncelleme hatası.')
+    } finally {
       setIsSubmitting(false)
     }
   }
@@ -103,16 +103,15 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
 
       if (res.ok) {
         if (editingId === id) setEditingId(null)
-        setIsSubmitting(false)
-        onRefresh()
+        await onRefresh()
         notifyDataChanged()
       } else {
         const data = await res.json()
         setErrorMsg(data.error || 'Kategori silinemedi.')
-        setIsSubmitting(false)
       }
     } catch (err: any) {
       setErrorMsg(err.message || 'Silme hatası.')
+    } finally {
       setIsSubmitting(false)
     }
   }
@@ -146,16 +145,20 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
           <form onSubmit={handleCreateCategory} className="flex space-x-2">
             <input
               type="text"
-              placeholder="Yeni kategori adı yazın..."
+              placeholder="YENİ KATEGORİ ADI YAZIN..."
               value={newCatName}
-              onChange={(e) => setNewCatName(e.target.value)}
-              className="flex-1 bg-slate-50 border border-slate-300 rounded px-3 py-2 text-xs text-slate-900 font-medium focus:outline-none focus:ring-1 focus:ring-blue-600"
+              onChange={(e) => {
+                setNewCatName(e.target.value.toLocaleUpperCase('tr-TR'))
+                if (errorMsg) setErrorMsg('')
+              }}
+              className="flex-1 bg-slate-50 border border-slate-300 rounded px-3 py-2 text-xs text-slate-900 font-bold uppercase focus:outline-none focus:ring-1 focus:ring-blue-600"
               disabled={isSubmitting}
+              autoFocus
             />
             <button
               type="submit"
               disabled={isSubmitting || !newCatName.trim()}
-              className="px-3.5 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded text-xs font-bold transition flex items-center space-x-1 disabled:opacity-50"
+              className="px-3.5 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded text-xs font-bold uppercase transition flex items-center space-x-1 disabled:opacity-50"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Ekle</span>
@@ -186,17 +189,23 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
 
                     return (
                       <tr key={cat.id} className="hover:bg-slate-50 transition">
-                        <td className="px-4 py-2.5 font-semibold text-slate-900">
+                        <td className="px-4 py-2.5 font-bold uppercase text-slate-900">
                           {isEditing ? (
                             <input
                               type="text"
                               value={editingName}
-                              onChange={(e) => setEditingName(e.target.value)}
+                              onChange={(e) => {
+                                setEditingName(e.target.value.toLocaleUpperCase('tr-TR'))
+                                if (errorMsg) setErrorMsg('')
+                              }}
                               onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleSaveEdit(cat.id)
+                                if (e.key === 'Enter') {
+                                  e.preventDefault()
+                                  handleSaveEdit(cat.id)
+                                }
                                 if (e.key === 'Escape') setEditingId(null)
                               }}
-                              className="bg-white border border-blue-500 rounded px-2 py-1 text-xs font-semibold text-slate-900 focus:outline-none w-full"
+                              className="bg-white border border-blue-500 rounded px-2 py-1 text-xs font-bold uppercase text-slate-900 focus:outline-none w-full"
                               autoFocus
                             />
                           ) : (

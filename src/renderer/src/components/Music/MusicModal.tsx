@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useTransition } from 'react'
 import {
   Play,
   Pause,
@@ -18,7 +18,15 @@ import {
   X,
   Sliders,
   Music2,
-  Wifi,
+  Laptop,
+  Smartphone,
+  Speaker,
+  Copy,
+  Check,
+  ExternalLink,
+  RefreshCw,
+  LogOut,
+  LogIn,
 } from 'lucide-react'
 import { useMusicStore, MusicTrack } from '../../store/useMusicStore'
 import customerBg from '../../assets/customerbackground.jpg'
@@ -37,12 +45,19 @@ export const MusicModal: React.FC = () => {
     currentTrack,
     activePlaylist,
     playlists,
+    userPlaylists,
+    devices,
     searchResults,
     searchQuery,
     isSearching,
+    errorMessage,
+    setErrorMessage,
     config,
+    spotify,
     fetchStatus,
     fetchPlaylists,
+    fetchDevices,
+    transferDevice,
     fetchConfig,
     play,
     pause,
@@ -52,6 +67,9 @@ export const MusicModal: React.FC = () => {
     search,
     selectTrack,
     selectPlaylist,
+    playSpotifyPlaylist,
+    connectSpotify,
+    disconnectSpotify,
     saveConfig,
   } = useMusicStore()
 
@@ -63,15 +81,11 @@ export const MusicModal: React.FC = () => {
   const [formScheduleEnabled, setFormScheduleEnabled] = useState(true)
   const [formFadeDuration, setFormFadeDuration] = useState(2.5)
   const [saveSuccessMsg, setSaveSuccessMsg] = useState('')
+  const [copiedRedirect, setCopiedRedirect] = useState(false)
+  const [playlistViewMode, setPlaylistViewMode] = useState<'spotify' | 'presets'>('spotify')
+  const [showSecret, setShowSecret] = useState(false)
 
-  useEffect(() => {
-    if (isModalOpen) {
-      fetchStatus()
-      fetchPlaylists()
-      fetchConfig()
-    }
-  }, [isModalOpen])
-
+  // Load config into form
   useEffect(() => {
     if (config) {
       setFormClientId(config.spotifyClientId || '')
@@ -96,13 +110,22 @@ export const MusicModal: React.FC = () => {
     window.addEventListener('keydown', handleKeyDown)
     const interval = setInterval(() => {
       fetchStatus()
-    }, 1500)
+    }, 2000)
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
       clearInterval(interval)
     }
   }, [isModalOpen])
+
+  // Debounced search when user types
+  useEffect(() => {
+    if (activeTab !== 'search') return
+    const timer = setTimeout(() => {
+      search(searchQuery)
+    }, 350)
+    return () => clearTimeout(timer)
+  }, [searchQuery, activeTab])
 
   if (!isModalOpen) return null
 
@@ -128,6 +151,20 @@ export const MusicModal: React.FC = () => {
     }
   }
 
+  const handleCopyRedirectUri = () => {
+    const uri = config?.redirectUri || 'http://localhost:3782/api/music/spotify/callback'
+    navigator.clipboard.writeText(uri)
+    setCopiedRedirect(true)
+    setTimeout(() => setCopiedRedirect(false), 2000)
+  }
+
+  const getDeviceIcon = (type: string) => {
+    const t = type.toLowerCase()
+    if (t.includes('computer')) return <Laptop className="w-4 h-4" />
+    if (t.includes('smartphone') || t.includes('phone')) return <Smartphone className="w-4 h-4" />
+    return <Speaker className="w-4 h-4" />
+  }
+
   return (
     <div
       onClick={(e) => {
@@ -145,12 +182,22 @@ export const MusicModal: React.FC = () => {
             <div>
               <div className="flex items-center space-x-2">
                 <h3 className="font-black text-base sm:text-lg tracking-tight">Mağaza Müzik & Ses Sistemi</h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 flex items-center space-x-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping inline-block"></span>
-                  <span>Amfi Yayını</span>
-                </span>
+                {spotify.isConnected ? (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 flex items-center space-x-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping inline-block"></span>
+                    <span>Spotify Bağlı</span>
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-400/30 flex items-center space-x-1">
+                    <span>Mağaza Amfi Yayını</span>
+                  </span>
+                )}
               </div>
-              <p className="text-xs text-blue-200 font-medium">Lufian & Jack & Jones Mağaza İçi Müzik Yönetimi</p>
+              <p className="text-xs text-blue-200 font-medium">
+                {spotify.user?.name
+                  ? `Hesap: ${spotify.user.name} • Lufian & Jack & Jones Mağaza İçi Müzik`
+                  : 'Lufian & Jack & Jones Mağaza İçi Spotify Yönetimi'}
+              </p>
             </div>
           </div>
           <button
@@ -160,6 +207,22 @@ export const MusicModal: React.FC = () => {
             <X className="w-4 h-4" />
           </button>
         </div>
+
+        {/* Global Error Banner */}
+        {errorMessage && (
+          <div className="bg-rose-50 border-b border-rose-200 px-4 py-2.5 flex items-center justify-between text-rose-800 text-xs shrink-0">
+            <div className="flex items-center space-x-2">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span className="font-semibold">{errorMessage}</span>
+            </div>
+            <button
+              onClick={() => setErrorMessage(null)}
+              className="text-rose-600 hover:text-rose-900 font-bold ml-2 text-xs"
+            >
+              Kapat
+            </button>
+          </div>
+        )}
 
         {/* Modal Navigation Tabs */}
         <div className="flex border-b border-slate-200 bg-slate-50 px-3 pt-2 gap-1 overflow-x-auto shrink-0 select-none">
@@ -184,7 +247,7 @@ export const MusicModal: React.FC = () => {
             }`}
           >
             <Search className="w-3.5 h-3.5" />
-            <span>Şarkı Ara</span>
+            <span>Şarkı Ara (Spotify)</span>
           </button>
 
           <button
@@ -197,6 +260,11 @@ export const MusicModal: React.FC = () => {
           >
             <ListMusic className="w-3.5 h-3.5" />
             <span>Çalma Listeleri</span>
+            {userPlaylists.length > 0 && (
+              <span className="ml-1 px-1.5 py-0.2 bg-emerald-100 text-emerald-800 rounded-full text-[10px]">
+                {userPlaylists.length}
+              </span>
+            )}
           </button>
 
           <button
@@ -220,7 +288,10 @@ export const MusicModal: React.FC = () => {
             }`}
           >
             <Key className="w-3.5 h-3.5" />
-            <span>Spotify API</span>
+            <span>Spotify API & Giriş</span>
+            {spotify.isConnected && (
+              <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
+            )}
           </button>
         </div>
 
@@ -233,7 +304,11 @@ export const MusicModal: React.FC = () => {
               <div className="bg-gradient-to-br from-slate-900 to-[#02133d] text-white rounded-2xl p-5 shadow-lg border border-slate-800 flex flex-col sm:flex-row items-center gap-5">
                 {/* Album Art / Vinyl Graphic */}
                 <div className="relative shrink-0">
-                  <div className={`w-28 h-28 rounded-2xl overflow-hidden bg-slate-800 border-2 border-white/20 shadow-md ${isPlaying ? 'ring-4 ring-emerald-500/30' : ''}`}>
+                  <div
+                    className={`w-28 h-28 rounded-2xl overflow-hidden bg-slate-800 border-2 border-white/20 shadow-md ${
+                      isPlaying ? 'ring-4 ring-emerald-500/30' : ''
+                    }`}
+                  >
                     <img
                       src={currentTrack?.albumArt || customerBg}
                       alt="Album Art"
@@ -251,7 +326,7 @@ export const MusicModal: React.FC = () => {
                 <div className="flex-1 text-center sm:text-left space-y-2 w-full">
                   <div className="flex items-center justify-center sm:justify-between">
                     <span className="px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 text-[11px] font-bold border border-blue-400/20">
-                      {activePlaylist?.badge || 'Mağaza Müzik Akışı'}
+                      {activePlaylist?.badge || (spotify.isConnected ? 'Spotify Yayını' : 'Mağaza Müzik Akışı')}
                     </span>
                     {isFading && (
                       <span className="text-[11px] font-bold text-amber-300 animate-pulse">
@@ -265,7 +340,7 @@ export const MusicModal: React.FC = () => {
                       {currentTrack?.title || 'Mağaza Müzik Sistemi'}
                     </h4>
                     <p className="text-xs text-slate-300 font-semibold truncate">
-                      {currentTrack?.artist || 'Lufian & Jack & Jones'}
+                      {currentTrack?.artist || 'Lufian & Jack & Jones'} {currentTrack?.album ? `• ${currentTrack.album}` : ''}
                     </p>
                   </div>
 
@@ -368,6 +443,36 @@ export const MusicModal: React.FC = () => {
                 </div>
               </div>
 
+              {/* Active Device Quick Selector */}
+              {spotify.isConnected && devices.length > 0 && (
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs">
+                  <div className="flex items-center space-x-2 text-slate-700 font-semibold">
+                    <Speaker className="w-4 h-4 text-emerald-600" />
+                    <span>Aktif Çalma Cihazı:</span>
+                    <span className="font-bold text-slate-900">
+                      {spotify.activeDeviceName || devices.find((d) => d.is_active)?.name || 'Cihaz Seçiniz'}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center space-x-1.5">
+                    {devices.map((d) => (
+                      <button
+                        key={d.id}
+                        onClick={() => transferDevice(d.id)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center space-x-1 transition ${
+                          d.is_active || d.id === spotify.activeDeviceId
+                            ? 'bg-emerald-600 text-white shadow-2xs'
+                            : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        {getDeviceIcon(d.type)}
+                        <span>{d.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Informational Callout */}
               <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between text-xs text-blue-900 font-medium">
                 <div className="flex items-center space-x-2">
@@ -387,7 +492,7 @@ export const MusicModal: React.FC = () => {
                 <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                 <input
                   type="text"
-                  placeholder="Şarkı adı, sanatçı veya tarz arayın (Örn: Sezen Aksu, Akustik, The Weeknd)..."
+                  placeholder="Spotify kataloğunda şarkı adı veya sanatçı arayın (Örn: Sezen Aksu, Tarkan, The Weeknd)..."
                   value={searchQuery}
                   onChange={(e) => search(e.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#00268A] focus:bg-white transition"
@@ -395,23 +500,26 @@ export const MusicModal: React.FC = () => {
               </div>
 
               {/* Search Results List */}
-              <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
+              <div className="space-y-2 max-h-[380px] overflow-y-auto pr-1">
                 {isSearching && (
-                  <div className="text-center py-6 text-slate-400 text-xs font-bold">
-                    Şarkılar aranıyor...
+                  <div className="text-center py-8 text-slate-400 text-xs font-bold flex items-center justify-center space-x-2">
+                    <RefreshCw className="w-4 h-4 animate-spin text-[#00268A]" />
+                    <span>Spotify'da aranıyor...</span>
                   </div>
                 )}
 
                 {!isSearching && searchResults.length === 0 && searchQuery.trim() !== '' && (
                   <div className="text-center py-6 text-slate-400 text-xs font-medium bg-slate-50 rounded-xl border border-slate-200">
-                    Sonuç bulunamadı.
+                    Sonuç bulunamadı. Lütfen farklı bir arama terimi deneyin.
                   </div>
                 )}
 
                 {!isSearching && searchResults.length === 0 && searchQuery.trim() === '' && (
-                  <div className="text-center py-8 text-slate-400 text-xs font-medium bg-slate-50 rounded-xl border border-slate-200 space-y-1">
-                    <p className="font-bold text-slate-600">Doğrudan İstediğiniz Şarkıyı Açın</p>
-                    <p className="text-[11px]">Yukarıdaki arama çubuğuna şarkı adı yazıp tek tıkla yumuşak geçişle çalabilirsiniz.</p>
+                  <div className="text-center py-8 text-slate-500 text-xs font-medium bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                    <p className="font-bold text-slate-700">Milyonlarca Spotify Parçasında Canlı Arama</p>
+                    <p className="text-[11px] text-slate-500">
+                      Yukarıdaki arama kutusuna parça veya sanatçı adı yazarak istediğiniz şarkıyı mağazada anında çalabilirsiniz.
+                    </p>
                   </div>
                 )}
 
@@ -422,7 +530,7 @@ export const MusicModal: React.FC = () => {
                     className="p-3 bg-white hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-xl flex items-center justify-between cursor-pointer transition shadow-2xs group"
                   >
                     <div className="flex items-center space-x-3 truncate">
-                      <div className="w-10 h-10 rounded-lg overflow-hidden bg-slate-100 shrink-0 border border-slate-200">
+                      <div className="w-11 h-11 rounded-lg overflow-hidden bg-slate-100 shrink-0 border border-slate-200">
                         <img
                           src={track.albumArt || customerBg}
                           alt={track.title}
@@ -445,7 +553,7 @@ export const MusicModal: React.FC = () => {
                       </span>
                       <button
                         type="button"
-                        className="px-3 py-1.5 bg-[#00268A] group-hover:bg-[#001f70] text-white rounded-lg text-xs font-bold flex items-center space-x-1 shadow-2xs"
+                        className="px-3.5 py-1.5 bg-[#00268A] group-hover:bg-[#001f70] text-white rounded-lg text-xs font-bold flex items-center space-x-1.5 shadow-2xs"
                       >
                         <Play className="w-3 h-3 fill-current" />
                         <span>Çal</span>
@@ -460,52 +568,149 @@ export const MusicModal: React.FC = () => {
           {/* TAB 3: PLAYLISTS */}
           {activeTab === 'playlists' && (
             <div className="space-y-3">
-              <p className="text-xs text-slate-600 font-medium">
-                Mağaza atmosferine uygun tematik çalma listelerini seçebilirsiniz:
-              </p>
+              {/* Segmented Switcher */}
+              <div className="flex bg-slate-100 p-1 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setPlaylistViewMode('spotify')}
+                  className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition ${
+                    playlistViewMode === 'spotify'
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  Spotify Hesabımın Listeleri ({userPlaylists.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPlaylistViewMode('presets')}
+                  className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition ${
+                    playlistViewMode === 'presets'
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  Önerilen Mağaza Radyoları ({playlists.length})
+                </button>
+              </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {playlists.map((pl) => {
-                  const isActive = activePlaylist?.id === pl.id
-                  return (
-                    <div
-                      key={pl.id}
-                      onClick={() => selectPlaylist(pl.id)}
-                      className={`p-4 rounded-2xl border cursor-pointer transition flex flex-col justify-between space-y-3 ${
-                        isActive
-                          ? 'bg-blue-50/80 border-[#00268A] ring-2 ring-[#00268A]/20 shadow-xs'
-                          : 'bg-white border-slate-200 hover:border-blue-300 hover:bg-slate-50'
-                      }`}
-                    >
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xl">{pl.icon}</span>
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            isActive
-                              ? 'bg-[#00268A] text-white'
-                              : 'bg-slate-100 text-slate-700'
-                          }`}>
-                            {pl.badge}
-                          </span>
-                        </div>
-                        <h5 className="font-bold text-xs text-slate-900 leading-tight">
-                          {pl.name}
-                        </h5>
-                        <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
-                          {pl.description}
+              {/* View 1: Real User Spotify Playlists */}
+              {playlistViewMode === 'spotify' && (
+                <div className="space-y-3">
+                  {!spotify.isConnected && (
+                    <div className="p-6 bg-emerald-50/60 border border-emerald-200 rounded-2xl text-center space-y-3">
+                      <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto shadow-inner">
+                        <LogIn className="w-6 h-6" />
+                      </div>
+                      <div className="space-y-1">
+                        <h4 className="font-bold text-sm text-emerald-950">
+                          Spotify Hesabınızla Giriş Yapın
+                        </h4>
+                        <p className="text-xs text-emerald-800 max-w-md mx-auto">
+                          Kendi oluşturduğunuz veya takip ettiğiniz mağaza çalma listelerini tek tıkla amfide çalmak için Spotify hesabınızı bağlayın.
                         </p>
                       </div>
-
-                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
-                        <span className="text-slate-400 font-semibold">{pl.trackCount} Parça</span>
-                        <span className={`font-bold ${isActive ? 'text-[#00268A]' : 'text-slate-600'}`}>
-                          {isActive ? '● Çalıyor' : 'Seç & Çal'}
-                        </span>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={connectSpotify}
+                        className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-md flex items-center space-x-2 mx-auto transition"
+                      >
+                        <LogIn className="w-4 h-4" />
+                        <span>Spotify ile Giriş Yap</span>
+                      </button>
                     </div>
-                  )
-                })}
-              </div>
+                  )}
+
+                  {spotify.isConnected && userPlaylists.length === 0 && (
+                    <div className="text-center py-8 text-slate-500 text-xs bg-slate-50 rounded-2xl border border-slate-200">
+                      Spotify hesabınızda henüz çalma listesi bulunamadı veya liste gizli.
+                    </div>
+                  )}
+
+                  {userPlaylists.length > 0 && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[380px] overflow-y-auto pr-1">
+                      {userPlaylists.map((pl) => (
+                        <div
+                          key={pl.id}
+                          onClick={() => playSpotifyPlaylist(pl.uri)}
+                          className="p-3 bg-white hover:bg-emerald-50/60 border border-slate-200 hover:border-emerald-300 rounded-2xl cursor-pointer transition flex items-center justify-between space-x-3 shadow-2xs group"
+                        >
+                          <div className="flex items-center space-x-3 truncate">
+                            <div className="w-12 h-12 rounded-xl overflow-hidden bg-slate-100 shrink-0 border border-slate-200">
+                              <img
+                                src={pl.imageUrl || customerBg}
+                                alt={pl.name}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                            <div className="truncate">
+                              <h5 className="font-bold text-xs text-slate-900 group-hover:text-emerald-700 truncate">
+                                {pl.name}
+                              </h5>
+                              <p className="text-[11px] text-slate-500 truncate">
+                                {pl.trackCount} Şarkı {pl.owner ? `• ${pl.owner}` : ''}
+                              </p>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            className="p-2 rounded-xl bg-emerald-600 group-hover:bg-emerald-700 text-white shadow-xs shrink-0"
+                          >
+                            <Play className="w-4 h-4 fill-current" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* View 2: Preset Themes */}
+              {playlistViewMode === 'presets' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[380px] overflow-y-auto pr-1">
+                  {playlists.map((pl) => {
+                    const isActive = activePlaylist?.id === pl.id
+                    return (
+                      <div
+                        key={pl.id}
+                        onClick={() => selectPlaylist(pl.id)}
+                        className={`p-4 rounded-2xl border cursor-pointer transition flex flex-col justify-between space-y-3 ${
+                          isActive
+                            ? 'bg-blue-50/80 border-[#00268A] ring-2 ring-[#00268A]/20 shadow-xs'
+                            : 'bg-white border-slate-200 hover:border-blue-300 hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xl">{pl.icon}</span>
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                isActive ? 'bg-[#00268A] text-white' : 'bg-slate-100 text-slate-700'
+                              }`}
+                            >
+                              {pl.badge}
+                            </span>
+                          </div>
+                          <h5 className="font-bold text-xs text-slate-900 leading-tight">
+                            {pl.name}
+                          </h5>
+                          <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+                            {pl.description}
+                          </p>
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                          <span className="text-slate-400 font-semibold">{pl.trackCount} Parça</span>
+                          <span className={`font-bold ${isActive ? 'text-[#00268A]' : 'text-slate-600'}`}>
+                            {isActive ? '● Çalıyor' : 'Seç & Çal'}
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )}
 
@@ -601,68 +806,227 @@ export const MusicModal: React.FC = () => {
             </form>
           )}
 
-          {/* TAB 5: SPOTIFY API SETTINGS */}
+          {/* TAB 5: SPOTIFY API & CONNECT SETTINGS */}
           {activeTab === 'spotify' && (
-            <form onSubmit={handleSaveSettings} className="space-y-4">
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
-                <div className="flex items-center justify-between">
-                  <h5 className="font-bold text-xs text-slate-800 flex items-center space-x-1.5">
-                    <Key className="w-4 h-4 text-emerald-600" />
-                    <span>Spotify Developer API Anahtarları</span>
-                  </h5>
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                    formClientId ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'
-                  }`}>
-                    {formClientId ? '● Anahtarlar Tanımlı' : 'Tanımlanmadı'}
-                  </span>
+            <div className="space-y-4">
+              {/* Account Status Card */}
+              <div className="p-4 bg-gradient-to-r from-emerald-950 via-slate-900 to-slate-900 text-white rounded-2xl border border-emerald-800/40 shadow-md flex items-center justify-between">
+                <div className="flex items-center space-x-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center shrink-0">
+                    <Music2 className="w-6 h-6 text-emerald-400" />
+                  </div>
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <h4 className="font-bold text-sm text-white">
+                        {spotify.user?.name || 'Spotify Hesabı'}
+                      </h4>
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          spotify.isConnected
+                            ? 'bg-emerald-500/30 text-emerald-300 border border-emerald-400/40'
+                            : 'bg-slate-700 text-slate-300'
+                        }`}
+                      >
+                        {spotify.isConnected ? '● Bağlı' : 'Bağlı Değil'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300">
+                      {spotify.user?.email || 'Spotify Connect ve Çalma Listeleri Senkronizasyonu'}
+                    </p>
+                  </div>
                 </div>
 
-                <p className="text-[11px] text-slate-500 font-medium">
-                  Spotify hesabınızı bağlamak için <strong>developer.spotify.com/dashboard</strong> adresinde ücretsiz bir uygulama açıp Client ID ve Secret değerlerini buraya yapıştırabilirsiniz.
-                </p>
-
-                <div className="space-y-2.5 pt-1">
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                      Spotify Client ID
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Örn: 4a9f8b2c1d3e..."
-                      value={formClientId}
-                      onChange={(e) => setFormClientId(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#00268A]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                      Spotify Client Secret
-                    </label>
-                    <input
-                      type="password"
-                      placeholder="••••••••••••••••••••••••"
-                      value={formClientSecret}
-                      onChange={(e) => setFormClientSecret(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#00268A]"
-                    />
-                  </div>
+                <div>
+                  {spotify.isConnected ? (
+                    <button
+                      type="button"
+                      onClick={disconnectSpotify}
+                      className="px-3.5 py-1.5 bg-rose-600/80 hover:bg-rose-600 text-white rounded-xl text-xs font-bold flex items-center space-x-1.5 transition shadow-sm"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      <span>Bağlantıyı Kes</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={connectSpotify}
+                      disabled={!formClientId}
+                      title={!formClientId ? 'Lütfen önce aşağıdaki Client ID alanını doldurup kaydedin' : ''}
+                      className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-700 disabled:opacity-50 text-slate-950 font-black rounded-xl text-xs flex items-center space-x-1.5 transition shadow-md"
+                    >
+                      <LogIn className="w-4 h-4" />
+                      <span>Spotify ile Bağlan</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
-              {saveSuccessMsg && (
-                <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold text-center">
-                  {saveSuccessMsg}
+              {/* Detected Spotify Connect Devices */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <h5 className="font-bold text-xs text-slate-800 flex items-center space-x-1.5">
+                    <Speaker className="w-4 h-4 text-emerald-600" />
+                    <span>Algılanan Spotify Cihazları (Spotify Connect)</span>
+                  </h5>
+                  <button
+                    type="button"
+                    onClick={() => fetchDevices()}
+                    className="p-1 text-slate-500 hover:text-slate-800 transition"
+                    title="Cihazları Yenile"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  </button>
                 </div>
-              )}
 
-              <button
-                type="submit"
-                className="w-full py-2.5 bg-[#00268A] hover:bg-[#001f70] text-white rounded-xl font-bold text-xs shadow-md transition"
-              >
-                Spotify API Bilgilerini Kaydet
-              </button>
-            </form>
+                {devices.length === 0 ? (
+                  <p className="text-xs text-slate-500">
+                    Açık Spotify cihazı bulunamadı. Lütfen bilgisayarınızdaki Spotify uygulamasını veya Web Oynatıcıyı açın.
+                  </p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {devices.map((device) => {
+                      const isActive = device.is_active || device.id === spotify.activeDeviceId
+                      return (
+                        <div
+                          key={device.id}
+                          className={`p-2.5 rounded-xl border flex items-center justify-between ${
+                            isActive
+                              ? 'bg-emerald-50 border-emerald-300'
+                              : 'bg-white border-slate-200'
+                          }`}
+                        >
+                          <div className="flex items-center space-x-2.5">
+                            <span className="p-1.5 bg-slate-100 rounded-lg text-slate-700">
+                              {getDeviceIcon(device.type)}
+                            </span>
+                            <div>
+                              <p className="text-xs font-bold text-slate-900">{device.name}</p>
+                              <p className="text-[10px] text-slate-500">{device.type}</p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center space-x-2">
+                            {isActive ? (
+                              <span className="px-2 py-0.5 bg-emerald-600 text-white rounded text-[10px] font-bold">
+                                Aktif
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => transferDevice(device.id)}
+                                className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-300 rounded text-[11px] font-bold text-slate-700 transition"
+                              >
+                                Bu Cihaza Aktar
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Developer API Form */}
+              <form onSubmit={handleSaveSettings} className="space-y-3">
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h5 className="font-bold text-xs text-slate-800 flex items-center space-x-1.5">
+                      <Key className="w-4 h-4 text-emerald-600" />
+                      <span>Spotify Developer API Bilgileri</span>
+                    </h5>
+                    <a
+                      href="https://developer.spotify.com/dashboard"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[11px] font-bold text-blue-600 hover:underline flex items-center space-x-1"
+                    >
+                      <span>Geliştirici Paneli</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+
+                  {/* Redirect URI Box */}
+                  <div className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-1">
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase">
+                      Spotify Dashboard'a Eklenecek Redirect URI:
+                    </label>
+                    <div className="flex items-center justify-between gap-2">
+                      <code className="text-xs font-mono text-slate-800 bg-slate-100 px-2 py-1 rounded select-all break-all">
+                        {config?.redirectUri || 'http://localhost:3782/api/music/spotify/callback'}
+                      </code>
+                      <button
+                        type="button"
+                        onClick={handleCopyRedirectUri}
+                        className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold flex items-center space-x-1 shrink-0 transition"
+                      >
+                        {copiedRedirect ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 text-emerald-600" />
+                            <span className="text-emerald-700">Kopyalandı</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3.5 h-3.5" />
+                            <span>Kopyala</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2.5 pt-1">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Spotify Client ID
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Örn: 4a9f8b2c1d3e..."
+                        value={formClientId}
+                        onChange={(e) => setFormClientId(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#00268A]"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-[11px] font-bold text-slate-700">
+                          Spotify Client Secret
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setShowSecret(!showSecret)}
+                          className="text-[10px] text-blue-600 hover:underline font-semibold"
+                        >
+                          {showSecret ? 'Gizle' : 'Göster'}
+                        </button>
+                      </div>
+                      <input
+                        type={showSecret ? 'text' : 'password'}
+                        placeholder="••••••••••••••••••••••••"
+                        value={formClientSecret}
+                        onChange={(e) => setFormClientSecret(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#00268A]"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {saveSuccessMsg && (
+                  <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold text-center">
+                    {saveSuccessMsg}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  className="w-full py-2.5 bg-[#00268A] hover:bg-[#001f70] text-white rounded-xl font-bold text-xs shadow-md transition"
+                >
+                  Spotify API Bilgilerini Kaydet
+                </button>
+              </form>
+            </div>
           )}
         </div>
       </div>

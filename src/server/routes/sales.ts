@@ -156,11 +156,12 @@ salesRouter.post('/', async (req, res) => {
 
       // 2. Update stock quantities & record movements
       for (const item of items) {
+        const qty = Math.max(1, parseInt(item.quantity) || 1)
         await tx.productVariant.update({
           where: { id: item.variantId },
           data: {
             stockQuantity: {
-              decrement: parseInt(item.quantity)
+              decrement: qty
             }
           }
         })
@@ -169,7 +170,7 @@ salesRouter.post('/', async (req, res) => {
           data: {
             variantId: item.variantId,
             type: 'SALE',
-            quantity: -parseInt(item.quantity),
+            quantity: -qty,
             note: `Satış Fişi: ${receiptNo}`
           }
         })

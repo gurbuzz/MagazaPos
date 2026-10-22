@@ -124,15 +124,16 @@ app.use('/api/license', licenseRouter)
 app.use('/api/music', musicRouter)
 
 
+import { getLogFilePath } from './utils/logger'
+
 // Debug Log Endpoint
 app.get('/api/debug-logs', (req, res) => {
-  const desktopDir = path.join(os.homedir(), 'Desktop')
-  const logFile = path.join(desktopDir, 'magazapos-debug.txt')
+  const logFile = getLogFilePath()
   if (fs.existsSync(logFile)) {
     res.setHeader('Content-Type', 'text/plain; charset=utf-8')
     res.send(fs.readFileSync(logFile, 'utf8'))
   } else {
-    res.status(404).send('Log dosyası henüz Masaüstünde (magazapos-debug.txt) oluşturulmamış.')
+    res.status(404).send('Henüz log dosyası oluşturulmamış.')
   }
 })
 

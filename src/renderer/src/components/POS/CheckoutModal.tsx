@@ -30,6 +30,18 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
 
   const total = getTotal()
 
+  // Reset checkout modal state cleanly when opened
+  useEffect(() => {
+    if (isOpen) {
+      setPaymentMode('CASH')
+      setGivenCash('')
+      setCashAmount(0)
+      setCardAmount(0)
+      setCompletedSale(null)
+      setIsProcessing(false)
+    }
+  }, [isOpen])
+
   // Sync Customer Display in real-time during checkout and payment
   useEffect(() => {
     if (!isOpen) return

@@ -197,7 +197,11 @@ export const StockView: React.FC = () => {
     fetchProducts()
     fetchCategories()
 
+    let lastUpdate = 0
     const handleDataUpdate = () => {
+      const now = Date.now()
+      if (now - lastUpdate < 500) return
+      lastUpdate = now
       fetchProducts()
       fetchCategories()
     }
@@ -1365,11 +1369,30 @@ export const StockView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => {
+                    const firstVariant = selectedProduct.variants?.[0]
                     setNewVarColor('Siyah')
                     setNewVarSize('M')
-                    setNewVarSalePrice(selectedProduct.basePrice?.toString() || '100')
-                    setNewVarCostPrice(((parseFloat(selectedProduct.basePrice) || 100) * 0.5).toString())
-                    setNewVarDiscountPrice('')
+                    if (firstVariant) {
+                      setNewVarSalePrice(
+                        firstVariant.salePrice != null
+                          ? firstVariant.salePrice.toString()
+                          : (selectedProduct.basePrice?.toString() || '100')
+                      )
+                      setNewVarCostPrice(
+                        firstVariant.costPrice != null
+                          ? firstVariant.costPrice.toString()
+                          : ((parseFloat(selectedProduct.basePrice) || 100) * 0.5).toString()
+                      )
+                      setNewVarDiscountPrice(
+                        firstVariant.discountPrice != null && firstVariant.discountPrice > 0
+                          ? firstVariant.discountPrice.toString()
+                          : ''
+                      )
+                    } else {
+                      setNewVarSalePrice(selectedProduct.basePrice?.toString() || '100')
+                      setNewVarCostPrice(((parseFloat(selectedProduct.basePrice) || 100) * 0.5).toString())
+                      setNewVarDiscountPrice('')
+                    }
                     setNewVarBarcode('')
                     setNewVarStockQty('1')
                     setIsAddVariantModalOpen(true)
@@ -2249,7 +2272,6 @@ export const StockView: React.FC = () => {
         categories={categories}
         onRefresh={async () => {
           await fetchCategories()
-          await fetchProducts()
         }}
       />
 
@@ -2510,6 +2532,12 @@ export const StockView: React.FC = () => {
                   )}
                 </div>
               </div>
+
+              {selectedProduct.variants && selectedProduct.variants.length > 0 && (
+                <div className="text-[10px] text-blue-700 bg-blue-50/80 border border-blue-200/60 rounded px-2.5 py-1 flex items-center space-x-1 font-medium">
+                  <span>ℹ️ Fiyatlar ürünün ilk varyantından otomatik dolduruldu (İstendiğinde değiştirilebilir).</span>
+                </div>
+              )}
 
               <div className="grid grid-cols-3 gap-3">
                 <div>

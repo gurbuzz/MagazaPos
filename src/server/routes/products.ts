@@ -68,8 +68,19 @@ productRouter.post('/categories', async (req, res) => {
       return
     }
 
+    const upperName = name.trim().toLocaleUpperCase('tr-TR')
+
+    // Case-insensitive duplicate check
+    const existing = await prisma.category.findFirst({
+      where: { name: upperName },
+    })
+    if (existing) {
+      res.status(400).json({ error: 'Bu isimde bir kategori zaten mevcut' })
+      return
+    }
+
     const category = await prisma.category.create({
-      data: { name: name.trim() },
+      data: { name: upperName },
       include: { _count: { select: { products: true } } },
     })
     res.status(201).json(category)
@@ -93,9 +104,23 @@ productRouter.put('/categories/:id', async (req, res) => {
       return
     }
 
+    const upperName = name.trim().toLocaleUpperCase('tr-TR')
+
+    // Check if another category already has this name
+    const existing = await prisma.category.findFirst({
+      where: {
+        name: upperName,
+        id: { not: id },
+      },
+    })
+    if (existing) {
+      res.status(400).json({ error: 'Bu isimde başka bir kategori zaten mevcut' })
+      return
+    }
+
     const category = await prisma.category.update({
       where: { id },
-      data: { name: name.trim() },
+      data: { name: upperName },
       include: { _count: { select: { products: true } } },
     })
     res.json(category)
@@ -335,7 +360,7 @@ productRouter.post('/import', async (req, res) => {
         const code = String(row.code || '').trim()
         const name = String(row.name || '').trim()
         const barcode = String(row.barcode || '').trim()
-        const categoryName = String(row.category || '').trim()
+        const categoryName = String(row.category || '').trim().toLocaleUpperCase('tr-TR')
         const color = String(row.color || 'Standart').trim()
         const size = String(row.size || 'Standart').trim()
         const brand = String(row.brand || 'Marka').trim()

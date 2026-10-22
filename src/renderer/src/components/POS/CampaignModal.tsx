@@ -22,11 +22,24 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({ isOpen, onClose })
 
   const subtotal = getSubtotal()
 
+  const parseDecimal = (val: any): number => {
+    if (typeof val === 'number') return isNaN(val) ? 0 : val
+    if (!val) return 0
+    const clean = String(val).replace(/\s/g, '').replace(',', '.')
+    const num = parseFloat(clean)
+    return isNaN(num) ? 0 : num
+  }
+
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault()
-    const numValue = parseFloat(value)
+    const numValue = parseDecimal(value)
     if (!name.trim() || isNaN(numValue) || numValue <= 0) {
       alert('Lütfen geçerli bir kampanya/taksit adı ve oran/tutar giriniz.')
+      return
+    }
+
+    if (action === 'DISCOUNT' && type === 'PERCENTAGE' && numValue > 100) {
+      alert('İndirim oranı %100\'den fazla olamaz.')
       return
     }
 
@@ -43,9 +56,11 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({ isOpen, onClose })
     setIsFormOpen(false)
   }
 
-  const getColorClasses = (color?: string, isActive?: boolean) => {
+  const getColorClasses = (color?: string, isActive?: boolean, isSurcharge?: boolean) => {
     if (isActive) {
-      return 'bg-blue-700 text-white border-blue-700 shadow-md shadow-blue-700/20'
+      return isSurcharge
+        ? 'bg-amber-600 text-white border-amber-600 shadow-md shadow-amber-600/20'
+        : 'bg-blue-700 text-white border-blue-700 shadow-md shadow-blue-700/20'
     }
     switch (color) {
       case 'emerald':
@@ -248,10 +263,11 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({ isOpen, onClose })
                 const isSurcharge = camp.action === 'SURCHARGE'
                 let previewAmount = 0
                 if (subtotal > 0) {
-                  previewAmount =
+                  const calculated =
                     camp.type === 'PERCENTAGE'
                       ? (subtotal * camp.value) / 100
                       : camp.value
+                  previewAmount = isSurcharge ? calculated : Math.min(subtotal, calculated)
                 }
 
                 return (
@@ -269,7 +285,8 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({ isOpen, onClose })
                       <div
                         className={`px-2 py-0.5 rounded text-xs font-bold border ${getColorClasses(
                           camp.badgeColor || (isSurcharge ? 'orange' : 'indigo'),
-                          isActive
+                          isActive,
+                          isSurcharge
                         )}`}
                       >
                         {isSurcharge ? '+' : '-'}

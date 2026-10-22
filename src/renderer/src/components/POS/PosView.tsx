@@ -543,7 +543,7 @@ export const PosView: React.FC = () => {
                 : 'bg-white/70 text-slate-700 hover:bg-white hover:text-slate-900 border border-white/80 backdrop-blur-xs'
             }`}
           >
-            Tüm Kategoriler
+            TÜM KATEGORİLER
           </button>
 
           {categories.map((cat) => (

@@ -9,6 +9,7 @@ export interface MusicTrack {
   albumArt: string
   uri?: string
   previewUrl?: string
+  externalUrl?: string
 }
 
 export interface PlaylistInfo {
@@ -18,6 +19,32 @@ export interface PlaylistInfo {
   badge: string
   icon: string
   trackCount: number
+}
+
+export interface SpotifyPlaylist {
+  id: string
+  name: string
+  description: string
+  trackCount: number
+  imageUrl: string
+  uri: string
+  owner: string
+}
+
+export interface SpotifyDevice {
+  id: string
+  name: string
+  type: string
+  is_active: boolean
+  volume_percent: number | null
+}
+
+export interface SpotifyUser {
+  id: string
+  name: string
+  email?: string
+  avatarUrl?: string
+  product?: string
 }
 
 interface MusicState {
@@ -31,18 +58,30 @@ interface MusicState {
   currentTrack: MusicTrack | null
   activePlaylist: { id: string; name: string; badge: string; totalTracks: number; streamUrl?: string } | null
   sourceMode: 'spotify' | 'store_radio'
-  spotify: { hasKeys: boolean; isConnected: boolean }
+  spotify: {
+    hasKeys: boolean
+    isConnected: boolean
+    user: SpotifyUser | null
+    activeDeviceId: string
+    activeDeviceName: string
+  }
   schedule: { enabled: boolean; startTime: string; endTime: string }
   playlists: PlaylistInfo[]
+  userPlaylists: SpotifyPlaylist[]
+  devices: SpotifyDevice[]
   searchResults: MusicTrack[]
   searchQuery: string
   isSearching: boolean
+  errorMessage: string | null
   config: any
 
   setIsModalOpen: (open: boolean) => void
   setActiveTab: (tab: 'player' | 'search' | 'playlists' | 'schedule' | 'spotify') => void
+  setErrorMessage: (msg: string | null) => void
   fetchStatus: () => Promise<void>
   fetchPlaylists: () => Promise<void>
+  fetchDevices: () => Promise<void>
+  transferDevice: (deviceId: string) => Promise<boolean>
   play: () => Promise<void>
   pause: () => Promise<void>
   next: () => Promise<void>
@@ -51,9 +90,14 @@ interface MusicState {
   search: (q: string) => Promise<void>
   selectTrack: (track: MusicTrack) => Promise<void>
   selectPlaylist: (id: string) => Promise<void>
+  playSpotifyPlaylist: (uri: string) => Promise<void>
+  connectSpotify: () => void
+  disconnectSpotify: () => Promise<void>
   fetchConfig: () => Promise<void>
   saveConfig: (updates: any) => Promise<boolean>
 }
+
+let spotifyListenerAttached = false
 
 export const useMusicStore = create<MusicState>((set, get) => ({
   isModalOpen: false,
@@ -65,17 +109,45 @@ export const useMusicStore = create<MusicState>((set, get) => ({
   trackProgressSec: 0,
   currentTrack: null,
   activePlaylist: null,
-  sourceMode: 'store_radio',
-  spotify: { hasKeys: false, isConnected: false },
+  sourceMode: 'spotify',
+  spotify: {
+    hasKeys: false,
+    isConnected: false,
+    user: null,
+    activeDeviceId: '',
+    activeDeviceName: '',
+  },
   schedule: { enabled: true, startTime: '09:30', endTime: '21:30' },
   playlists: [],
+  userPlaylists: [],
+  devices: [],
   searchResults: [],
   searchQuery: '',
   isSearching: false,
+  errorMessage: null,
   config: null,
 
-  setIsModalOpen: (open) => set({ isModalOpen: open }),
-  setActiveTab: (tab) => set({ activeTab: tab }),
+  setIsModalOpen: (open) => {
+    set({ isModalOpen: open })
+    if (open) {
+      get().fetchStatus()
+      get().fetchPlaylists()
+      get().fetchConfig()
+      get().fetchDevices()
+    }
+  },
+
+  setActiveTab: (tab) => {
+    set({ activeTab: tab })
+    if (tab === 'spotify') {
+      get().fetchDevices()
+      get().fetchConfig()
+    } else if (tab === 'playlists') {
+      get().fetchPlaylists()
+    }
+  },
+
+  setErrorMessage: (msg) => set({ errorMessage: msg }),
 
   fetchStatus: async () => {
     try {
@@ -91,7 +163,13 @@ export const useMusicStore = create<MusicState>((set, get) => ({
           currentTrack: data.currentTrack,
           activePlaylist: data.activePlaylist,
           sourceMode: data.sourceMode,
-          spotify: data.spotify,
+          spotify: data.spotify || {
+            hasKeys: false,
+            isConnected: false,
+            user: null,
+            activeDeviceId: '',
+            activeDeviceName: '',
+          },
           schedule: data.schedule,
         })
       }
@@ -103,26 +181,61 @@ export const useMusicStore = create<MusicState>((set, get) => ({
       const res = await fetch('/api/music/playlists')
       if (res.ok) {
         const data = await res.json()
-        set({ playlists: data.presets || [] })
+        set({
+          playlists: data.presets || [],
+          userPlaylists: data.userPlaylists || [],
+        })
       }
     } catch {}
   },
 
-  play: async () => {
+  fetchDevices: async () => {
     try {
-      set({ isPlaying: true, isFading: true })
-      const res = await fetch('/api/music/play', { method: 'POST' })
+      const res = await fetch('/api/music/spotify/devices')
       if (res.ok) {
         const data = await res.json()
-        if (data.status) {
-          set({
-            isPlaying: data.status.isPlaying,
-            isFading: data.status.isFading,
-            liveVolume: data.status.liveVolume,
-          })
-        }
+        set({ devices: data.devices || [] })
       }
     } catch {}
+  },
+
+  transferDevice: async (deviceId: string) => {
+    try {
+      const res = await fetch('/api/music/spotify/transfer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceId, play: true }),
+      })
+      if (res.ok) {
+        await get().fetchDevices()
+        await get().fetchStatus()
+        return true
+      }
+      return false
+    } catch {
+      return false
+    }
+  },
+
+  play: async () => {
+    try {
+      set({ errorMessage: null, isFading: true })
+      const res = await fetch('/api/music/play', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) {
+        set({ errorMessage: data.error || 'Oynatma başlatılamadı.', isFading: false })
+        return
+      }
+      if (data.status) {
+        set({
+          isPlaying: data.status.isPlaying,
+          isFading: data.status.isFading,
+          liveVolume: data.status.liveVolume,
+        })
+      }
+    } catch (e: any) {
+      set({ errorMessage: e.message, isFading: false })
+    }
   },
 
   pause: async () => {
@@ -195,7 +308,7 @@ export const useMusicStore = create<MusicState>((set, get) => ({
       set({ searchResults: [], isSearching: false })
       return
     }
-    set({ isSearching: true })
+    set({ isSearching: true, errorMessage: null })
     try {
       const res = await fetch(`/api/music/search?q=${encodeURIComponent(q.trim())}`)
       if (res.ok) {
@@ -211,28 +324,32 @@ export const useMusicStore = create<MusicState>((set, get) => ({
 
   selectTrack: async (track: MusicTrack) => {
     try {
-      set({ currentTrack: track, isPlaying: true, isFading: true, trackProgressSec: 0 })
+      set({ currentTrack: track, isPlaying: true, isFading: true, trackProgressSec: 0, errorMessage: null })
       const res = await fetch('/api/music/select-track', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ track }),
       })
-      if (res.ok) {
-        const data = await res.json()
-        if (data.status) {
-          set({
-            currentTrack: data.status.currentTrack,
-            isPlaying: data.status.isPlaying,
-            isFading: data.status.isFading,
-          })
-        }
+      const data = await res.json()
+      if (!res.ok) {
+        set({ errorMessage: data.error || 'Şarkı açılamadı.', isFading: false })
+        return
       }
-    } catch {}
+      if (data.status) {
+        set({
+          currentTrack: data.status.currentTrack,
+          isPlaying: data.status.isPlaying,
+          isFading: data.status.isFading,
+        })
+      }
+    } catch (e: any) {
+      set({ errorMessage: e.message, isFading: false })
+    }
   },
 
   selectPlaylist: async (playlistId: string) => {
     try {
-      set({ isFading: true })
+      set({ isFading: true, errorMessage: null })
       const res = await fetch('/api/music/select-playlist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -248,6 +365,69 @@ export const useMusicStore = create<MusicState>((set, get) => ({
             isFading: data.status.isFading,
           })
         }
+      }
+    } catch {}
+  },
+
+  playSpotifyPlaylist: async (uri: string) => {
+    try {
+      set({ isFading: true, errorMessage: null })
+      const res = await fetch('/api/music/spotify/play-playlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uri }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        set({ errorMessage: data.error || 'Çalma listesi başlatılamadı.', isFading: false })
+        return
+      }
+      if (data.status) {
+        set({
+          currentTrack: data.status.currentTrack,
+          isPlaying: data.status.isPlaying,
+          isFading: data.status.isFading,
+        })
+      }
+    } catch (e: any) {
+      set({ errorMessage: e.message, isFading: false })
+    }
+  },
+
+  connectSpotify: () => {
+    // Open OAuth login popup
+    const width = 540
+    const height = 720
+    const left = window.screen.width / 2 - width / 2
+    const top = window.screen.height / 2 - height / 2
+
+    const popup = window.open(
+      '/api/music/spotify/login',
+      'spotify_login_window',
+      `toolbar=no, location=no, directories=no, status=no, menubar=no, scrollbars=yes, resizable=yes, copyhistory=no, width=${width}, height=${height}, top=${top}, left=${left}`
+    )
+
+    if (!spotifyListenerAttached) {
+      spotifyListenerAttached = true
+      window.addEventListener('message', (event) => {
+        if (event.data?.type === 'SPOTIFY_AUTH_SUCCESS') {
+          if (popup && !popup.closed) popup.close()
+          get().fetchConfig()
+          get().fetchStatus()
+          get().fetchPlaylists()
+          get().fetchDevices()
+        }
+      })
+    }
+  },
+
+  disconnectSpotify: async () => {
+    try {
+      const res = await fetch('/api/music/spotify/disconnect', { method: 'POST' })
+      if (res.ok) {
+        await get().fetchConfig()
+        await get().fetchStatus()
+        set({ userPlaylists: [], devices: [] })
       }
     } catch {}
   },
