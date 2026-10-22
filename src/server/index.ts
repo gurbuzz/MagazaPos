@@ -14,7 +14,7 @@ import { customerDisplayRouter } from './routes/customerDisplay'
 import { musicRouter } from './routes/music'
 
 const app = express()
-const PORT = process.env.PORT || 3782
+const PORT = Number(process.env.PORT) || 3782
 
 app.use(cors())
 app.use(express.json())
@@ -149,7 +149,7 @@ app.get('/api/health', (req, res) => {
 })
 
 export function startServer() {
-  const server = app.listen(PORT, () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     const localIp = getLocalIpAddress()
     console.log(`====================================================`)
     console.log(`🚀 MagazaPOS Sunucusu Başlatıldı!`)
