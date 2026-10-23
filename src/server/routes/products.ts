@@ -220,10 +220,10 @@ productRouter.post('/', async (req, res) => {
                 sku: safeSku,
                 barcode: v.barcode,
                 attributes: attrs,
-                costPrice: parseFloat(v.costPrice || 0),
-                salePrice: parseFloat(v.salePrice || basePrice || 0),
-                discountPrice: v.discountPrice ? parseFloat(v.discountPrice) : null,
-                stockQuantity: parseInt(v.stockQuantity || 0)
+                costPrice: parseDecimal(v.costPrice || 0),
+                salePrice: parseDecimal(v.salePrice || basePrice || 0),
+                discountPrice: v.discountPrice ? parseDecimal(v.discountPrice) : null,
+                stockQuantity: parseInt(v.stockQuantity || 0) || 0
               }
             })
           }
@@ -290,10 +290,10 @@ productRouter.post('/:id/variants', async (req, res) => {
     const clr = (color || 'Standart').trim()
     const sz = (size || 'Standart').trim()
     const sku = `${product.code}-${clr.toUpperCase()}-${sz.toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`
-    const sPrice = parseFloat(salePrice) || product.basePrice
-    const cPrice = parseFloat(costPrice) || (sPrice * 0.5)
-    const dPrice = discountPrice !== undefined && discountPrice !== null && discountPrice !== '' && !isNaN(parseFloat(discountPrice)) && parseFloat(discountPrice) > 0
-      ? parseFloat(discountPrice)
+    const sPrice = parseDecimal(salePrice) || parseDecimal(product.basePrice) || 0
+    const cPrice = parseDecimal(costPrice) || (sPrice * 0.5)
+    const dPrice = discountPrice !== undefined && discountPrice !== null && discountPrice !== '' && parseDecimal(discountPrice) > 0
+      ? parseDecimal(discountPrice)
       : null
     const qty = parseInt(stockQuantity) || 0
 
@@ -504,6 +504,10 @@ productRouter.put('/variants/:id/stock', requireAdminPinAuth, async (req, res) =
     const { id } = req.params
     const { quantity, note } = req.body
     const newQuantity = parseInt(quantity)
+    if (isNaN(newQuantity) || newQuantity < 0) {
+      res.status(400).json({ error: 'Geçersiz stok miktarı (0 veya daha büyük bir tam sayı girilmelidir)' })
+      return
+    }
 
     const updated = await prisma.$transaction(async (tx) => {
       const variant = await tx.productVariant.update({
@@ -687,16 +691,16 @@ productRouter.put('/variants/:id', requireAdminPinAuth, async (req, res) => {
       const v = await tx.productVariant.update({
         where: { id },
         data: {
-          ...(salePrice !== undefined && { salePrice: parseFloat(salePrice) }),
-          ...(costPrice !== undefined && { costPrice: parseFloat(costPrice) }),
+          ...(salePrice !== undefined && { salePrice: parseDecimal(salePrice) }),
+          ...(costPrice !== undefined && { costPrice: parseDecimal(costPrice) }),
           ...(discountPrice !== undefined && {
-            discountPrice: (discountPrice !== null && discountPrice !== '' && !isNaN(parseFloat(discountPrice)) && parseFloat(discountPrice) > 0)
-              ? parseFloat(discountPrice)
+            discountPrice: (discountPrice !== null && discountPrice !== '' && parseDecimal(discountPrice) > 0)
+              ? parseDecimal(discountPrice)
               : null
           }),
           ...(barcode !== undefined && { barcode: barcode.trim() }),
           attributes: JSON.stringify(newAttrs),
-          ...(stockQuantity !== undefined && { stockQuantity: newStock }),
+          ...(stockQuantity !== undefined && { stockQuantity: isNaN(newStock) ? 0 : Math.max(0, newStock) }),
         },
         include: {
           product: { include: { category: true } },

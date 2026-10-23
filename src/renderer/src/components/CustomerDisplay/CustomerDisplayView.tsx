@@ -317,7 +317,7 @@ export const CustomerDisplayView: React.FC = () => {
       </header>
 
       {/* MAIN VIEW CONTAINER: Perfectly Proportioned for 13.3" & All Displays */}
-      <main className="flex-1 flex overflow-hidden p-3 md:p-4 z-10 gap-3 md:gap-4 min-h-0">
+      <main className="flex-1 min-h-0 flex overflow-hidden p-2.5 md:p-3.5 lg:p-4 z-10">
         {/* CASE 1: COMPLETED SALE CELEBRATION */}
         {isCompleted ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-6 bg-slate-900/55 border border-white/15 rounded-3xl backdrop-blur-2xl shadow-2xl animate-slowmotion-enter overflow-y-auto">
@@ -906,7 +906,7 @@ export const CustomerDisplayView: React.FC = () => {
           </div>
         ) : (
           /* CASE 4: STANDBY / IDLE STATE (EMPTY CART) - WITH CUSTOMER BACKGROUND & HIGH TRANSPARENCY */
-          <div className="flex-1 flex flex-col items-center justify-between p-4 md:p-6 lg:p-7 border border-white/20 rounded-3xl shadow-2xl relative overflow-hidden animate-slowmotion-fade gap-3 md:gap-4">
+          <div className="flex-1 w-full min-h-0 flex flex-col items-center justify-between p-3.5 md:p-5 lg:p-6 border border-white/20 rounded-3xl shadow-2xl relative overflow-hidden animate-slowmotion-fade gap-2.5 md:gap-3">
             {/* Cinematic Store Atmosphere Background Image */}
             <div className="absolute inset-0 z-0">
               <img
@@ -926,54 +926,54 @@ export const CustomerDisplayView: React.FC = () => {
             </div>
 
             {/* Top Standby Welcome */}
-            <div className="text-center space-y-2 md:space-y-2.5 z-10 max-w-3xl shrink-0 pt-1.5">
+            <div className="text-center space-y-1.5 md:space-y-2 z-10 max-w-2xl shrink-0 pt-0.5">
               <div>
-                <span className="px-5 py-1.5 rounded-full bg-blue-500/30 text-blue-100 border border-blue-400/50 text-xs md:text-sm font-black tracking-widest uppercase inline-block shadow-lg backdrop-blur-md">
+                <span className="px-4 py-1 rounded-full bg-blue-500/30 text-blue-100 border border-blue-400/50 text-[11px] md:text-xs font-black tracking-widest uppercase inline-block shadow-lg backdrop-blur-md">
                   PREMIUM RETAIL EXPERIENCE
                 </span>
               </div>
 
-              <h2 className="text-4xl md:text-5xl lg:text-6xl font-black text-white tracking-tight leading-tight drop-shadow-2xl">
+              <h2 className="text-3xl md:text-4xl lg:text-5xl font-black text-white tracking-tight leading-tight drop-shadow-2xl">
                 Hoş Geldiniz
               </h2>
 
-              <p className="text-base md:text-lg text-blue-100 font-bold drop-shadow-lg max-w-2xl mx-auto">
+              <p className="text-sm md:text-base text-blue-100 font-bold drop-shadow-lg max-w-xl mx-auto">
                 Yeni sezon koleksiyonumuz ve ayrıcalıklı alışveriş deneyimi için buradayız.
               </p>
             </div>
 
-            {/* Center: Dynamic Auto-Rotating Campaign Banner (High Transparency Frosted Glass) */}
+            {/* Center: Dynamic Auto-Rotating Campaign Banner (High Transparency Frosted Glass with Locked Height) */}
             <div className="w-full max-w-2xl z-10 shrink-0">
-              <div className="bg-slate-900/50 border border-white/25 rounded-2xl md:rounded-3xl p-4 md:p-5 backdrop-blur-xl shadow-2xl transition-all duration-500">
-                <div className="flex items-start space-x-3.5 md:space-x-4">
+              <div className="bg-slate-900/50 border border-white/25 rounded-2xl md:rounded-3xl p-3.5 md:p-4 backdrop-blur-xl shadow-2xl transition-all duration-500 h-[140px] md:h-[148px] flex flex-col justify-between">
+                <div className="flex items-center space-x-3.5 md:space-x-4 min-w-0">
                   <div
-                    className={`p-3 md:p-3.5 rounded-2xl ${PROMO_SLIDES[currentSlide].iconBg} shadow-lg shrink-0 border border-white/20 text-2xl md:text-3xl`}
+                    className={`p-2.5 md:p-3 rounded-2xl ${PROMO_SLIDES[currentSlide].iconBg} shadow-lg shrink-0 border border-white/20 text-2xl md:text-3xl`}
                   >
-                    <SlideIcon className="w-7 h-7 md:w-8 md:h-8" />
+                    <SlideIcon className="w-6 h-6 md:w-7 md:h-7" />
                   </div>
 
-                  <div className="flex-1 space-y-1.5">
+                  <div className="flex-1 min-w-0">
                     <span
-                      className={`px-3 py-0.5 rounded-full text-xs font-black uppercase tracking-wider border inline-block ${PROMO_SLIDES[currentSlide].badgeColor}`}
+                      className={`px-2.5 py-0.5 rounded-full text-[10px] md:text-xs font-black uppercase tracking-wider border inline-block mb-1 ${PROMO_SLIDES[currentSlide].badgeColor}`}
                     >
                       {PROMO_SLIDES[currentSlide].badge}
                     </span>
-                    <h3 className="text-2xl md:text-3xl font-black text-white tracking-tight drop-shadow-md">
+                    <h3 className="text-lg md:text-xl font-black text-white tracking-tight drop-shadow-md truncate">
                       {PROMO_SLIDES[currentSlide].title}
                     </h3>
-                    <p className="text-xs md:text-sm text-blue-100 font-semibold leading-relaxed drop-shadow-sm">
+                    <p className="text-xs md:text-sm text-blue-100/90 font-medium leading-relaxed drop-shadow-sm line-clamp-2 mt-0.5">
                       {PROMO_SLIDES[currentSlide].subtitle}
                     </p>
                   </div>
                 </div>
 
                 {/* Carousel Dots */}
-                <div className="flex justify-center space-x-2 mt-3 pt-2.5 border-t border-white/10">
+                <div className="flex justify-center space-x-2 pt-2 border-t border-white/10 shrink-0">
                   {PROMO_SLIDES.map((_, idx) => (
                     <button
                       key={idx}
                       onClick={() => setCurrentSlide(idx)}
-                      className={`h-1.5 md:h-2 rounded-full transition-all ${
+                      className={`h-1.5 rounded-full transition-all ${
                         idx === currentSlide
                           ? 'w-7 md:w-8 bg-blue-400 shadow-xs'
                           : 'w-1.5 md:w-2 bg-white/30 hover:bg-white/50'
@@ -985,11 +985,11 @@ export const CustomerDisplayView: React.FC = () => {
             </div>
 
             {/* Bottom Standby Badge Pills */}
-            <div className="z-10 flex flex-wrap items-center justify-center gap-3 text-xs md:text-sm font-bold text-blue-100/90 shrink-0 pb-1">
-              <span className="px-4 py-1.5 md:px-5 md:py-2 rounded-full bg-slate-900/60 border border-white/20 backdrop-blur-md flex items-center gap-2 shadow-md">
+            <div className="z-10 flex flex-wrap items-center justify-center gap-2.5 md:gap-3 text-xs md:text-sm font-bold text-blue-100/90 shrink-0 pb-0.5">
+              <span className="px-3.5 py-1.5 md:px-4 md:py-1.5 rounded-full bg-slate-900/60 border border-white/20 backdrop-blur-md flex items-center gap-2 shadow-md whitespace-nowrap">
                 <span>💳</span> Nakit & Tüm Banka Kartları
               </span>
-              <span className="px-4 py-1.5 md:px-5 md:py-2 rounded-full bg-slate-900/60 border border-white/20 backdrop-blur-md flex items-center gap-2 shadow-md">
+              <span className="px-3.5 py-1.5 md:px-4 md:py-1.5 rounded-full bg-slate-900/60 border border-white/20 backdrop-blur-md flex items-center gap-2 shadow-md whitespace-nowrap">
                 <span>🔄</span> 14 Gün İçinde Fiş ile Değişim
               </span>
             </div>
@@ -997,15 +997,20 @@ export const CustomerDisplayView: React.FC = () => {
         )}
       </main>
 
-      {/* FOOTER: Crisp, Legible Footer Pinned to Bottom */}
-      <footer className="h-7 bg-slate-900/85 backdrop-blur-2xl border-t border-white/10 px-5 flex items-center justify-between text-[11px] text-blue-300/80 z-10 shrink-0">
-        <div className="flex items-center space-x-2">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="font-bold text-blue-100">Kasa Aktif & Canlı Bağlantı</span>
+      {/* FOOTER: Crisp, Legible Footer Pinned to Bottom with Strict Size Locking */}
+      <footer
+        id="customerDisplayFooter"
+        className="customer-display-footer h-7 min-h-[28px] max-h-[28px] leading-none bg-slate-900/85 backdrop-blur-2xl border-t border-white/10 px-4 md:px-5 flex items-center justify-between text-[11px] text-blue-300/80 z-20 shrink-0 flex-none overflow-hidden select-none whitespace-nowrap"
+      >
+        <div className="flex items-center space-x-2 shrink-0 whitespace-nowrap">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+          <span className="font-bold text-blue-100 text-[11px] leading-none whitespace-nowrap">
+            Kasa Aktif & Canlı Bağlantı
+          </span>
         </div>
 
-        <div>
-          <span className="text-[10px] md:text-[11px] text-blue-300/60 font-semibold tracking-wider uppercase">
+        <div className="shrink-0 whitespace-nowrap overflow-hidden">
+          <span className="text-[10px] md:text-[11px] text-blue-300/60 font-semibold tracking-wider uppercase leading-none whitespace-nowrap">
             Design & Architecture by Atacan Gürbüz
           </span>
         </div>

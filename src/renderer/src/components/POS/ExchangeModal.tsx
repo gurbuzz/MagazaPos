@@ -55,7 +55,7 @@ export const ExchangeModal: React.FC<ExchangeModalProps> = ({ isOpen, onClose })
 
   const handleApplyExchange = async () => {
     if (!foundSale || !selectedItemId) {
-      alert('Lütfen değiştirilecek ürünü seçin.')
+      setErrorMsg('Lütfen değiştirilecek ürünü seçin.')
       return
     }
 
@@ -64,7 +64,7 @@ export const ExchangeModal: React.FC<ExchangeModalProps> = ({ isOpen, onClose })
 
     const available = item.quantity - (item.returnedQuantity || 0)
     if (available <= 0) {
-      alert('Bu ürünün tüm adeti daha önce iade edilmiş veya değiştirilmiştir.')
+      setErrorMsg('Bu ürünün tüm adeti daha önce iade edilmiş veya değiştirilmiştir.')
       return
     }
 

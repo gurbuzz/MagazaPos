@@ -25,6 +25,7 @@ import {
 import { usePosStore } from '../../store/usePosStore'
 import { generateCode128Svg } from '../../utils/barcode128'
 import { notifyDataChanged, DATA_UPDATED_EVENT } from '../../utils/events'
+import { AdminPinModal } from '../Security/AdminPinModal'
 
 interface LabelPreset {
   id: string
@@ -93,6 +94,7 @@ export const LabelPrinterModal: React.FC = () => {
   const [customDiscountPrice, setCustomDiscountPrice] = useState<string>('')
   const [isSavingDiscount, setIsSavingDiscount] = useState<boolean>(false)
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string>('')
+  const [isAdminPinOpen, setIsAdminPinOpen] = useState<boolean>(false)
 
   // Sync pricing state when selectedVariant changes
   useEffect(() => {
@@ -125,20 +127,17 @@ export const LabelPrinterModal: React.FC = () => {
     ? Math.round(((origPriceNum - discPriceNum) / origPriceNum) * 100)
     : 0
 
-  const handleSaveDiscountToProduct = async () => {
+  const handleSaveDiscountToProduct = async (overridePin?: string) => {
     if (!selectedVariant) return
+    let adminPin = overridePin || localStorage.getItem('pos_admin_pin_session') || ''
+    if (!adminPin) {
+      setIsAdminPinOpen(true)
+      return
+    }
+
     setIsSavingDiscount(true)
     try {
       const discVal = isDiscountMode ? parseFloat(customDiscountPrice) : null
-      let adminPin = localStorage.getItem('pos_admin_pin_session') || ''
-      if (!adminPin) {
-        const entered = window.prompt('Bu indirimi ürün kartına kalıcı olarak kaydetmek için Yönetici PIN (6 haneli) giriniz:')
-        if (!entered) {
-          setIsSavingDiscount(false)
-          return
-        }
-        adminPin = entered.trim()
-      }
 
       const res = await fetch(`/api/products/variants/${selectedVariant.id}`, {
         method: 'PUT',
@@ -170,13 +169,16 @@ export const LabelPrinterModal: React.FC = () => {
         const err = await res.json()
         if (err.code === 'UNAUTHORIZED_ADMIN_PIN' || res.status === 401) {
           localStorage.removeItem('pos_admin_pin_session')
-          alert('Geçersiz Yönetici PIN şifresi.')
+          setSaveSuccessMsg('❌ Geçersiz Yönetici PIN şifresi.')
+          setTimeout(() => setSaveSuccessMsg(''), 3500)
         } else {
-          alert('Kaydetme hatası: ' + (err.error || 'Bilinmeyen hata'))
+          setSaveSuccessMsg('❌ Kaydetme hatası: ' + (err.error || 'Bilinmeyen hata'))
+          setTimeout(() => setSaveSuccessMsg(''), 3500)
         }
       }
     } catch (e: any) {
-      alert('Hata: ' + e.message)
+      setSaveSuccessMsg('❌ Hata: ' + e.message)
+      setTimeout(() => setSaveSuccessMsg(''), 3500)
     } finally {
       setIsSavingDiscount(false)
     }
@@ -292,35 +294,57 @@ export const LabelPrinterModal: React.FC = () => {
     setSelectedPresetId(matching ? matching.id : 'custom')
   }
 
-  // Build flattened variant array
-  const allVariants: any[] = []
-  products.forEach((prod) => {
-    if (selectedCategoryId && prod.categoryId !== selectedCategoryId) return
+  const [displayLimit, setDisplayLimit] = useState<number>(80)
 
-    if (Array.isArray(prod.variants)) {
-      prod.variants.forEach((v: any) => {
-        allVariants.push({
-          ...v,
-          product: prod,
-          categoryName: prod.category?.name || 'Kategorisiz',
+  useEffect(() => {
+    setDisplayLimit(80)
+  }, [searchTerm, selectedCategoryId])
+
+  // Build flattened variant array with useMemo
+  const allVariants = useMemo(() => {
+    const list: any[] = []
+    products.forEach((prod) => {
+      if (selectedCategoryId && prod.categoryId !== selectedCategoryId) return
+
+      if (Array.isArray(prod.variants)) {
+        prod.variants.forEach((v: any) => {
+          list.push({
+            ...v,
+            product: prod,
+            categoryName: prod.category?.name || 'Kategorisiz',
+          })
         })
-      })
-    }
-  })
+      }
+    })
+    return list
+  }, [products, selectedCategoryId])
 
-  // Filter variants by search term
-  const filteredVariants = allVariants.filter((v) => {
-    if (!searchTerm.trim()) return true
+  // Filter variants by search term with useMemo
+  const filteredVariants = useMemo(() => {
+    if (!searchTerm.trim()) return allVariants
     const term = searchTerm.toLowerCase()
-    return (
-      v.product.name.toLowerCase().includes(term) ||
-      v.product.code.toLowerCase().includes(term) ||
-      v.sku.toLowerCase().includes(term) ||
-      (v.barcode && v.barcode.toLowerCase().includes(term)) ||
-      (v.attributes?.color && v.attributes.color.toLowerCase().includes(term)) ||
-      (v.attributes?.size && v.attributes.size.toLowerCase().includes(term))
-    )
-  })
+    return allVariants.filter((v) => {
+      return (
+        v.product.name.toLowerCase().includes(term) ||
+        v.product.code.toLowerCase().includes(term) ||
+        v.sku.toLowerCase().includes(term) ||
+        (v.barcode && v.barcode.toLowerCase().includes(term)) ||
+        (v.attributes?.color && v.attributes.color.toLowerCase().includes(term)) ||
+        (v.attributes?.size && v.attributes.size.toLowerCase().includes(term))
+      )
+    })
+  }, [allVariants, searchTerm])
+
+  // Celeron ve düşük donanımlı POS cihazlarında DOM kasmalarını önlemek için dilimlenmiş görünüm
+  const visibleVariants = useMemo(() => {
+    if (selectedVariant) {
+      const idx = filteredVariants.findIndex((v) => v.id === selectedVariant.id)
+      if (idx >= displayLimit) {
+        return filteredVariants.slice(0, idx + 20)
+      }
+    }
+    return filteredVariants.slice(0, displayLimit)
+  }, [filteredVariants, displayLimit, selectedVariant])
 
   // SVG Barcode for Live Preview
   const previewBarcodeSvg = useMemo(() => {
@@ -974,7 +998,8 @@ export const LabelPrinterModal: React.FC = () => {
   const handleBulkPrintDispatch = async (isSilent = true) => {
     const selectedList = allVariants.filter((v) => selectedBulkVariantIds.has(v.id))
     if (selectedList.length === 0) {
-      alert('Lütfen toplu etiket basımı için en az bir ürün seçin.')
+      setMessage('⚠️ Lütfen toplu etiket basımı için en az bir ürün seçin.')
+      setTimeout(() => setMessage(''), 4000)
       return
     }
 
@@ -1254,87 +1279,111 @@ export const LabelPrinterModal: React.FC = () => {
             </div>
 
             {/* Scrollable Variant List */}
-            <div className="flex-1 overflow-y-auto space-y-1.5 pr-1">
+            <div 
+              className="flex-1 overflow-y-auto space-y-1.5 pr-1"
+              onScroll={(e) => {
+                const { scrollTop, scrollHeight, clientHeight } = e.currentTarget
+                if (scrollHeight - scrollTop - clientHeight < 150) {
+                  if (displayLimit < filteredVariants.length) {
+                    setDisplayLimit((prev) => Math.min(prev + 60, filteredVariants.length))
+                  }
+                }
+              }}
+            >
               {filteredVariants.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-slate-400 text-xs space-y-2">
                   <Tag className="w-8 h-8 stroke-1 text-slate-300" />
                   <span>Arama kriterlerine uygun ürün bulunamadı.</span>
                 </div>
               ) : (
-                filteredVariants.map((v) => {
-                  const isPreviewSelected = selectedVariant?.id === v.id
-                  const isBulkSelected = selectedBulkVariantIds.has(v.id)
-                  return (
-                    <div
-                      key={v.id}
-                      onClick={() => setSelectedVariant(v)}
-                      className={`p-2.5 rounded-lg border cursor-pointer transition flex items-center justify-between text-xs ${
-                        isPreviewSelected
-                          ? 'bg-blue-50/90 border-blue-500 shadow-2xs ring-1 ring-blue-500'
-                          : isBulkSelected
-                          ? 'bg-blue-50/30 border-blue-300'
-                          : 'bg-white border-slate-200 hover:bg-slate-50'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-3">
-                        {/* Yuvarlak Mavi Tik Butonu (Toplu Seçim) */}
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            toggleBulkVariant(v.id)
-                          }}
-                          title={isBulkSelected ? 'Toplu seçimden kaldır' : 'Toplu basım için seç'}
-                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition cursor-pointer ${
-                            isBulkSelected
-                              ? 'bg-blue-600 border-blue-600 text-white shadow-2xs scale-105'
-                              : 'border-slate-300 bg-white hover:border-blue-500 hover:bg-blue-50/50'
-                          }`}
-                        >
-                          {isBulkSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                        </button>
+                <>
+                  {visibleVariants.map((v) => {
+                    const isPreviewSelected = selectedVariant?.id === v.id
+                    const isBulkSelected = selectedBulkVariantIds.has(v.id)
+                    return (
+                      <div
+                        key={v.id}
+                        onClick={() => setSelectedVariant(v)}
+                        className={`p-2.5 rounded-lg border cursor-pointer transition flex items-center justify-between text-xs ${
+                          isPreviewSelected
+                            ? 'bg-blue-50/90 border-blue-500 shadow-2xs ring-1 ring-blue-500'
+                            : isBulkSelected
+                            ? 'bg-blue-50/30 border-blue-300'
+                            : 'bg-white border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-3">
+                          {/* Yuvarlak Mavi Tik Butonu (Toplu Seçim) */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              toggleBulkVariant(v.id)
+                            }}
+                            title={isBulkSelected ? 'Toplu seçimden kaldır' : 'Toplu basım için seç'}
+                            className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition cursor-pointer ${
+                              isBulkSelected
+                                ? 'bg-blue-600 border-blue-600 text-white shadow-2xs scale-105'
+                                : 'border-slate-300 bg-white hover:border-blue-500 hover:bg-blue-50/50'
+                            }`}
+                          >
+                            {isBulkSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                          </button>
 
-                        <div>
-                          <div className="font-bold text-slate-900 flex items-center space-x-2">
-                            <span>{v.product.name}</span>
-                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 font-mono font-bold">
-                              {v.attributes?.color || '-'} / {v.attributes?.size || '-'}
-                            </span>
-                            {isPreviewSelected && (
-                              <span className="text-[9px] px-1.5 py-0.2 bg-blue-600 text-white font-extrabold rounded uppercase tracking-wider">
-                                Önizleniyor
+                          <div>
+                            <div className="font-bold text-slate-900 flex items-center space-x-2">
+                              <span>{v.product.name}</span>
+                              <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 font-mono font-bold">
+                                {v.attributes?.color || '-'} / {v.attributes?.size || '-'}
                               </span>
-                            )}
-                          </div>
-                          <div className="text-[11px] text-slate-500 font-mono mt-0.5 flex items-center space-x-3">
-                            <span>
-                              Barkod: <strong className="text-slate-800">{v.barcode}</strong>
-                            </span>
-                            <span>SKU: {v.sku}</span>
+                              {isPreviewSelected && (
+                                <span className="text-[9px] px-1.5 py-0.2 bg-blue-600 text-white font-extrabold rounded uppercase tracking-wider">
+                                  Önizleniyor
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-slate-500 font-mono mt-0.5 flex items-center space-x-3">
+                              <span>
+                                Barkod: <strong className="text-slate-800">{v.barcode}</strong>
+                              </span>
+                              <span>SKU: {v.sku}</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      <div className="text-right shrink-0">
-                        {v.discountPrice && v.discountPrice > 0 ? (
-                          <>
-                            <span className="text-[10px] text-slate-400 line-through block">
+                        <div className="text-right shrink-0">
+                          {v.discountPrice && v.discountPrice > 0 ? (
+                            <>
+                              <span className="text-[10px] text-slate-400 line-through block">
+                                {v.salePrice?.toFixed(2)} ₺
+                              </span>
+                              <span className="font-extrabold text-rose-700 text-xs block">
+                                {v.discountPrice?.toFixed(2)} ₺
+                              </span>
+                            </>
+                          ) : (
+                            <span className="font-extrabold text-emerald-700 text-xs block">
                               {v.salePrice?.toFixed(2)} ₺
                             </span>
-                            <span className="font-extrabold text-rose-700 text-xs block">
-                              {v.discountPrice?.toFixed(2)} ₺
-                            </span>
-                          </>
-                        ) : (
-                          <span className="font-extrabold text-emerald-700 text-xs block">
-                            {v.salePrice?.toFixed(2)} ₺
-                          </span>
-                        )}
-                        <span className="text-[10px] text-slate-500 font-medium">Stok: {v.stockQuantity} Adet</span>
+                          )}
+                          <span className="text-[10px] text-slate-500 font-medium">Stok: {v.stockQuantity} Adet</span>
+                        </div>
                       </div>
+                    )
+                  })}
+
+                  {filteredVariants.length > visibleVariants.length && (
+                    <div className="pt-2 pb-1 text-center">
+                      <button
+                        type="button"
+                        onClick={() => setDisplayLimit((prev) => prev + 60)}
+                        className="w-full py-2 px-3 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-300 hover:border-blue-300 rounded text-xs font-semibold transition cursor-pointer shadow-2xs"
+                      >
+                        Daha Fazla Varyant Göster ({filteredVariants.length - visibleVariants.length} varyant daha)
+                      </button>
                     </div>
-                  )
-                })
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -1653,7 +1702,7 @@ export const LabelPrinterModal: React.FC = () => {
                         <button
                           type="button"
                           disabled={isSavingDiscount}
-                          onClick={handleSaveDiscountToProduct}
+                          onClick={() => handleSaveDiscountToProduct()}
                           className="text-[11px] text-amber-900 bg-white hover:bg-amber-100 border border-amber-300 rounded px-2 py-1 font-bold flex items-center space-x-1 transition shadow-2xs"
                         >
                           <Save className="w-3 h-3 text-amber-700" />
@@ -1967,6 +2016,17 @@ export const LabelPrinterModal: React.FC = () => {
           </div>
         </div>
       </div>
+
+      <AdminPinModal
+        isOpen={isAdminPinOpen}
+        onClose={() => setIsAdminPinOpen(false)}
+        onVerified={() => {
+          setIsAdminPinOpen(false)
+          handleSaveDiscountToProduct()
+        }}
+        title="Yönetici PIN Girişi"
+        subtitle="İndirimli fiyatı ürün kartına kalıcı olarak kaydetmek için 6 haneli PIN şifresini girin."
+      />
     </div>
   )
 }

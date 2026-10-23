@@ -36,6 +36,25 @@ const parseDecimal = (val: any): number => {
   return isNaN(num) ? 0 : num
 }
 
+// Cleans leaked barcode scanner numbers from text fields (e.g. Size/Color) if scanned by accident
+const cleanBarcodeFromInput = (currentVal: any, scannedCode: string, fallbackDefault = ''): string => {
+  if (!currentVal) return fallbackDefault
+  const clean = String(currentVal).trim()
+  if (!clean || clean === scannedCode) return fallbackDefault
+
+  if (clean.endsWith(scannedCode)) {
+    return clean.slice(0, -scannedCode.length).trim() || fallbackDefault
+  }
+  if (clean.includes(scannedCode)) {
+    return clean.replace(scannedCode, '').trim() || fallbackDefault
+  }
+  const match = clean.match(/^([^\d]*)([\d]{3,})$/)
+  if (match && scannedCode.startsWith(match[2])) {
+    return match[1].trim() || fallbackDefault
+  }
+  return clean
+}
+
 export const StockView: React.FC = () => {
   const [products, setProducts] = useState<any[]>([])
   const [categories, setCategories] = useState<any[]>([])
@@ -69,6 +88,25 @@ export const StockView: React.FC = () => {
   const searchInputRef = useRef<HTMLInputElement>(null)
   const [highlightedVariantId, setHighlightedVariantId] = useState<string | null>(null)
   const [scanToast, setScanToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null)
+  const toastTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  const showToast = (type: 'success' | 'error' | 'info', message: string, duration = 4000) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    setScanToast({ type, message })
+    toastTimerRef.current = setTimeout(() => {
+      setScanToast(null)
+    }, duration)
+  }
+
+  // Modal in-app error states (never use window.alert on Windows Electron to prevent unclickable app lockups)
+  const [addModalError, setAddModalError] = useState<string | null>(null)
+  const [addVarModalError, setAddVarModalError] = useState<string | null>(null)
+  const [editVarModalError, setEditVarModalError] = useState<string | null>(null)
+  const [editProdModalError, setEditProdModalError] = useState<string | null>(null)
+
+  // Custom modal states for delete & archive confirmation (no window.confirm)
+  const [deleteConfirmProduct, setDeleteConfirmProduct] = useState<any | null>(null)
+  const [archiveConfirmData, setArchiveConfirmData] = useState<{ product: any; error: string } | null>(null)
 
   // Add Variant to Existing Product Modal State
   const [isAddVariantModalOpen, setIsAddVariantModalOpen] = useState(false)
@@ -81,6 +119,7 @@ export const StockView: React.FC = () => {
   const [newVarStockQty, setNewVarStockQty] = useState('1')
   const [isCreatingVariant, setIsCreatingVariant] = useState(false)
   const newVarBarcodeInputRef = useRef<HTMLInputElement>(null)
+  const newVarSizeInputRef = useRef<HTMLInputElement>(null)
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false)
@@ -160,16 +199,21 @@ export const StockView: React.FC = () => {
   const [newBarcode, setNewBarcode] = useState('')
 
   const barcodeInputRef = useRef<HTMLInputElement>(null)
+  const newNameInputRef = useRef<HTMLInputElement>(null)
+  const newBasePriceInputRef = useRef<HTMLInputElement>(null)
+  const newColorInputRef = useRef<HTMLInputElement>(null)
+  const newSizeInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (isAddModalOpen) {
+      setAddModalError(null)
       setTimeout(() => barcodeInputRef.current?.focus(), 150)
     }
   }, [isAddModalOpen])
 
-
   useEffect(() => {
     if (isAddVariantModalOpen) {
+      setAddVarModalError(null)
       setTimeout(() => newVarBarcodeInputRef.current?.focus(), 150)
     }
   }, [isAddVariantModalOpen])
@@ -232,11 +276,13 @@ export const StockView: React.FC = () => {
     window.addEventListener('pos-data-updated', handleDataUpdate)
     window.addEventListener('focus', handleDataUpdate)
 
+    // Arka plan senkronizasyonu: Anlık güncellemeler zaten pos-data-updated ile anında tetiklenir.
+    // Celeron işlemcide donma yaratmamak için periyodik kontrol 60 saniyeye çekildi.
     const syncInterval = setInterval(() => {
       if (usePosStore.getState().activeTab !== 'stock') return
       fetchProducts()
       fetchCategories()
-    }, 10000)
+    }, 60000)
 
     return () => {
       window.removeEventListener('pos-data-updated', handleDataUpdate)
@@ -631,6 +677,7 @@ export const StockView: React.FC = () => {
 
   const handleUpdateVariant = async (e: React.FormEvent) => {
     e.preventDefault()
+    setEditVarModalError(null)
     if (!editingVariant) return
 
     try {
@@ -641,12 +688,12 @@ export const StockView: React.FC = () => {
           'X-Admin-Pin': localStorage.getItem('pos_admin_pin_session') || '',
         },
         body: JSON.stringify({
-          color: editColor,
-          size: editSize,
+          color: editColor.trim(),
+          size: editSize.trim(),
           salePrice: parseDecimal(editSalePrice),
           costPrice: parseDecimal(editCostPrice),
           discountPrice: editDiscountPrice ? parseDecimal(editDiscountPrice) : null,
-          barcode: editBarcode,
+          barcode: editBarcode.trim(),
           stockQuantity: parseInt(editStockVal || '0', 10),
           note: 'Varyant detay ve stok düzeltme',
         }),
@@ -654,25 +701,28 @@ export const StockView: React.FC = () => {
 
       if (res.ok) {
         setEditingVariant(null)
+        setEditVarModalError(null)
+        showToast('success', 'Varyant bilgileri başarıyla güncellendi.')
         fetchProducts()
         notifyDataChanged()
       } else {
         const errData = await res.json()
         if (errData.code === 'UNAUTHORIZED_ADMIN_PIN') {
-          alert('Yönetici PIN doğrulama hatası. Lütfen tekrar deneyin.')
+          showToast('error', 'Yönetici PIN doğrulama hatası. Lütfen tekrar deneyin.')
           setAdminVerifiedForSession(false)
         } else {
-          alert('Güncelleme hatası: ' + (errData.error || 'Bilinmeyen hata'))
+          setEditVarModalError(errData.error || 'Güncelleme hatası oluştu.')
         }
       }
-    } catch (err) {
-      alert('Hata oluştu')
+    } catch (err: any) {
+      setEditVarModalError(`Hata: ${err.message || 'Bilinmeyen hata'}`)
     }
   }
 
   // --- EDIT MAIN PRODUCT HANDLERS ---
   const openProductEditModal = (product: any) => {
     setEditingProduct(product)
+    setEditProdModalError(null)
     setEditProdName(product.name || '')
     setEditProdCode(product.code || '')
     setEditProdBrand(product.brand || '')
@@ -691,6 +741,7 @@ export const StockView: React.FC = () => {
 
   const handleUpdateProduct = async (e: React.FormEvent) => {
     e.preventDefault()
+    setEditProdModalError(null)
     if (!editingProduct) return
 
     try {
@@ -701,9 +752,9 @@ export const StockView: React.FC = () => {
           'X-Admin-Pin': localStorage.getItem('pos_admin_pin_session') || '',
         },
         body: JSON.stringify({
-          name: editProdName,
-          code: editProdCode,
-          brand: editProdBrand,
+          name: editProdName.trim(),
+          code: editProdCode.trim(),
+          brand: editProdBrand ? editProdBrand.trim() : null,
           categoryId: editProdCategoryId || null,
           basePrice: parseDecimal(editProdBasePrice),
         }),
@@ -711,19 +762,21 @@ export const StockView: React.FC = () => {
 
       if (res.ok) {
         setEditingProduct(null)
+        setEditProdModalError(null)
+        showToast('success', 'Ürün bilgileri başarıyla güncellendi.')
         fetchProducts()
         notifyDataChanged()
       } else {
         const errData = await res.json()
         if (errData.code === 'UNAUTHORIZED_ADMIN_PIN') {
-          alert('Yönetici PIN doğrulama hatası. Lütfen tekrar deneyin.')
+          showToast('error', 'Yönetici PIN doğrulama hatası. Lütfen tekrar deneyin.')
           setAdminVerifiedForSession(false)
         } else {
-          alert('Ürün güncelleme hatası: ' + (errData.error || 'Bilinmeyen hata'))
+          setEditProdModalError(errData.error || 'Ürün güncelleme hatası.')
         }
       }
-    } catch (err) {
-      alert('Hata oluştu')
+    } catch (err: any) {
+      setEditProdModalError(`Hata: ${err.message || 'Bilinmeyen hata'}`)
     }
   }
 
@@ -733,7 +786,7 @@ export const StockView: React.FC = () => {
     if (!addStockVariant || !addQtyVal) return
     const qty = parseInt(addQtyVal)
     if (isNaN(qty) || qty <= 0) {
-      alert('Lütfen geçerli bir adet girin!')
+      showToast('error', 'Lütfen geçerli bir adet girin!')
       return
     }
 
@@ -753,29 +806,26 @@ export const StockView: React.FC = () => {
         setAddStockVariant(null)
         setAddQtyVal('')
         setHighlightedVariantId(targetId)
-        setScanToast({
-          type: 'success',
-          message: `✅ "${targetSku}" stoğuna +${qty} adet başarıyla eklendi!`,
-        })
-        setTimeout(() => setScanToast(null), 4000)
+        showToast('success', `✅ "${targetSku}" stoğuna +${qty} adet başarıyla eklendi!`)
         setTimeout(() => setHighlightedVariantId(null), 6000)
         await fetchProducts()
         notifyDataChanged()
       } else {
         const errData = await res.json()
-        alert('Stok ekleme hatası: ' + (errData.error || 'Bilinmeyen hata'))
+        showToast('error', 'Stok ekleme hatası: ' + (errData.error || 'Bilinmeyen hata'))
       }
     } catch {
-      alert('Hata oluştu')
+      showToast('error', 'Hata oluştu')
     }
   }
 
   // --- ADD NEW VARIANT TO EXISTING PRODUCT ---
   const handleAddVariantToProduct = async (e: React.FormEvent) => {
     e.preventDefault()
+    setAddVarModalError(null)
     if (!selectedProduct) return
     if (!newVarBarcode.trim()) {
-      alert('Lütfen geçerli bir barkod numarası girin veya otomatik üretin!')
+      setAddVarModalError('Lütfen geçerli bir barkod numarası girin veya otomatik üretin!')
       return
     }
 
@@ -785,8 +835,8 @@ export const StockView: React.FC = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          color: newVarColor,
-          size: newVarSize,
+          color: newVarColor.trim(),
+          size: newVarSize.trim(),
           barcode: newVarBarcode.trim(),
           salePrice: parseDecimal(newVarSalePrice) || selectedProduct.basePrice,
           costPrice: parseDecimal(newVarCostPrice) || ((parseDecimal(newVarSalePrice) || selectedProduct.basePrice) * 0.5),
@@ -798,23 +848,20 @@ export const StockView: React.FC = () => {
       const data = await res.json()
       if (res.ok) {
         setIsAddVariantModalOpen(false)
+        setAddVarModalError(null)
         setNewVarBarcode('')
         setNewVarDiscountPrice('')
         setNewVarStockQty('1')
         setHighlightedVariantId(data.id)
-        setScanToast({
-          type: 'success',
-          message: `✅ Yeni varyant (${newVarColor} / ${newVarSize}) başarıyla eklendi!`,
-        })
-        setTimeout(() => setScanToast(null), 4000)
+        showToast('success', `✅ Yeni varyant (${newVarColor} / ${newVarSize}) başarıyla eklendi!`)
         setTimeout(() => setHighlightedVariantId(null), 6000)
         await fetchProducts()
         notifyDataChanged()
       } else {
-        alert('Varyant ekleme hatası: ' + (data.error || 'Bilinmeyen hata'))
+        setAddVarModalError(data.error || 'Varyant ekleme hatası.')
       }
     } catch (err: any) {
-      alert('Hata: ' + err.message)
+      setAddVarModalError(`Hata: ${err.message || 'Bilinmeyen hata'}`)
     } finally {
       setIsCreatingVariant(false)
     }
@@ -841,17 +888,8 @@ export const StockView: React.FC = () => {
   // --- DELETE / ARCHIVE PRODUCT HANDLERS ---
   const handleProductDeleteClick = (product: any) => {
     if (!product) return
-    const confirmDelete = window.confirm(
-      `"${product.name}" ürününü silmek istediğinize emin misiniz?\n\n• Satış kaydı yoksa ürün veritabanından tamamen silinir.\n• Geçmiş satışı varsa fiş geçmişini korumak için stoğu 0 yapılarak "Arşiv / Tükenenler"e kaldırılır.`
-    )
-    if (!confirmDelete) return
-
-    if (adminVerifiedForSession) {
-      performProductDelete(product)
-    } else {
-      setPendingProductDelete(product)
-      setIsAdminPinOpen(true)
-    }
+    // Show non-blocking custom confirmation modal (never window.confirm)
+    setDeleteConfirmProduct(product)
   }
 
   const performProductDelete = async (product: any, action?: string) => {
@@ -868,13 +906,13 @@ export const StockView: React.FC = () => {
       const data = await res.json()
 
       if (res.ok) {
-        alert(data.message)
+        showToast('success', data.message || 'Ürün başarıyla silindi.')
         setSelectedProduct(null)
         fetchProducts()
         notifyDataChanged()
       } else {
         if (data.code === 'UNAUTHORIZED_ADMIN_PIN') {
-          alert('Yönetici PIN doğrulaması başarısız. Lütfen tekrar deneyin.')
+          showToast('error', 'Yönetici PIN doğrulaması başarısız. Lütfen tekrar deneyin.')
           setAdminVerifiedForSession(false)
           setPendingProductDelete(product)
           setIsAdminPinOpen(true)
@@ -883,18 +921,13 @@ export const StockView: React.FC = () => {
 
         // Eğer geçmiş satışı olduğu için silinemiyorsa arşive alma teklif et:
         if (data.hasSales) {
-          const confirmArchive = window.confirm(
-            `⚠️ DİKKAT:\n${data.error}\n\nStoğunu 0 yaparak bu ürünü "Arşiv / Tükenenler" sekmesine kaldırmak istiyor musunuz?`
-          )
-          if (confirmArchive) {
-            await performProductDelete(product, 'zero_stock')
-          }
+          setArchiveConfirmData({ product, error: data.error })
         } else {
-          alert('Silme hatası: ' + (data.error || 'Bilinmeyen hata'))
+          showToast('error', 'Silme hatası: ' + (data.error || 'Bilinmeyen hata'))
         }
       }
     } catch (err: any) {
-      alert('İşlem sırasında hata oluştu: ' + err.message)
+      showToast('error', 'İşlem sırasında hata oluştu: ' + (err.message || ''))
     }
   }
 
@@ -908,27 +941,29 @@ export const StockView: React.FC = () => {
 
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newCode || !newName || !newBarcode) {
-      alert('Lütfen Ürün Kodu, Adı ve Barkod alanlarını doldurun!')
+    setAddModalError(null)
+
+    if (!newCode.trim() || !newName.trim() || !newBarcode.trim()) {
+      setAddModalError('Lütfen Ürün Kodu, Adı ve Barkod alanlarını doldurun!')
       return
     }
 
     if (duplicateProduct) {
-      alert(`⚠️ Uyarı: Barkod numarası (${trimmedBarcode}) zaten "${duplicateProduct.name}" (${duplicateProduct.code}) üzerinde kayıtlıdır! Lütfen farklı bir barkod kullanın.`)
+      setAddModalError(`⚠️ Barkod numarası (${trimmedBarcode}) zaten "${duplicateProduct.name}" (${duplicateProduct.code}) üzerinde kayıtlıdır! Lütfen farklı bir barkod kullanın.`)
       return
     }
 
     const payload = {
-      code: newCode,
-      name: newName,
+      code: newCode.trim(),
+      name: newName.trim(),
       brand: newBrand ? newBrand.trim() : null,
       categoryId: newCategoryId || null,
       basePrice: parseDecimal(newBasePrice || '100'),
       variants: [
         {
-          sku: `${newCode}-${newColor}-${newSize}`,
+          sku: `${newCode.trim()}-${newColor.trim()}-${newSize.trim()}`,
           barcode: trimmedBarcode,
-          attributes: { color: newColor, size: newSize },
+          attributes: { color: newColor.trim(), size: newSize.trim() },
           costPrice: parseDecimal(newBasePrice || '100') * 0.5,
           salePrice: parseDecimal(newBasePrice || '100'),
           discountPrice: newDiscountPrice ? parseDecimal(newDiscountPrice) : null,
@@ -946,6 +981,7 @@ export const StockView: React.FC = () => {
 
       if (res.ok) {
         setIsAddModalOpen(false)
+        setAddModalError(null)
         setNewCode('')
         setNewName('')
         setNewBarcode('')
@@ -953,17 +989,64 @@ export const StockView: React.FC = () => {
         setNewBasePrice('')
         setNewDiscountPrice('')
         setNewStockQuantity('0')
+        showToast('success', `✅ "${newName}" ürünü ve varyantı (${newColor} / ${newSize}) başarıyla eklendi!`)
         fetchProducts()
         fetchCategories()
         notifyDataChanged()
       } else {
         const err = await res.json()
-        alert(`Hata: ${err.error}`)
+        setAddModalError(err.error || 'Ürün oluşturulamadı.')
       }
     } catch (err: any) {
-      alert(`Hata: ${err.message}`)
+      setAddModalError(`Hata: ${err.message || 'Bağlantı hatası'}`)
     }
   }
+
+  const [displayLimit, setDisplayLimit] = useState(80)
+
+  useEffect(() => {
+    setDisplayLimit(80)
+  }, [searchTerm, stockFilter])
+
+  const normalizedSearch = searchTerm.trim().toLowerCase()
+  const filteredProducts = useMemo(() => {
+    return products.filter((p) => {
+      const totalStock = p.variants?.reduce((acc: number, v: any) => acc + (v.stockQuantity || 0), 0) || 0
+
+      // Arama kutusunda bir şey yazmıyorsa sekmeye göre filtrele:
+      if (!normalizedSearch) {
+        if (stockFilter === 'active' && totalStock <= 0) return false
+        if (stockFilter === 'archived' && totalStock > 0) return false
+      }
+
+      if (!normalizedSearch) return true
+      if (p.name?.toLowerCase().includes(normalizedSearch)) return true
+      if (p.code?.toLowerCase().includes(normalizedSearch)) return true
+      if (p.brand && p.brand.toLowerCase().includes(normalizedSearch)) return true
+      if (p.category?.name && p.category.name.toLowerCase().includes(normalizedSearch)) return true
+      if (p.variants?.some((v: any) => {
+        const bc = String(v.barcode || '').toLowerCase()
+        const sku = String(v.sku || '').toLowerCase()
+        const clr = String(v.attributes?.color || '').toLowerCase()
+        const sz = String(v.attributes?.size || '').toLowerCase()
+        return bc.includes(normalizedSearch) || sku.includes(normalizedSearch) || clr.includes(normalizedSearch) || sz.includes(normalizedSearch)
+      })) {
+        return true
+      }
+      return false
+    })
+  }, [products, normalizedSearch, stockFilter])
+
+  // Celeron ve düşük donanımlı POS cihazlarında DOM kasmalarını önlemek için dilimlenmiş görünüm
+  const visibleProducts = useMemo(() => {
+    if (selectedProduct) {
+      const idx = filteredProducts.findIndex((p) => p.id === selectedProduct.id)
+      if (idx >= displayLimit) {
+        return filteredProducts.slice(0, idx + 20)
+      }
+    }
+    return filteredProducts.slice(0, displayLimit)
+  }, [filteredProducts, displayLimit, selectedProduct])
 
   // --- BARCODE SEARCH & LOOKUP HANDLER ---
   const handleBarcodeSearchSubmit = async (codeToSearch: string) => {
@@ -1021,27 +1104,18 @@ export const StockView: React.FC = () => {
         setHighlightedVariantId(matchedVariant.id)
         setTimeout(() => setHighlightedVariantId(null), 6000)
       }
-      setScanToast({
-        type: 'success',
-        message: `⚡ Bulundu: "${matchedProduct.name}" ${
+      showToast(
+        'success',
+        `⚡ Bulundu: "${matchedProduct.name}" ${
           matchedVariant?.attributes?.color ? `(${matchedVariant.attributes.color} / ${matchedVariant.attributes.size})` : ''
-        }`,
-      })
-      setTimeout(() => setScanToast(null), 4000)
+        }`
+      )
     } else {
       if (filteredProducts.length > 0) {
         setSelectedProduct(filteredProducts[0])
-        setScanToast({
-          type: 'success',
-          message: `⚡ Eşleşen Ürün: "${filteredProducts[0].name}"`,
-        })
-        setTimeout(() => setScanToast(null), 3000)
+        showToast('success', `⚡ Eşleşen Ürün: "${filteredProducts[0].name}"`, 3000)
       } else {
-        setScanToast({
-          type: 'error',
-          message: `⚠️ Barkod veya arama bulunamadı: "${raw}"`,
-        })
-        setTimeout(() => setScanToast(null), 4000)
+        showToast('error', `⚠️ Barkod veya arama bulunamadı: "${raw}"`)
       }
     }
   }
@@ -1050,31 +1124,35 @@ export const StockView: React.FC = () => {
   useEffect(() => {
     let barcodeBuffer = ''
     let lastKeyTime = Date.now()
+    let charTimings: number[] = []
 
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if (usePosStore.getState().activeTab !== 'stock') {
         return
       }
 
+      // Modals that strictly do not accept barcodes
       if (
-        isAddModalOpen ||
         isCategoryModalOpen ||
         isExcelModalOpen ||
         isAdminPinOpen ||
         addStockVariant ||
-        editingVariant ||
-        editingProduct ||
-        isAddVariantModalOpen
+        editingProduct
       ) {
         return
       }
 
-      const activeElement = document.activeElement
+      const activeElement = document.activeElement as HTMLElement | null
       const isSearchFocused = activeElement === searchInputRef.current
+      const isAddBarcodeFocused = activeElement === barcodeInputRef.current
+      const isAddVarBarcodeFocused = activeElement === newVarBarcodeInputRef.current
+      const isBarcodeFieldFocused = isSearchFocused || isAddBarcodeFocused || isAddVarBarcodeFocused
+
       const isOtherInputFocused =
-        activeElement?.tagName === 'INPUT' ||
-        activeElement?.tagName === 'TEXTAREA' ||
-        activeElement?.tagName === 'SELECT'
+        (activeElement?.tagName === 'INPUT' ||
+          activeElement?.tagName === 'TEXTAREA' ||
+          activeElement?.tagName === 'SELECT') &&
+        !isBarcodeFieldFocused
 
       const currentTime = Date.now()
       const timeDiff = currentTime - lastKeyTime
@@ -1082,21 +1160,97 @@ export const StockView: React.FC = () => {
 
       if (timeDiff > 120) {
         barcodeBuffer = ''
+        charTimings = []
       }
 
+      // Enter suffix from barcode scanner or user keyboard
       if (e.key === 'Enter') {
+        const avgTiming =
+          charTimings.length > 0
+            ? charTimings.reduce((a, b) => a + b, 0) / charTimings.length
+            : 999
+        const isRapidScanner = avgTiming < 55 && charTimings.length >= 2
+
+        // A. If "Yeni Ürün Ekle" modal is open:
+        if (isAddModalOpen) {
+          const code = (isAddBarcodeFocused ? newBarcode : barcodeBuffer).trim()
+          if (isRapidScanner || isAddBarcodeFocused) {
+            e.preventDefault()
+            e.stopPropagation()
+            if (code.length >= 3) {
+              // Sanitize any field (like Beden/Size) that had focus during scan
+              if (isOtherInputFocused) {
+                setNewSize((prev) => cleanBarcodeFromInput(prev, code, 'M'))
+                setNewColor((prev) => cleanBarcodeFromInput(prev, code, 'Siyah'))
+                setNewName((prev) => cleanBarcodeFromInput(prev, code, ''))
+                setNewCode((prev) => cleanBarcodeFromInput(prev, code, ''))
+              }
+              setNewBarcode(code)
+              barcodeInputRef.current?.focus()
+              showToast('success', `Barkod okuyucudan aktarıldı: ${code}`)
+            }
+          }
+          barcodeBuffer = ''
+          charTimings = []
+          return
+        }
+
+        // B. If "Yeni Varyant Ekle" modal is open:
+        if (isAddVariantModalOpen) {
+          const code = (isAddVarBarcodeFocused ? newVarBarcode : barcodeBuffer).trim()
+          if (isRapidScanner || isAddVarBarcodeFocused) {
+            e.preventDefault()
+            e.stopPropagation()
+            if (code.length >= 3) {
+              if (isOtherInputFocused) {
+                setNewVarSize((prev) => cleanBarcodeFromInput(prev, code, 'M'))
+                setNewVarColor((prev) => cleanBarcodeFromInput(prev, code, 'Siyah'))
+              }
+              setNewVarBarcode(code)
+              newVarBarcodeInputRef.current?.focus()
+              showToast('success', `Barkod okuyucudan aktarıldı: ${code}`)
+            }
+          }
+          barcodeBuffer = ''
+          charTimings = []
+          return
+        }
+
+        // C. If "Varyant Düzenle" modal is open:
+        if (editingVariant) {
+          const code = barcodeBuffer.trim()
+          if (isRapidScanner && code.length >= 3) {
+            e.preventDefault()
+            e.stopPropagation()
+            if (isOtherInputFocused) {
+              setEditSize((prev) => cleanBarcodeFromInput(prev, code, 'M'))
+              setEditColor((prev) => cleanBarcodeFromInput(prev, code, 'Siyah'))
+            }
+            setEditBarcode(code)
+            showToast('success', `Barkod okundu: ${code}`)
+          }
+          barcodeBuffer = ''
+          charTimings = []
+          return
+        }
+
+        // D. Main Stock Screen Table Search
         const code = (isSearchFocused ? searchTerm : barcodeBuffer).trim()
         if (code.length >= 2) {
           e.preventDefault()
           handleBarcodeSearchSubmit(code)
         }
         barcodeBuffer = ''
+        charTimings = []
         return
       }
 
+      // Capture single printable character
       if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
-        if (!isOtherInputFocused || isSearchFocused || timeDiff < 50) {
+        if (!isOtherInputFocused || isBarcodeFieldFocused || timeDiff < 45) {
           barcodeBuffer += e.key
+          charTimings.push(timeDiff)
+          if (charTimings.length > 30) charTimings.shift()
         }
       }
     }
@@ -1113,35 +1267,12 @@ export const StockView: React.FC = () => {
     editingProduct,
     isAddVariantModalOpen,
     searchTerm,
+    newBarcode,
+    newVarBarcode,
     products,
+    filteredProducts,
+    stockFilter,
   ])
-
-  const normalizedSearch = searchTerm.trim().toLowerCase()
-  const filteredProducts = products.filter((p) => {
-    const totalStock = p.variants?.reduce((acc: number, v: any) => acc + (v.stockQuantity || 0), 0) || 0
-
-    // Arama kutusunda bir şey yazmıyorsa sekmeye göre filtrele:
-    if (!normalizedSearch) {
-      if (stockFilter === 'active' && totalStock <= 0) return false
-      if (stockFilter === 'archived' && totalStock > 0) return false
-    }
-
-    if (!normalizedSearch) return true
-    if (p.name?.toLowerCase().includes(normalizedSearch)) return true
-    if (p.code?.toLowerCase().includes(normalizedSearch)) return true
-    if (p.brand && p.brand.toLowerCase().includes(normalizedSearch)) return true
-    if (p.category?.name && p.category.name.toLowerCase().includes(normalizedSearch)) return true
-    if (p.variants?.some((v: any) => {
-      const bc = String(v.barcode || '').toLowerCase()
-      const sku = String(v.sku || '').toLowerCase()
-      const clr = String(v.attributes?.color || '').toLowerCase()
-      const sz = String(v.attributes?.size || '').toLowerCase()
-      return bc.includes(normalizedSearch) || sku.includes(normalizedSearch) || clr.includes(normalizedSearch) || sz.includes(normalizedSearch)
-    })) {
-      return true
-    }
-    return false
-  })
 
   // Sekme değiştirildiğinde (Aktif vs Arşiv), seçili ürün yeni sekme kuralına uymuyorsa o sekmedeki ilk ürünü seç
   useEffect(() => {
@@ -1357,8 +1488,18 @@ export const StockView: React.FC = () => {
         </div>
 
         {/* Product Selection Column */}
-        <div className="flex-1 overflow-y-auto p-2.5 space-y-1.5">
-          {filteredProducts.map((prod) => {
+        <div 
+          className="flex-1 overflow-y-auto p-2.5 space-y-1.5"
+          onScroll={(e) => {
+            const { scrollTop, scrollHeight, clientHeight } = e.currentTarget
+            if (scrollHeight - scrollTop - clientHeight < 150) {
+              if (displayLimit < filteredProducts.length) {
+                setDisplayLimit((prev) => Math.min(prev + 60, filteredProducts.length))
+              }
+            }
+          }}
+        >
+          {visibleProducts.map((prod) => {
             const totalStock = prod.variants?.reduce((acc: number, v: any) => acc + v.stockQuantity, 0) || 0
             const isSelected = selectedProduct?.id === prod.id
 
@@ -1396,6 +1537,18 @@ export const StockView: React.FC = () => {
               </div>
             )
           })}
+
+          {filteredProducts.length > visibleProducts.length && (
+            <div className="pt-2 pb-1 text-center">
+              <button
+                type="button"
+                onClick={() => setDisplayLimit((prev) => prev + 60)}
+                className="w-full py-2 px-3 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-300 hover:border-blue-300 rounded text-xs font-semibold transition cursor-pointer shadow-2xs"
+              >
+                Daha Fazla Ürün Göster ({filteredProducts.length - visibleProducts.length} ürün daha)
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1619,6 +1772,20 @@ export const StockView: React.FC = () => {
               </button>
             </div>
 
+            {editVarModalError && (
+              <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-rose-800 text-xs font-semibold flex items-start space-x-2 animate-fadeIn">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <span className="flex-1 leading-snug">{editVarModalError}</span>
+                <button
+                  type="button"
+                  onClick={() => setEditVarModalError(null)}
+                  className="text-rose-400 hover:text-rose-600 font-bold ml-1"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
             <form onSubmit={handleUpdateVariant} className="space-y-3 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -1626,7 +1793,13 @@ export const StockView: React.FC = () => {
                   <input
                     type="text"
                     value={editColor}
-                    onChange={(e) => setEditColor(e.target.value)}
+                    onChange={(e) => {
+                      setEditColor(e.target.value)
+                      if (editVarModalError) setEditVarModalError(null)
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') e.preventDefault()
+                    }}
                     className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-medium focus:ring-1 focus:ring-indigo-600"
                     required
                   />
@@ -1636,7 +1809,13 @@ export const StockView: React.FC = () => {
                   <input
                     type="text"
                     value={editSize}
-                    onChange={(e) => setEditSize(e.target.value)}
+                    onChange={(e) => {
+                      setEditSize(e.target.value)
+                      if (editVarModalError) setEditVarModalError(null)
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') e.preventDefault()
+                    }}
                     className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-medium focus:ring-1 focus:ring-indigo-600"
                     required
                   />
@@ -1651,6 +1830,9 @@ export const StockView: React.FC = () => {
                     step="0.01"
                     value={editSalePrice}
                     onChange={(e) => setEditSalePrice(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') e.preventDefault()
+                    }}
                     className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-bold text-emerald-700 focus:ring-1 focus:ring-indigo-600"
                     required
                   />
@@ -1663,6 +1845,9 @@ export const StockView: React.FC = () => {
                     placeholder="Opsiyonel"
                     value={editDiscountPrice}
                     onChange={(e) => setEditDiscountPrice(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') e.preventDefault()
+                    }}
                     className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-bold text-rose-600 focus:ring-1 focus:ring-indigo-600"
                   />
                 </div>
@@ -1673,6 +1858,9 @@ export const StockView: React.FC = () => {
                     step="0.01"
                     value={editCostPrice}
                     onChange={(e) => setEditCostPrice(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') e.preventDefault()
+                    }}
                     className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-semibold focus:ring-1 focus:ring-indigo-600"
                   />
                 </div>
@@ -1683,7 +1871,16 @@ export const StockView: React.FC = () => {
                 <input
                   type="text"
                   value={editBarcode}
-                  onChange={(e) => setEditBarcode(e.target.value)}
+                  onChange={(e) => {
+                    setEditBarcode(e.target.value)
+                    if (editVarModalError) setEditVarModalError(null)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      handleUpdateVariant(e)
+                    }
+                  }}
                   className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-mono font-bold focus:ring-1 focus:ring-indigo-600"
                   required
                 />
@@ -1695,6 +1892,9 @@ export const StockView: React.FC = () => {
                   type="number"
                   value={editStockVal}
                   onChange={(e) => setEditStockVal(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') e.preventDefault()
+                  }}
                   className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-bold text-base focus:ring-1 focus:ring-indigo-600"
                   required
                 />
@@ -1737,13 +1937,33 @@ export const StockView: React.FC = () => {
               </button>
             </div>
 
+            {editProdModalError && (
+              <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-rose-800 text-xs font-semibold flex items-start space-x-2 animate-fadeIn">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <span className="flex-1 leading-snug">{editProdModalError}</span>
+                <button
+                  type="button"
+                  onClick={() => setEditProdModalError(null)}
+                  className="text-rose-400 hover:text-rose-600 font-bold ml-1"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
             <form onSubmit={handleUpdateProduct} className="space-y-3 text-xs">
               <div>
                 <label className="block text-slate-700 font-semibold mb-1">Ürün Kodu</label>
                 <input
                   type="text"
                   value={editProdCode}
-                  onChange={(e) => setEditProdCode(e.target.value)}
+                  onChange={(e) => {
+                    setEditProdCode(e.target.value)
+                    if (editProdModalError) setEditProdModalError(null)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') e.preventDefault()
+                  }}
                   className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-medium focus:ring-1 focus:ring-indigo-600"
                   required
                 />
@@ -1754,7 +1974,13 @@ export const StockView: React.FC = () => {
                 <input
                   type="text"
                   value={editProdName}
-                  onChange={(e) => setEditProdName(e.target.value)}
+                  onChange={(e) => {
+                    setEditProdName(e.target.value)
+                    if (editProdModalError) setEditProdModalError(null)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') e.preventDefault()
+                  }}
                   className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-medium focus:ring-1 focus:ring-indigo-600"
                   required
                 />
@@ -1782,6 +2008,9 @@ export const StockView: React.FC = () => {
                     type="text"
                     value={editProdBrand}
                     onChange={(e) => setEditProdBrand(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') e.preventDefault()
+                    }}
                     className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-medium focus:ring-1 focus:ring-indigo-600"
                   />
                 </div>
@@ -1794,6 +2023,12 @@ export const StockView: React.FC = () => {
                   step="0.01"
                   value={editProdBasePrice}
                   onChange={(e) => setEditProdBasePrice(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      handleUpdateProduct(e)
+                    }
+                  }}
                   className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-bold text-emerald-700 text-base focus:ring-1 focus:ring-indigo-600"
                   required
                 />
@@ -1873,26 +2108,68 @@ export const StockView: React.FC = () => {
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white border border-slate-200 rounded-lg p-5 w-full max-w-md shadow-xl space-y-4">
-            <h3 className="font-bold text-slate-900 text-sm">Yeni Ürün Ekle</h3>
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <h3 className="font-bold text-slate-900 text-sm">Yeni Ürün Ekle</h3>
+              <button
+                type="button"
+                onClick={() => setIsAddModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 font-bold text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            {addModalError && (
+              <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-rose-800 text-xs font-semibold flex items-start space-x-2 animate-fadeIn">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <span className="flex-1 leading-snug">{addModalError}</span>
+                <button
+                  type="button"
+                  onClick={() => setAddModalError(null)}
+                  className="text-rose-400 hover:text-rose-600 font-bold ml-1"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
 
             <form onSubmit={handleCreateProduct} className="space-y-3 text-xs">
               <div>
-                <label className="block text-slate-700 font-semibold mb-1">Ürün Kodu (Örn: PRD-TSH-010)</label>
+                <label className="block text-slate-700 font-semibold mb-1">Ürün Kodu (Örn: PRD-TSH-010) *</label>
                 <input
                   type="text"
                   value={newCode}
-                  onChange={(e) => setNewCode(e.target.value)}
+                  onChange={(e) => {
+                    setNewCode(e.target.value)
+                    if (addModalError) setAddModalError(null)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      newNameInputRef.current?.focus()
+                    }
+                  }}
                   className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-medium focus:ring-1 focus:ring-blue-600"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-slate-700 font-semibold mb-1">Ürün Adı (Örn: Slim Fit Tişört)</label>
+                <label className="block text-slate-700 font-semibold mb-1">Ürün Adı (Örn: Slim Fit Tişört) *</label>
                 <input
+                  ref={newNameInputRef}
                   type="text"
                   value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
+                  onChange={(e) => {
+                    setNewName(e.target.value)
+                    if (addModalError) setAddModalError(null)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      newBasePriceInputRef.current?.focus()
+                    }
+                  }}
                   className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-medium focus:ring-1 focus:ring-blue-600"
                   required
                 />
@@ -1929,9 +2206,16 @@ export const StockView: React.FC = () => {
                 <div>
                   <label className="block text-slate-700 font-semibold mb-1">Satış Fiyatı (TL)</label>
                   <input
+                    ref={newBasePriceInputRef}
                     type="number"
                     value={newBasePrice}
                     onChange={(e) => setNewBasePrice(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        newColorInputRef.current?.focus()
+                      }
+                    }}
                     placeholder="100"
                     className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-bold text-emerald-700 focus:ring-1 focus:ring-blue-600"
                   />
@@ -1963,18 +2247,32 @@ export const StockView: React.FC = () => {
                 <div>
                   <label className="block text-slate-700 font-semibold mb-1">Varyant Renk</label>
                   <input
+                    ref={newColorInputRef}
                     type="text"
                     value={newColor}
                     onChange={(e) => setNewColor(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        newSizeInputRef.current?.focus()
+                      }
+                    }}
                     className="w-full bg-slate-50 border border-slate-300 rounded p-1.5 text-slate-900 focus:ring-1 focus:ring-blue-600"
                   />
                 </div>
                 <div>
                   <label className="block text-slate-700 font-semibold mb-1">Beden</label>
                   <input
+                    ref={newSizeInputRef}
                     type="text"
                     value={newSize}
                     onChange={(e) => setNewSize(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        barcodeInputRef.current?.focus()
+                      }
+                    }}
                     className="w-full bg-slate-50 border border-slate-300 rounded p-1.5 text-slate-900 focus:ring-1 focus:ring-blue-600"
                   />
                 </div>
@@ -1985,7 +2283,7 @@ export const StockView: React.FC = () => {
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-slate-700 font-bold flex items-center space-x-1">
                     <Barcode className="w-3.5 h-3.5 text-blue-700" />
-                    <span>Barkod Numarası</span>
+                    <span>Barkod Numarası *</span>
                   </label>
                   <button
                     type="button"
@@ -2004,7 +2302,16 @@ export const StockView: React.FC = () => {
                     type="text"
                     placeholder="Barkod okutun veya elle yazın..."
                     value={newBarcode}
-                    onChange={(e) => setNewBarcode(e.target.value)}
+                    onChange={(e) => {
+                      setNewBarcode(e.target.value)
+                      if (addModalError) setAddModalError(null)
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        handleCreateProduct(e)
+                      }
+                    }}
                     className={`w-full bg-slate-50 border rounded p-2 text-slate-900 font-mono font-bold text-xs focus:ring-1 focus:outline-none ${
                       duplicateProduct
                         ? 'border-rose-500 bg-rose-50/50 text-rose-900 focus:ring-rose-500'
@@ -2377,6 +2684,20 @@ export const StockView: React.FC = () => {
               </button>
             </div>
 
+            {addVarModalError && (
+              <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-rose-800 text-xs font-semibold flex items-start space-x-2 animate-fadeIn">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <span className="flex-1 leading-snug">{addVarModalError}</span>
+                <button
+                  type="button"
+                  onClick={() => setAddVarModalError(null)}
+                  className="text-rose-400 hover:text-rose-600 font-bold ml-1"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
             <form onSubmit={handleAddVariantToProduct} className="space-y-3 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -2385,7 +2706,16 @@ export const StockView: React.FC = () => {
                     type="text"
                     placeholder="Örn: Siyah, Mavi"
                     value={newVarColor}
-                    onChange={(e) => setNewVarColor(e.target.value)}
+                    onChange={(e) => {
+                      setNewVarColor(e.target.value)
+                      if (addVarModalError) setAddVarModalError(null)
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        newVarSizeInputRef.current?.focus()
+                      }
+                    }}
                     className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-medium focus:ring-1 focus:ring-blue-600"
                     required
                   />
@@ -2393,10 +2723,20 @@ export const StockView: React.FC = () => {
                 <div>
                   <label className="block text-slate-700 font-semibold mb-1">Beden *</label>
                   <input
+                    ref={newVarSizeInputRef}
                     type="text"
                     placeholder="Örn: S, M, L, 42"
                     value={newVarSize}
-                    onChange={(e) => setNewVarSize(e.target.value)}
+                    onChange={(e) => {
+                      setNewVarSize(e.target.value)
+                      if (addVarModalError) setAddVarModalError(null)
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        newVarBarcodeInputRef.current?.focus()
+                      }
+                    }}
                     className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-medium focus:ring-1 focus:ring-blue-600"
                     required
                   />
@@ -2427,7 +2767,16 @@ export const StockView: React.FC = () => {
                     type="text"
                     placeholder="Barkod okutun veya elle yazın..."
                     value={newVarBarcode}
-                    onChange={(e) => setNewVarBarcode(e.target.value)}
+                    onChange={(e) => {
+                      setNewVarBarcode(e.target.value)
+                      if (addVarModalError) setAddVarModalError(null)
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        handleAddVariantToProduct(e)
+                      }
+                    }}
                     className="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-900 font-mono font-bold text-xs focus:ring-1 focus:ring-blue-600 focus:outline-none"
                     required
                   />
@@ -2511,6 +2860,122 @@ export const StockView: React.FC = () => {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* Custom Non-blocking Product Delete Confirmation Modal */}
+      {deleteConfirmProduct && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white border border-slate-200 rounded-xl p-5 w-full max-w-md shadow-2xl space-y-4">
+            <div className="flex items-center space-x-3 text-rose-600">
+              <div className="w-10 h-10 rounded-full bg-rose-100 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5 text-rose-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm">Ürünü Silmek İstiyor Musunuz?</h3>
+                <p className="text-xs text-slate-500 font-semibold">{deleteConfirmProduct.name} ({deleteConfirmProduct.code})</p>
+              </div>
+            </div>
+            <div className="text-xs text-slate-600 space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
+              <p>• Satış kaydı yoksa ürün veritabanından tamamen silinir.</p>
+              <p>• Geçmiş satışı varsa fiş geçmişini korumak için stoğu 0 yapılarak "Arşiv / Tükenenler"e kaldırılır.</p>
+            </div>
+            <div className="flex justify-end space-x-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmProduct(null)}
+                className="px-3.5 py-1.5 bg-slate-100 text-slate-700 rounded text-xs font-semibold hover:bg-slate-200 border border-slate-200"
+              >
+                Vazgeç
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const prod = deleteConfirmProduct
+                  setDeleteConfirmProduct(null)
+                  if (adminVerifiedForSession) {
+                    performProductDelete(prod)
+                  } else {
+                    setPendingProductDelete(prod)
+                    setIsAdminPinOpen(true)
+                  }
+                }}
+                className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded text-xs font-semibold shadow-sm"
+              >
+                Evet, Sil
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Archive Prompt Modal (when product has sales history) */}
+      {archiveConfirmData && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white border border-slate-200 rounded-xl p-5 w-full max-w-md shadow-2xl space-y-4">
+            <div className="flex items-center space-x-3 text-amber-600">
+              <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                <AlertCircle className="w-5 h-5 text-amber-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm">Ürün Arşive Kaldırılsın mı?</h3>
+                <p className="text-xs text-slate-500 font-semibold">{archiveConfirmData.product.name}</p>
+              </div>
+            </div>
+            <div className="text-xs text-slate-700 bg-amber-50 p-3 rounded-lg border border-amber-200 leading-relaxed">
+              <p className="font-semibold text-amber-900 mb-1">{archiveConfirmData.error}</p>
+              <p>Stoğunu 0 yaparak bu ürünü "Arşiv / Tükenenler" sekmesine kaldırmak istiyor musunuz?</p>
+            </div>
+            <div className="flex justify-end space-x-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setArchiveConfirmData(null)}
+                className="px-3.5 py-1.5 bg-slate-100 text-slate-700 rounded text-xs font-semibold hover:bg-slate-200 border border-slate-200"
+              >
+                İptal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const prod = archiveConfirmData.product
+                  setArchiveConfirmData(null)
+                  performProductDelete(prod, 'zero_stock')
+                }}
+                className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded text-xs font-semibold shadow-sm"
+              >
+                Arşive Kaldır
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Global Fixed High-Z Toast Banner (always visible on top of all modals) */}
+      {scanToast && (
+        <div
+          className={`fixed top-4 left-1/2 -translate-x-1/2 z-[100] max-w-md w-[92%] px-4 py-3 rounded-xl shadow-2xl flex items-center justify-between border transition-all animate-fadeIn ${
+            scanToast.type === 'success'
+              ? 'bg-emerald-600 text-white border-emerald-500 shadow-emerald-500/20'
+              : scanToast.type === 'error'
+              ? 'bg-rose-600 text-white border-rose-500 shadow-rose-500/20'
+              : 'bg-slate-800 text-white border-slate-700 shadow-slate-900/30'
+          }`}
+        >
+          <div className="flex items-center space-x-2.5 overflow-hidden">
+            {scanToast.type === 'success' ? (
+              <CheckCircle2 className="w-5 h-5 text-emerald-200 shrink-0" />
+            ) : (
+              <AlertCircle className="w-5 h-5 text-rose-200 shrink-0" />
+            )}
+            <span className="text-xs font-bold leading-snug">{scanToast.message}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setScanToast(null)}
+            className="text-white/80 hover:text-white text-xs ml-3 shrink-0 font-bold p-1 hover:bg-white/10 rounded"
+          >
+            ✕
+          </button>
         </div>
       )}
     </div>

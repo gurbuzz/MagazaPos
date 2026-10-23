@@ -74,6 +74,8 @@ export const PosView: React.FC = () => {
   const barcodeInputRef = useRef<HTMLInputElement>(null)
   const totalInputRef = useRef<HTMLInputElement>(null)
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const [isConfirmingClearCart, setIsConfirmingClearCart] = useState(false)
+  const clearTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   // Web Audio API feedback for scan events (Amfi ve mağaza hoparlörlerini rahatsız etmemek için doğrudan kapatıldı)
   const playAudioNotification = (_type: 'success' | 'error') => {
@@ -192,10 +194,11 @@ export const PosView: React.FC = () => {
     // Refetch when window regains focus
     window.addEventListener('focus', handleDataUpdate)
 
-    // Silent background poll every 10 seconds for mobile/external updates
+    // Arka plan senkronizasyonu: Anlık güncellemeler zaten pos-data-updated ve focus ile anında tetiklenir.
+    // Celeron işlemcide gereksiz CPU yükü ve donma yaratmamak için periyodik kontrol 60 saniyeye çekildi.
     const syncInterval = setInterval(() => {
       fetchProducts()
-    }, 10000)
+    }, 60000)
 
     return () => {
       window.removeEventListener('pos-data-updated', handleDataUpdate)
@@ -627,17 +630,46 @@ export const PosView: React.FC = () => {
           </div>
           <div className="flex items-center space-x-2">
             {cartItems.length > 0 && (
-              <button
-                onClick={() => {
-                  if (confirm('Sepetteki tüm ürünler temizlensin mi?')) {
-                    clearCart()
-                  }
-                }}
-                className="text-[11px] text-rose-600 hover:text-rose-800 hover:bg-rose-50 px-2 py-0.5 rounded transition font-semibold"
-                title="Sepeti Temizle"
-              >
-                Temizle
-              </button>
+              isConfirmingClearCart ? (
+                <div className="flex items-center space-x-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      clearCart()
+                      setIsConfirmingClearCart(false)
+                      if (clearTimerRef.current) clearTimeout(clearTimerRef.current)
+                    }}
+                    className="text-[11px] bg-rose-600 text-white hover:bg-rose-700 px-2 py-0.5 rounded transition font-bold shadow-2xs cursor-pointer"
+                  >
+                    Evet, Temizle
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsConfirmingClearCart(false)
+                      if (clearTimerRef.current) clearTimeout(clearTimerRef.current)
+                    }}
+                    className="text-[11px] text-slate-500 hover:text-slate-800 hover:bg-slate-100 px-1.5 py-0.5 rounded transition cursor-pointer"
+                  >
+                    Vazgeç
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsConfirmingClearCart(true)
+                    if (clearTimerRef.current) clearTimeout(clearTimerRef.current)
+                    clearTimerRef.current = setTimeout(() => {
+                      setIsConfirmingClearCart(false)
+                    }, 4000)
+                  }}
+                  className="text-[11px] text-rose-600 hover:text-rose-800 hover:bg-rose-50 px-2 py-0.5 rounded transition font-semibold cursor-pointer"
+                  title="Sepeti Temizle"
+                >
+                  Temizle
+                </button>
+              )
             )}
             <span className="px-2.5 py-0.5 rounded-full bg-blue-100/70 text-[#00268A] text-[11px] font-bold border border-blue-200/80 shadow-2xs">
               {cartItems.reduce((acc, i) => acc + i.quantity, 0)} Kalem

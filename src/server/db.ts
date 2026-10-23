@@ -105,6 +105,12 @@ export function findSeedDb(): string | null {
   return null
 }
 
+let currentActiveDbPath: string = path.join(getUserDataDir(), 'magazapos.db')
+
+export function getActiveDbPath(): string {
+  return currentActiveDbPath
+}
+
 function initializeDatabaseFile(): string {
   logDebug('DB_INIT', 'Starting Database Initialization...')
   const userDataDir = getUserDataDir()
@@ -124,6 +130,7 @@ function initializeDatabaseFile(): string {
 
   // Eğer AppData içindeki kalıcı veritabanı zaten varsa ve geçerliyse doğrudan onu kullan
   if (isDatabaseValid(targetDbPath)) {
+    currentActiveDbPath = targetDbPath
     const url = toSqliteUrl(targetDbPath)
     logDebug('DB_INIT', `Using existing persistent DB at URL: ${url}`)
     console.log(`[DB] Mevcut kalıcı veritabanı kullanılıyor: ${targetDbPath}`)
@@ -141,11 +148,13 @@ function initializeDatabaseFile(): string {
         try { fs.unlinkSync(targetDbPath) } catch {}
       }
       fs.copyFileSync(foundSeed, targetDbPath)
+      currentActiveDbPath = targetDbPath
       const url = toSqliteUrl(targetDbPath)
       logDebug('DB_INIT', `Seed DB successfully copied. Returning URL: ${url}`)
       console.log(`[DB] Hazır veritabanı AppData konumuna başarıyla kopyalandı:\n  Kaynak: ${foundSeed}\n  Hedef: ${targetDbPath}`)
       return url
     } catch (err: any) {
+      currentActiveDbPath = foundSeed
       logDebug('DB_INIT', `Error copying seed database! Using seed DB directly as fallback.`, err)
       console.error('[DB] Hazır veritabanı kopyalanırken hata, doğrudan kaynak kullanılacak:', err)
       return toSqliteUrl(foundSeed)
@@ -153,6 +162,7 @@ function initializeDatabaseFile(): string {
   }
 
   // Geliştirme modu fallback veya paketlenmiş uygulamada eksik dev.db
+  currentActiveDbPath = targetDbPath
   logDebug('DB_INIT', 'CRITICAL WARNING: No valid seed DB (dev.db) found! Creating empty fallback DB in User Data Dir.')
   console.warn('[DB] UYARI: Gecerli bir hazir veritabani (dev.db) bulunamadi! Bos veritabani olusturulacak (Tablolar otomatik onarilacak).')
   
@@ -399,7 +409,7 @@ async function seedDefaultData() {
 }
 
 // Otomatik tablo oluşturma ve şema migrasyonu kontrolü
-export async function ensureDatabaseSchema() {
+export async function ensureDatabaseSchema(allowSeed: boolean = true) {
   try {
     // 1. Product tablosu var mı kontrol et
     const tables: any = await prisma.$queryRawUnsafe(
@@ -517,15 +527,17 @@ export async function ensureDatabaseSchema() {
       logDebug('DB_INIT', 'Error checking/migrating discountPrice column', migErr)
     }
 
-    // 3. Tablo boş ise başlangıç örnek verilerini yükle
-    try {
-      const prodCount = await prisma.product.count()
-      if (prodCount === 0) {
-        logDebug('DB_INIT', 'No products found in DB. Seeding default products...')
-        await seedDefaultData()
+    // 3. Tablo boş ise başlangıç örnek verilerini yükle (yalnızca allowSeed aktifse)
+    if (allowSeed) {
+      try {
+        const prodCount = await prisma.product.count()
+        if (prodCount === 0) {
+          logDebug('DB_INIT', 'No products found in DB. Seeding default products...')
+          await seedDefaultData()
+        }
+      } catch (countErr: any) {
+        logDebug('DB_INIT', 'Error checking product count', countErr)
       }
-    } catch (countErr: any) {
-      logDebug('DB_INIT', 'Error checking product count', countErr)
     }
 
     // 4. Tüm kategorilerin büyük harf olmasını garantiye al
@@ -543,6 +555,29 @@ export async function ensureDatabaseSchema() {
     } catch (catErr: any) {
       logDebug('DB_INIT', 'Error normalizing category names to uppercase', catErr)
     }
+    // 5. Yüksek Performans İndeksleri: İlişkili sorguları (JOIN, WHERE, ORDER BY) hızlandırma
+    try {
+      const performanceIndexes = [
+        `CREATE INDEX IF NOT EXISTS "idx_variant_product" ON "ProductVariant"("productId");`,
+        `CREATE INDEX IF NOT EXISTS "idx_sale_item_sale" ON "SaleItem"("saleId");`,
+        `CREATE INDEX IF NOT EXISTS "idx_sale_item_variant" ON "SaleItem"("variantId");`,
+        `CREATE INDEX IF NOT EXISTS "idx_sale_created" ON "Sale"("createdAt");`,
+        `CREATE INDEX IF NOT EXISTS "idx_sale_customer" ON "Sale"("customerId");`,
+        `CREATE INDEX IF NOT EXISTS "idx_stock_movement_variant" ON "StockMovement"("variantId");`,
+        `CREATE INDEX IF NOT EXISTS "idx_stock_movement_created" ON "StockMovement"("createdAt");`,
+        `CREATE INDEX IF NOT EXISTS "idx_product_category" ON "Product"("categoryId");`,
+        `CREATE INDEX IF NOT EXISTS "idx_product_created" ON "Product"("createdAt");`
+      ]
+
+      for (const idxSql of performanceIndexes) {
+        await prisma.$queryRawUnsafe(idxSql).catch((e: any) => {
+          logDebug('DB_INIT', `Notice creating index: ${idxSql}`, e?.message)
+        })
+      }
+      logDebug('DB_INIT', 'Performance indexes verified/created successfully.')
+    } catch (idxErr: any) {
+      logDebug('DB_INIT', 'Error configuring performance indexes', idxErr)
+    }
   } catch (err: any) {
     logDebug('DB_INIT', 'Error in ensureDatabaseSchema', err)
     console.error('[DB] Otomatik sema hazirlanirken hata:', err)
@@ -556,6 +591,9 @@ export async function initDbPragmas() {
     await prisma.$queryRawUnsafe('PRAGMA journal_mode=WAL;')
     await prisma.$queryRawUnsafe('PRAGMA busy_timeout=5000;')
     await prisma.$queryRawUnsafe('PRAGMA synchronous=NORMAL;')
+    await prisma.$queryRawUnsafe('PRAGMA cache_size = -64000;') // 64 MB RAM cache (Celeron I/O yükünü önler)
+    await prisma.$queryRawUnsafe('PRAGMA temp_store = MEMORY;')  // Geçici tablolar ve sıralamalar RAM'de çalışır
+    await prisma.$queryRawUnsafe('PRAGMA mmap_size = 268435456;') // 256 MB Bellek Eşlemeli I/O
 
     // Ensure database schema, migrations and starter data
     await ensureDatabaseSchema()
@@ -564,7 +602,7 @@ export async function initDbPragmas() {
     const tableCount: any = await prisma.$queryRawUnsafe(`SELECT count(*) as count FROM sqlite_master WHERE type='table';`)
     logDebug('PRISMA_TEST', `SUCCESS: Database connected. SQLite tables count: ${Number(tableCount?.[0]?.count || 0)}`)
 
-    console.log(`[DB] SQLite WAL modu ve busy_timeout (5000ms) aktifleştirildi. [${dbUrl}]`)
+    console.log(`[DB] SQLite WAL modu, 64MB RAM önbellek ve indeksler aktifleştirildi. [${dbUrl}]`)
   } catch (err: any) {
     logDebug('PRISMA_TEST', `ERROR: Failed to run PRAGMA commands or verify tables.`, err)
     console.error('[DB] PRAGMA ayarları uygulanırken hata:', err)

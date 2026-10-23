@@ -18,6 +18,7 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
   const [newCatName, setNewCatName] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState('')
+  const [deleteConfirmTarget, setDeleteConfirmTarget] = useState<{ id: string; name: string; count: number } | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
 
@@ -87,13 +88,12 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
     }
   }
 
-  const handleDeleteCategory = async (id: string, name: string, count: number) => {
-    const message = count > 0
-      ? `"${name}" kategorisini silmek istediğinizden emin misiniz? Bu kategoriye bağlı ${count} adet ürün kategorisiz olarak kalacaktır.`
-      : `"${name}" kategorisini silmek istediğinizden emin misiniz?`
+  const handleDeleteCategory = (id: string, name: string, count: number) => {
+    setDeleteConfirmTarget({ id, name, count })
+  }
 
-    if (!confirm(message)) return
-
+  const executeDeleteCategory = async (id: string) => {
+    setDeleteConfirmTarget(null)
     setIsSubmitting(true)
     setErrorMsg('')
     try {
@@ -138,6 +138,32 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
           {errorMsg && (
             <div className="bg-rose-50 border border-rose-200 text-rose-700 text-xs p-2.5 rounded font-medium">
               {errorMsg}
+            </div>
+          )}
+
+          {deleteConfirmTarget && (
+            <div className="p-3 bg-rose-50 border border-rose-300 rounded-lg space-y-2 text-xs">
+              <p className="font-semibold text-rose-900">
+                {deleteConfirmTarget.count > 0
+                  ? `"${deleteConfirmTarget.name}" kategorisini silmek istediğinizden emin misiniz? Bu kategoriye bağlı ${deleteConfirmTarget.count} adet ürün kategorisiz olarak kalacaktır.`
+                  : `"${deleteConfirmTarget.name}" kategorisini silmek istediğinizden emin misiniz?`}
+              </p>
+              <div className="flex justify-end space-x-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirmTarget(null)}
+                  className="px-2.5 py-1 text-slate-600 bg-white hover:bg-slate-100 border border-slate-300 rounded font-medium cursor-pointer"
+                >
+                  Vazgeç
+                </button>
+                <button
+                  type="button"
+                  onClick={() => executeDeleteCategory(deleteConfirmTarget.id)}
+                  className="px-2.5 py-1 text-white bg-rose-600 hover:bg-rose-700 rounded font-bold shadow-2xs cursor-pointer"
+                >
+                  Evet, Sil
+                </button>
+              </div>
             </div>
           )}
 

@@ -17,6 +17,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({ isOpen, onClose })
   const [value, setValue] = useState('')
   const [badgeColor, setBadgeColor] = useState<'indigo' | 'emerald' | 'amber' | 'rose' | 'purple' | 'orange'>('orange')
   const [isFormOpen, setIsFormOpen] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
 
   if (!isOpen) return null
 
@@ -32,14 +33,15 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({ isOpen, onClose })
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault()
+    setFormError(null)
     const numValue = parseDecimal(value)
     if (!name.trim() || isNaN(numValue) || numValue <= 0) {
-      alert('Lütfen geçerli bir kampanya/taksit adı ve oran/tutar giriniz.')
+      setFormError('Lütfen geçerli bir kampanya/taksit adı ve oran/tutar giriniz.')
       return
     }
 
     if (action === 'DISCOUNT' && type === 'PERCENTAGE' && numValue > 100) {
-      alert('İndirim oranı %100\'den fazla olamaz.')
+      setFormError('İndirim oranı %100\'den fazla olamaz.')
       return
     }
 
@@ -53,6 +55,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({ isOpen, onClose })
 
     setName('')
     setValue('')
+    setFormError(null)
     setIsFormOpen(false)
   }
 
@@ -121,7 +124,14 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({ isOpen, onClose })
             {/* New Campaign Creation Form */}
             {isFormOpen && (
               <form onSubmit={handleCreate} className="bg-slate-50 border border-slate-200 rounded-lg p-3.5 space-y-3">
-                <h5 className="text-xs font-bold text-slate-800">Yeni Kampanya veya Taksit Şablonu Tanımla</h5>
+                <div className="flex items-center justify-between">
+                  <h5 className="text-xs font-bold text-slate-800">Yeni Kampanya veya Taksit Şablonu Tanımla</h5>
+                  {formError && (
+                    <span className="text-[11px] font-semibold text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                      ⚠️ {formError}
+                    </span>
+                  )}
+                </div>
 
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-700 mb-1">İşlem Türü</label>

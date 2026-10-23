@@ -92,19 +92,22 @@ export function setAdminPin(newPin: string): boolean {
   return writeConfig({ adminPin: newPin })
 }
 
-// ─── Middleware: Kasa PIN Doğrulama ────────────────────────────
-
+// ─── Middleware: Kasa / Güvenlik PIN Doğrulama ────────────────────────────
+// Hem 4 haneli Kasa PIN'i hem de 6 haneli Yönetici PIN'i geçerli kabul edilir.
 export function requirePinAuth(req: Request, res: Response, next: NextFunction): void {
   const providedPin =
     (req.headers['x-pin-code'] as string) ||
+    (req.headers['x-admin-pin'] as string) ||
     (req.query.pin as string) ||
-    (req.body && req.body.pinCode)
+    (req.query.adminPin as string) ||
+    (req.body && (req.body.pinCode || req.body.adminPin))
 
   const currentPin = getSystemPin()
+  const currentAdminPin = getAdminPin()
 
-  if (!providedPin || providedPin !== currentPin) {
+  if (!providedPin || (providedPin !== currentPin && providedPin !== currentAdminPin)) {
     res.status(401).json({
-      error: 'Yetkisiz işlem: Geçersiz Kasa Güvenlik PIN Şifresi!',
+      error: 'Yetkisiz işlem: Geçersiz PIN Şifresi!',
       code: 'UNAUTHORIZED_PIN'
     })
     return
@@ -114,7 +117,7 @@ export function requirePinAuth(req: Request, res: Response, next: NextFunction):
 }
 
 // ─── Middleware: Yönetici PIN Doğrulama ────────────────────────
-
+// Yalnızca 6 haneli Yönetici PIN şifresi gerektiren kritik işlemler için.
 export function requireAdminPinAuth(req: Request, res: Response, next: NextFunction): void {
   const providedPin =
     (req.headers['x-admin-pin'] as string) ||

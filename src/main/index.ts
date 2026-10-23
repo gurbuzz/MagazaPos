@@ -7,6 +7,24 @@ import { getLocalIpAddress } from '../server/utils/network'
 // MağazaPOS Main Electron Process & Express Server Entry
 app.setName('MagazaPOS')
 
+// Tekil Uygulama Kilidi (Single Instance Lock)
+// Uygulama açıkken masaüstü simgesine tekrar tıklanırsa 2. veya 3. bir MagazaPOS kopyasının açılmasını engeller,
+// mevcut açık pencereyi ekrana getirir.
+const gotSingleInstanceLock = app.requestSingleInstanceLock()
+if (!gotSingleInstanceLock) {
+  console.log('[Main] Başka bir MagazaPOS örneği zaten çalışıyor. Yeni kopya derhal sonlandırılıyor.')
+  app.quit()
+  process.exit(0)
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.show()
+      mainWindow.focus()
+    }
+  })
+}
+
 app.commandLine.appendSwitch('high-dpi-support', '1')
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
 
@@ -21,14 +39,36 @@ try {
 let mainWindow: BrowserWindow | null = null
 let customerWindow: BrowserWindow | null = null
 let cachedCustomerData: any = null
+let isCustomerDisplayBusy = false
+
+function getAllCustomerWindows(): BrowserWindow[] {
+  return BrowserWindow.getAllWindows().filter((win) => {
+    if (win === mainWindow || win.isDestroyed()) return false
+    try {
+      const title = win.getTitle() || ''
+      const url = win.webContents?.getURL() || ''
+      return (
+        win === customerWindow ||
+        title.includes('Müşteri Ekranı') ||
+        url.includes('customer-display') ||
+        url.includes('display=customer')
+      )
+    } catch {
+      return win === customerWindow
+    }
+  })
+}
 
 function getCustomerDisplayStatus() {
   try {
     const displays = screen.getAllDisplays()
     const primaryDisplay = screen.getPrimaryDisplay()
     const secondaryDisplay = displays.find((d) => d.id !== primaryDisplay.id)
+    const activeWindows = getAllCustomerWindows()
+    const isOpen = activeWindows.length > 0 || (customerWindow !== null && !customerWindow.isDestroyed())
+
     return {
-      isOpen: customerWindow !== null && !customerWindow.isDestroyed(),
+      isOpen,
       hasSecondary: Boolean(secondaryDisplay),
       displaysCount: displays.length,
       secondaryResolution: secondaryDisplay
@@ -36,8 +76,9 @@ function getCustomerDisplayStatus() {
         : null,
     }
   } catch {
+    const activeWindows = getAllCustomerWindows()
     return {
-      isOpen: customerWindow !== null && !customerWindow.isDestroyed(),
+      isOpen: activeWindows.length > 0 || (customerWindow !== null && !customerWindow.isDestroyed()),
       hasSecondary: false,
       displaysCount: 1,
       secondaryResolution: null,
@@ -52,12 +93,29 @@ function broadcastCustomerDisplayStatus() {
 }
 
 function openCustomerDisplayWindow() {
+  // 1. Zaten açık geçerli bir pencere varsa sadece öne getir, asla 2. pencere oluşturma
   if (customerWindow && !customerWindow.isDestroyed()) {
-    customerWindow.show()
-    customerWindow.focus()
-    return getCustomerDisplayStatus()
+    try {
+      customerWindow.show()
+      customerWindow.focus()
+      broadcastCustomerDisplayStatus()
+      return getCustomerDisplayStatus()
+    } catch {}
   }
 
+  // 2. Çoklu pencere açılmasını kesin önle: Varsa önceki yetim veya askıda pencereleri kapat
+  const existing = getAllCustomerWindows()
+  for (const win of existing) {
+    try {
+      if (!win.isDestroyed()) {
+        win.removeAllListeners('closed')
+        win.destroy()
+      }
+    } catch {}
+  }
+  customerWindow = null
+
+  // 3. Tek pencere oluştur
   const displays = screen.getAllDisplays()
   const primaryDisplay = screen.getPrimaryDisplay()
   const secondaryDisplay = displays.find((d) => d.id !== primaryDisplay.id)
@@ -158,14 +216,29 @@ function openCustomerDisplayWindow() {
 }
 
 function closeCustomerDisplayWindow() {
-  if (customerWindow && !customerWindow.isDestroyed()) {
-    customerWindow.close()
-    customerWindow = null
-    broadcastCustomerDisplayStatus()
-    return true
+  const existing = getAllCustomerWindows()
+  let closedAny = false
+
+  for (const win of existing) {
+    try {
+      if (!win.isDestroyed()) {
+        win.removeAllListeners('closed')
+        win.close()
+        if (!win.isDestroyed()) {
+          win.destroy()
+        }
+        closedAny = true
+      }
+    } catch (err) {
+      console.error('[CustomerDisplay] Error closing window:', err)
+    }
   }
-  return false
+
+  customerWindow = null
+  broadcastCustomerDisplayStatus()
+  return closedAny
 }
+
 
 function createWindow() {
   // POS Kasa Ekranı: File, Edit, View, Window, Help menü çubuğunu gizle
@@ -190,6 +263,15 @@ function createWindow() {
 
   // Ekranı tam kaplayacak şekilde maximize et
   mainWindow.maximize()
+
+  // Prevent multiple popups / hijack window.open for customer display
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.includes('customer-display') || url.includes('#customer-display')) {
+      openCustomerDisplayWindow()
+      return { action: 'deny' }
+    }
+    return { action: 'allow' }
+  })
 
   // F11 tuşu ile kiosk / çerçevesiz tam ekran geçişi
   mainWindow.webContents.on('before-input-event', (event, input) => {
@@ -348,22 +430,47 @@ ipcMain.handle('is-fullscreen', async (event) => {
 })
 
 
-// IPC Handlers: Customer Display (Müşteri Ekranı)
+// IPC Handlers: Customer Display (Müşteri Ekranı) - Eşzamanlı çift çağrı kilidi (Mutex)
 ipcMain.handle('open-customer-display', async () => {
-  return openCustomerDisplayWindow()
+  if (isCustomerDisplayBusy) return getCustomerDisplayStatus()
+  isCustomerDisplayBusy = true
+  try {
+    return openCustomerDisplayWindow()
+  } finally {
+    setTimeout(() => {
+      isCustomerDisplayBusy = false
+    }, 400)
+  }
 })
 
 ipcMain.handle('close-customer-display', async () => {
-  return closeCustomerDisplayWindow()
+  if (isCustomerDisplayBusy) return true
+  isCustomerDisplayBusy = true
+  try {
+    return closeCustomerDisplayWindow()
+  } finally {
+    setTimeout(() => {
+      isCustomerDisplayBusy = false
+    }, 400)
+  }
 })
 
 ipcMain.handle('toggle-customer-display', async () => {
-  if (customerWindow && !customerWindow.isDestroyed()) {
-    closeCustomerDisplayWindow()
-  } else {
-    openCustomerDisplayWindow()
+  if (isCustomerDisplayBusy) return getCustomerDisplayStatus()
+  isCustomerDisplayBusy = true
+  try {
+    const active = getAllCustomerWindows()
+    if (active.length > 0 || (customerWindow && !customerWindow.isDestroyed())) {
+      closeCustomerDisplayWindow()
+    } else {
+      openCustomerDisplayWindow()
+    }
+    return getCustomerDisplayStatus()
+  } finally {
+    setTimeout(() => {
+      isCustomerDisplayBusy = false
+    }, 400)
   }
-  return getCustomerDisplayStatus()
 })
 
 ipcMain.handle('get-customer-display-status', async () => {

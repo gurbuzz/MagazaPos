@@ -132,7 +132,31 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
   const [isRestoring, setIsRestoring] = useState(false)
   const [restoreStatus, setRestoreStatus] = useState<'idle' | 'success' | 'error'>('idle')
   const [restoreError, setRestoreError] = useState('')
+  const [restoreSuccessMessage, setRestoreSuccessMessage] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Live Database Health & Diagnostics state
+  const [dbInfo, setDbInfo] = useState<{
+    dbPath?: string
+    sizeKb?: number
+    integrity?: string
+    counts?: { products: number; sales: number; customers: number }
+    backupsCount?: number
+  } | null>(null)
+  const [isLoadingDbInfo, setIsLoadingDbInfo] = useState(false)
+
+  const fetchDbInfo = () => {
+    setIsLoadingDbInfo(true)
+    fetch(`/api/system/db-info?pin=${encodeURIComponent(pinCode)}`, {
+      headers: { 'X-Pin-Code': pinCode },
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data) setDbInfo(data)
+      })
+      .catch(() => {})
+      .finally(() => setIsLoadingDbInfo(false))
+  }
 
   const fetchNetworkIps = () => {
     fetch('/api/health')
@@ -241,18 +265,39 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
     }, 1000)
   }
 
+  // Fetch DB diagnostics when database tab is clicked
+  useEffect(() => {
+    if (activeTab === 'database') {
+      fetchDbInfo()
+    }
+  }, [activeTab])
+
   // ─── Backup Download (fetch + Blob) ────────────────────────────
   const handleBackupDb = async () => {
     setIsDownloading(true)
     setDownloadStatus('idle')
     try {
-      const res = await fetch(`/api/system/backup-db?pin=${encodeURIComponent(pinCode)}`)
+      const res = await fetch(`/api/system/backup-db?pin=${encodeURIComponent(pinCode)}`, {
+        headers: {
+          'X-Pin-Code': pinCode,
+        },
+      })
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}))
         throw new Error(errData.error || `HTTP ${res.status}`)
       }
+
+      // Read filename from Content-Disposition header if provided
+      const disposition = res.headers.get('content-disposition')
+      let filename = `magazapos_yedek_${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.db`
+      if (disposition && disposition.includes('filename=')) {
+        const match = disposition.match(/filename="?([^";]+)"?/)
+        if (match && match[1]) {
+          filename = match[1]
+        }
+      }
+
       const blob = await res.blob()
-      const filename = `magazapos_yedek_${new Date().toISOString().slice(0, 10)}.db`
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
@@ -263,6 +308,7 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
       URL.revokeObjectURL(url)
       setDownloadStatus('success')
       setTimeout(() => setDownloadStatus('idle'), 3000)
+      fetchDbInfo()
     } catch (err: any) {
       console.error('Backup download error:', err)
       setDownloadStatus('error')
@@ -303,11 +349,11 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
   const getPinDialogWarning = (): string => {
     switch (pinDialogAction) {
       case 'reset-sales':
-        return 'Tüm geçmiş satış kayıtları ve Z Raporu verileri kalıcı olarak silinecektir! Stoklar ve ürünler korunacaktır.'
+        return 'Tüm geçmiş satış kayıtları ve Z Raporu verileri temizlenecektir. İşlem öncesi otomatik güvenlik yedeği alınacaktır.'
       case 'reset-all':
-        return 'DİKKAT: Tüm ürünler, varyantlar, stoklar, müşteriler ve satış kayıtları kalıcı olarak silinecektir! Bu işlem geri alınamaz!'
+        return 'DİKKAT: Tüm ürünler, varyantlar, stoklar, müşteriler ve satış kayıtları sıfırlanacaktır! İşlem öncesi otomatik güvenlik yedeği alınacaktır.'
       case 'restore-db':
-        return 'Mevcut veritabanı seçilen yedek dosyası ile değiştirilecektir. Mevcut verilerinizin yedeği otomatik olarak alınacaktır.'
+        return 'Mevcut veritabanı seçilen yedek dosyası ile değiştirilecektir. İşlem öncesi mevcut canlı verilerinizin güvenlik yedeği otomatik olarak alınacaktır.'
       default:
         return ''
     }
@@ -336,6 +382,7 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
         if (res.ok) {
           closePinDialog()
           setDownloadStatus('success')
+          fetchDbInfo()
           setTimeout(() => setDownloadStatus('idle'), 3000)
           setIsResetting(false)
         } else {
@@ -377,19 +424,29 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
           body: formData,
         })
         const data = await res.json()
-        if (res.ok) {
+        if (res.ok && data.success) {
           closePinDialog()
+          const details = data.details
+          const detailMsg = details
+            ? `Veritabanı başarıyla geri yüklendi! (${details.products || 0} Ürün, ${details.sales || 0} Satış)`
+            : (data.message || 'Veritabanı yedeği başarıyla geri yüklendi!')
+          setRestoreSuccessMessage(detailMsg)
           setRestoreStatus('success')
           setRestoreFile(null)
           // Reload after short delay to let user see success
-          setTimeout(() => window.location.reload(), 1500)
+          setTimeout(() => window.location.reload(), 1800)
         } else {
-          setPinDialogError(data.error || 'Geri yükleme hatası oluştu.')
+          const errMsg = data.error || 'Geri yükleme hatası oluştu.'
+          setPinDialogError(errMsg)
+          setRestoreError(errMsg)
           setIsRestoring(false)
         }
       }
     } catch (err: any) {
-      setPinDialogError('Sunucu hatası: ' + err.message)
+      const errMsg = 'Sunucu hatası: ' + err.message
+      setPinDialogError(errMsg)
+      setRestoreError(errMsg)
+      setIsRestoring(false)
     } finally {
       setPinDialogLoading(false)
     }
@@ -399,9 +456,21 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
   const handleRestoreFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
+      const ext = file.name.split('.').pop()?.toLowerCase()
+      if (!['db', 'sqlite', 'sqlite3'].includes(ext || '')) {
+        setRestoreError('Lütfen sadece .db, .sqlite veya .sqlite3 uzantılı bir yedek dosyası seçin.')
+        setRestoreFile(null)
+        return
+      }
+      if (file.size < 20480) {
+        setRestoreError('Seçilen dosya çok küçük (< 20 KB). Geçerli bir MagazaPOS veritabanı yedeği değildir.')
+        setRestoreFile(null)
+        return
+      }
       setRestoreFile(file)
       setRestoreError('')
       setRestoreStatus('idle')
+      setRestoreSuccessMessage('')
     }
   }
 
@@ -1125,6 +1194,62 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
           {/* TAB 4: Database & Maintenance */}
           {activeTab === 'database' && (
             <div className="space-y-3.5">
+              {/* Database Health & Diagnostic Card */}
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded space-y-2">
+                <div className="flex items-center justify-between">
+                  <h5 className="font-bold text-slate-800 text-xs flex items-center space-x-1.5">
+                    <Database className="w-3.5 h-3.5 text-blue-700" />
+                    <span>Veritabanı Durumu & Güvenlik Göstergesi</span>
+                  </h5>
+                  <button
+                    type="button"
+                    onClick={fetchDbInfo}
+                    disabled={isLoadingDbInfo}
+                    title="Durumu Yenile"
+                    className="p-1 hover:bg-slate-200 rounded text-slate-500 transition"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isLoadingDbInfo ? 'animate-spin text-blue-600' : ''}`} />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                  <div className="bg-white p-2 rounded border border-slate-200">
+                    <span className="text-[10px] text-slate-500 font-semibold block">Bütünlük Kontrolü</span>
+                    <span className="text-xs font-bold text-emerald-700 flex items-center space-x-1 mt-0.5">
+                      <Check className="w-3 h-3" />
+                      <span>{dbInfo?.integrity === 'ok' ? 'Sağlıklı (OK)' : (dbInfo?.integrity || 'Kontrol ediliyor...')}</span>
+                    </span>
+                  </div>
+
+                  <div className="bg-white p-2 rounded border border-slate-200">
+                    <span className="text-[10px] text-slate-500 font-semibold block">Veritabanı Boyutu</span>
+                    <span className="text-xs font-bold text-slate-800 mt-0.5 block font-mono">
+                      {dbInfo?.sizeKb ? `${dbInfo.sizeKb} KB` : '...'}
+                    </span>
+                  </div>
+
+                  <div className="bg-white p-2 rounded border border-slate-200">
+                    <span className="text-[10px] text-slate-500 font-semibold block">Kayıtlı Ürün / Satış</span>
+                    <span className="text-xs font-bold text-blue-800 mt-0.5 block">
+                      {dbInfo?.counts ? `${dbInfo.counts.products} Ürün / ${dbInfo.counts.sales} Satış` : '...'}
+                    </span>
+                  </div>
+
+                  <div className="bg-white p-2 rounded border border-slate-200">
+                    <span className="text-[10px] text-slate-500 font-semibold block">Güvenlik Yedekleri</span>
+                    <span className="text-xs font-bold text-indigo-700 mt-0.5 block">
+                      {dbInfo?.backupsCount !== undefined ? `${dbInfo.backupsCount} Otomatik Kopya` : '...'}
+                    </span>
+                  </div>
+                </div>
+
+                {dbInfo?.dbPath && (
+                  <p className="text-[10px] text-slate-500 font-mono truncate pt-0.5">
+                    Aktif Dosya: <span className="text-slate-700">{dbInfo.dbPath}</span>
+                  </p>
+                )}
+              </div>
+
               {/* Backup Card */}
               <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded flex items-center justify-between">
                 <div>
@@ -1133,12 +1258,12 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
                     <span>Veritabanı Yedekle (.db İndir)</span>
                   </h5>
                   <p className="text-[11px] text-emerald-800 mt-0.5 font-medium">
-                    Tüm ürün, stok ve satış geçmişinizi SQLite veritabanı kopyası olarak bilgisayarınıza indirin.
+                    Tüm ürün, varyant, müşteri ve satış geçmişinizi tutarlı SQLite kopyası olarak bilgisayarınıza indirin.
                   </p>
                   {downloadStatus === 'success' && (
                     <p className="text-[11px] text-emerald-700 font-bold flex items-center space-x-1 mt-1">
                       <Check className="w-3.5 h-3.5" />
-                      <span>Yedek başarıyla indirildi!</span>
+                      <span>Yedek başarıyla üretildi ve indirildi!</span>
                     </p>
                   )}
                   {downloadStatus === 'error' && (
@@ -1176,8 +1301,8 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
                       <span>Yedekten Geri Yükle (.db Yükle)</span>
                     </h5>
                     <p className="text-[11px] text-blue-800 mt-0.5 font-medium">
-                      Daha önce indirdiğiniz bir yedek dosyasını (.db) seçerek veritabanını geri yükleyin.
-                      Mevcut verileriniz otomatik olarak yedeklenir.
+                      Daha önce indirdiğiniz bir yedek dosyasını (.db) seçerek geri yükleyin.
+                      Yükleme öncesi mevcut verilerinizin kopyası otomatik olarak yedeklenir ve dosya SQLite testinden geçirilir.
                     </p>
                   </div>
                 </div>
@@ -1206,12 +1331,14 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
                 </div>
 
                 {restoreError && (
-                  <p className="text-[11px] text-rose-600 font-bold">⚠️ {restoreError}</p>
+                  <p className="text-[11px] text-rose-600 font-bold bg-rose-50 p-2 rounded border border-rose-200">
+                    ⚠️ {restoreError}
+                  </p>
                 )}
                 {restoreStatus === 'success' && (
-                  <p className="text-[11px] text-emerald-700 font-bold flex items-center space-x-1">
+                  <p className="text-[11px] text-emerald-700 font-bold flex items-center space-x-1 bg-emerald-100/60 p-2 rounded border border-emerald-300">
                     <Check className="w-3.5 h-3.5" />
-                    <span>Veritabanı başarıyla geri yüklendi! Sayfa yenileniyor...</span>
+                    <span>{restoreSuccessMessage || 'Veritabanı başarıyla geri yüklendi! Sayfa yenileniyor...'}</span>
                   </p>
                 )}
 
@@ -1224,7 +1351,7 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
                   {isRestoring ? (
                     <>
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      <span>Geri Yükleniyor...</span>
+                      <span>Doğrulanıyor ve Yükleniyor...</span>
                     </>
                   ) : (
                     <>
@@ -1243,7 +1370,7 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
                     <span>Sadece Satış Geçmişini Sıfırla</span>
                   </h5>
                   <p className="text-[11px] text-amber-800 mt-0.5 font-medium">
-                    Stoklar ve ürün katologları korunur, sadece güncel Z Raporu ve geçmiş satış fişleri temizlenir.
+                    Stoklar ve ürün katologları korunur, sadece güncel Z Raporu ve geçmiş satış fişleri temizlenir. (Otomatik Güvenlik Yedeği Alınır)
                   </p>
                 </div>
                 <button
@@ -1264,7 +1391,7 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
                     <span>Tüm Veritabanını Fabrika Ayarlarına Sıfırla</span>
                   </h5>
                   <p className="text-[11px] text-rose-800 mt-0.5 font-medium">
-                    ⚠️ Tüm ürünler, varyantlar, stoklar, müşteriler ve satış kayıtları kalıcı olarak silinir. (PIN Onayı İstenecektir)
+                    ⚠️ Tüm ürünler, varyantlar, stoklar, müşteriler ve satış kayıtları sıfırlanır. (Otomatik Güvenlik Yedeği Alınır)
                   </p>
                 </div>
                 <button

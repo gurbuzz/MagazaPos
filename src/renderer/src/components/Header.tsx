@@ -41,6 +41,7 @@ export const Header: React.FC = () => {
     hasSecondary: false,
     displaysCount: 1,
   })
+  const [isTogglingCustomerDisplay, setIsTogglingCustomerDisplay] = useState(false)
 
   // Admin PIN gate state
   const [isAdminPinOpen, setIsAdminPinOpen] = useState(false)
@@ -128,11 +129,23 @@ export const Header: React.FC = () => {
   }
 
   const handleToggleCustomerDisplay = async () => {
-    if (window.electron?.toggleCustomerDisplay) {
-      const res = await window.electron.toggleCustomerDisplay()
-      setCustomerDisplayStatus(res)
-    } else {
-      window.open('/#customer-display', 'CustomerDisplay', 'width=1024,height=720')
+    if (isTogglingCustomerDisplay) return
+    setIsTogglingCustomerDisplay(true)
+
+    try {
+      if (window.electron?.toggleCustomerDisplay) {
+        const res = await window.electron.toggleCustomerDisplay()
+        setCustomerDisplayStatus(res)
+      } else {
+        window.open('/#customer-display', 'CustomerDisplay', 'width=1024,height=720')
+      }
+    } catch (err) {
+      console.error('Customer display toggle error:', err)
+    } finally {
+      // 500ms debounce protecting touchscreen double/triple taps
+      setTimeout(() => {
+        setIsTogglingCustomerDisplay(false)
+      }, 500)
     }
   }
 
@@ -304,7 +317,10 @@ export const Header: React.FC = () => {
         {/* Customer Display (Müşteri Ekranı) Dual-Screen Button */}
         <button
           onClick={handleToggleCustomerDisplay}
+          disabled={isTogglingCustomerDisplay}
           className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl border transition shadow-xs flex items-center justify-center shrink-0 relative ${
+            isTogglingCustomerDisplay ? 'opacity-60 cursor-not-allowed pointer-events-none' : ''
+          } ${
             customerDisplayStatus.isOpen
               ? 'bg-[#00268A] text-white border-[#00268A] shadow-sm ring-2 ring-emerald-400'
               : 'bg-white hover:bg-blue-50 text-slate-700 hover:text-[#00268A] border-slate-200'

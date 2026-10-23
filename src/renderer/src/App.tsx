@@ -30,11 +30,13 @@ export const App: React.FC = () => {
     window.location.search.includes('display=customer') ||
     window.location.pathname.includes('/customer-display')
 
-  // Auto-launch customer display on secondary monitor if enabled
+  // Auto-launch customer display on secondary monitor once on initial boot if enabled
+  const hasAutoLaunchedRef = React.useRef(false)
   useEffect(() => {
-    if (isCustomerDisplay) return
+    if (isCustomerDisplay || hasAutoLaunchedRef.current) return
 
     if (autoOpenCustomerDisplay && window.electron?.getCustomerDisplayStatus && window.electron?.openCustomerDisplay) {
+      hasAutoLaunchedRef.current = true
       window.electron.getCustomerDisplayStatus().then((status) => {
         // If secondary monitor is detected and customer window is not already opened, launch it automatically
         if (status.hasSecondary && !status.isOpen) {

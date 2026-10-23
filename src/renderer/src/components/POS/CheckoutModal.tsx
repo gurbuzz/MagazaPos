@@ -27,6 +27,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
   const [givenCash, setGivenCash] = useState<string>('')
   const [isProcessing, setIsProcessing] = useState(false)
   const [completedSale, setCompletedSale] = useState<any>(null)
+  const [checkoutError, setCheckoutError] = useState<string | null>(null)
 
   const total = getTotal()
 
@@ -39,6 +40,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
       setCardAmount(0)
       setCompletedSale(null)
       setIsProcessing(false)
+      setCheckoutError(null)
     }
   }, [isOpen])
 
@@ -100,10 +102,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
   }
 
   const handleCheckoutSubmit = async () => {
+    setCheckoutError(null)
     if (paymentMode === 'SPLIT' && total > 0) {
       const splitSum = Math.round((cashAmount + cardAmount) * 100) / 100
       if (Math.abs(splitSum - total) > 0.05) {
-        alert(`Parçalı ödeme toplamı (${splitSum.toFixed(2)} ₺), ödenecek tutara (${total.toFixed(2)} ₺) eşit olmalıdır!`)
+        setCheckoutError(`Parçalı ödeme toplamı (${splitSum.toFixed(2)} ₺), ödenecek tutara (${total.toFixed(2)} ₺) eşit olmalıdır!`)
         return
       }
     }
@@ -135,7 +138,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
 
       if (!res.ok) {
         const err = await res.json()
-        alert(`Hata: ${err.error}`)
+        setCheckoutError(`Hata: ${err.error || 'İşlem başarısız oldu'}`)
         setIsProcessing(false)
         return
       }
@@ -145,7 +148,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
       setIsProcessing(false)
       notifyDataChanged()
     } catch (err: any) {
-      alert(`Tahsilat sırasında hata oluştu: ${err.message}`)
+      setCheckoutError(`Tahsilat sırasında hata oluştu: ${err.message || 'Bağlantı hatası'}`)
       setIsProcessing(false)
     }
   }
@@ -262,6 +265,19 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
         {/* Content */}
         {!completedSale ? (
           <div className="p-5 space-y-4">
+            {checkoutError && (
+              <div className="p-3 bg-rose-50 border border-rose-300 rounded-xl text-xs font-semibold text-rose-800 flex items-center justify-between shadow-2xs">
+                <span>⚠️ {checkoutError}</span>
+                <button
+                  type="button"
+                  onClick={() => setCheckoutError(null)}
+                  className="text-rose-500 hover:text-rose-800 font-bold ml-2 text-sm"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
             {/* Total Display */}
             <div className="glass-card rounded-2xl p-4 text-center shadow-xs">
               <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">
