@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import {
   Plus,
   Search,
   Layers,
   Edit3,
+  Trash2,
   PackageCheck,
+  Package,
   Tag,
   Barcode,
   Sparkles,
@@ -24,6 +26,7 @@ import * as XLSX from 'xlsx'
 import { CategoryModal } from './CategoryModal'
 import { AdminPinModal } from '../Security/AdminPinModal'
 import { notifyDataChanged } from '../../utils/events'
+import { usePosStore } from '../../store/usePosStore'
 
 const parseDecimal = (val: any): number => {
   if (typeof val === 'number') return isNaN(val) ? 0 : val
@@ -61,13 +64,6 @@ export const StockView: React.FC = () => {
   const [addStockVariant, setAddStockVariant] = useState<any | null>(null)
   const [addQtyVal, setAddQtyVal] = useState<string>('')
 
-  // Barcode Scanner Quick Stock Entry Modal State
-  const [isBarcodeStockModalOpen, setIsBarcodeStockModalOpen] = useState(false)
-  const [scannedBarcode, setScannedBarcode] = useState('')
-  const [unregisteredBarcode, setUnregisteredBarcode] = useState<string | null>(null)
-  const [scannedQty, setScannedQty] = useState('1')
-  const [lastScannedResult, setLastScannedResult] = useState<string | null>(null)
-  const scanInputRef = useRef<HTMLInputElement>(null)
 
   // Search input and barcode scan highlight states
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -89,29 +85,66 @@ export const StockView: React.FC = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false)
 
-  // Quick Create inside Barcode Intake Modal
-  const [quickName, setQuickName] = useState('')
-  const [quickCategoryId, setQuickCategoryId] = useState('')
-  const [quickColor, setQuickColor] = useState('Siyah')
-  const [quickSize, setQuickSize] = useState('M')
-  const [quickSalePrice, setQuickSalePrice] = useState('150')
-  const [quickDiscountPrice, setQuickDiscountPrice] = useState('')
-  const [quickCostPrice, setQuickCostPrice] = useState('75')
-  const [quickQty, setQuickQty] = useState('1')
-  const [isQuickSubmitting, setIsQuickSubmitting] = useState(false)
 
   // Excel Bulk Import Modal State
   const [isExcelModalOpen, setIsExcelModalOpen] = useState(false)
   const [excelRows, setExcelRows] = useState<any[]>([])
+  const [rawParsedItems, setRawParsedItems] = useState<any[]>([])
+  const [excelDefaultBrand, setExcelDefaultBrand] = useState('Lufian')
+  const [excelBrandRule, setExcelBrandRule] = useState<'fallback' | 'force' | 'excel_only'>('fallback')
   const [excelFileName, setExcelFileName] = useState('')
   const [isExcelImporting, setIsExcelImporting] = useState(false)
   const [excelResult, setExcelResult] = useState<any | null>(null)
   const [excelError, setExcelError] = useState<string | null>(null)
 
+  // Unique existing brands for auto-complete and quick select
+  const existingBrands = useMemo(() => {
+    const set = new Set<string>()
+    products.forEach((p) => {
+      if (p.brand && typeof p.brand === 'string') {
+        const b = p.brand.trim()
+        if (b && b !== 'Marka' && b !== 'Mağaza') {
+          set.add(b)
+        }
+      }
+    })
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'tr-TR'))
+  }, [products])
+
+  // Dynamically recalculate excelRows whenever raw items, default brand, or brand rule changes
+  useEffect(() => {
+    if (rawParsedItems.length === 0) {
+      setExcelRows([])
+      return
+    }
+
+    const updated = rawParsedItems.map((item) => {
+      let brandToAssign = ''
+      if (excelBrandRule === 'force') {
+        brandToAssign = excelDefaultBrand.trim()
+      } else if (excelBrandRule === 'excel_only') {
+        brandToAssign = item.rawBrand || ''
+      } else {
+        // fallback: use Excel column if present and non-empty, otherwise use user's default brand
+        brandToAssign = item.rawBrand || excelDefaultBrand.trim()
+      }
+
+      return {
+        ...item,
+        brand: brandToAssign || null,
+        forceBrand: excelBrandRule === 'force',
+      }
+    })
+
+    setExcelRows(updated)
+  }, [rawParsedItems, excelDefaultBrand, excelBrandRule])
+
   // Admin PIN gate for corrections/edits
   const [isAdminPinOpen, setIsAdminPinOpen] = useState(false)
   const [pendingVariantEdit, setPendingVariantEdit] = useState<any | null>(null)
   const [pendingProductEdit, setPendingProductEdit] = useState<any | null>(null)
+  const [pendingProductDelete, setPendingProductDelete] = useState<any | null>(null)
+  const [stockFilter, setStockFilter] = useState<'active' | 'archived'>('active')
   const [adminVerifiedForSession, setAdminVerifiedForSession] = useState(false)
 
   // Form states for new product creation
@@ -134,16 +167,6 @@ export const StockView: React.FC = () => {
     }
   }, [isAddModalOpen])
 
-  useEffect(() => {
-    if (isBarcodeStockModalOpen) {
-      setScannedBarcode('')
-      setUnregisteredBarcode(null)
-      setLastScannedResult(null)
-      setScannedQty('1')
-      setQuickName('')
-      setTimeout(() => scanInputRef.current?.focus(), 150)
-    }
-  }, [isBarcodeStockModalOpen])
 
   useEffect(() => {
     if (isAddVariantModalOpen) {
@@ -210,6 +233,7 @@ export const StockView: React.FC = () => {
     window.addEventListener('focus', handleDataUpdate)
 
     const syncInterval = setInterval(() => {
+      if (usePosStore.getState().activeTab !== 'stock') return
       fetchProducts()
       fetchCategories()
     }, 10000)
@@ -226,128 +250,6 @@ export const StockView: React.FC = () => {
       fetchCategories()
     }
   }, [isAddModalOpen, isCategoryModalOpen])
-
-  // --- BARCODE SCANNER MATCHING LOGIC ---
-  const foundScannedVariant = scannedBarcode.trim()
-    ? products
-        .flatMap((p) => (p.variants || []).map((v: any) => ({ ...v, product: p })))
-        .find((v: any) => v.barcode === scannedBarcode.trim())
-    : null
-
-  const handleBarcodeStockSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    const cleanBarcode = scannedBarcode.trim()
-    if (!cleanBarcode) return
-
-    if (!foundScannedVariant) {
-      setUnregisteredBarcode(cleanBarcode)
-      setLastScannedResult(null)
-      setTimeout(() => scanInputRef.current?.select(), 50)
-      return
-    }
-
-    const qty = parseInt(scannedQty)
-    if (isNaN(qty) || qty <= 0) {
-      alert('Lütfen geçerli bir adet girin!')
-      return
-    }
-
-    try {
-      const res = await fetch(`/api/products/variants/${foundScannedVariant.id}/add-stock`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          addedQuantity: qty,
-          note: 'Barkod okutarak hızlı stok kabulü',
-        }),
-      })
-
-      if (res.ok) {
-        setLastScannedResult(
-          `✅ "${foundScannedVariant.product.name}" (${foundScannedVariant.attributes?.color} / ${foundScannedVariant.attributes?.size}) -> +${qty} adet stoğa eklendi!`
-        )
-        setScannedBarcode('')
-        setUnregisteredBarcode(null)
-        setScannedQty('1')
-        fetchProducts()
-        notifyDataChanged()
-        setTimeout(() => scanInputRef.current?.focus(), 100)
-      } else {
-        const errData = await res.json()
-        alert('Stok ekleme hatası: ' + (errData.error || 'Bilinmeyen hata'))
-      }
-    } catch {
-      alert('Hata oluştu')
-    }
-  }
-
-  // --- QUICK CREATE AND STOCK INTAKE (UNREGISTERED BARCODE) ---
-  const handleQuickCreateAndStock = async () => {
-    const cleanBarcode = (unregisteredBarcode || scannedBarcode).trim()
-    if (!quickName.trim() || !cleanBarcode) {
-      alert('Lütfen ürün adını giriniz!')
-      return
-    }
-    const salePriceNum = parseDecimal(quickSalePrice)
-    const qtyNum = parseInt(quickQty) || 1
-    const costPriceNum = parseDecimal(quickCostPrice) || salePriceNum * 0.5
-
-    const barcodeSuffix = cleanBarcode.length >= 6 ? cleanBarcode.slice(-6) : cleanBarcode.padStart(6, '0')
-    const code = `PRD-${barcodeSuffix}-${Date.now().toString().slice(-4)}`
-    const clr = quickColor.trim() || 'Standart'
-    const sz = quickSize.trim() || 'Standart'
-    const sku = `${code}-${clr.toUpperCase()}-${sz.toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`
-
-    const payload = {
-      code,
-      name: quickName.trim(),
-      brand: 'Mağaza',
-      categoryId: quickCategoryId || null,
-      basePrice: salePriceNum,
-      variants: [
-        {
-          sku,
-          barcode: cleanBarcode,
-          attributes: { color: clr, size: sz },
-          costPrice: costPriceNum,
-          salePrice: salePriceNum,
-          discountPrice: quickDiscountPrice ? parseDecimal(quickDiscountPrice) : null,
-          stockQuantity: qtyNum,
-        },
-      ],
-    }
-
-    setIsQuickSubmitting(true)
-    try {
-      const res = await fetch('/api/products', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-
-      if (res.ok) {
-        setLastScannedResult(
-          `✅ Yeni ürün "${quickName}" (${clr} / ${sz}) tanımlandı ve +${qtyNum} adet stoğa eklendi!`
-        )
-        setQuickName('')
-        setQuickDiscountPrice('')
-        setScannedBarcode('')
-        setUnregisteredBarcode(null)
-        setScannedQty('1')
-        fetchProducts()
-        fetchCategories()
-        notifyDataChanged()
-        setTimeout(() => scanInputRef.current?.focus(), 150)
-      } else {
-        const err = await res.json()
-        alert('Ürün oluşturma hatası: ' + (err.error || 'Bilinmeyen hata'))
-      }
-    } catch (err: any) {
-      alert('Hata: ' + err.message)
-    } finally {
-      setIsQuickSubmitting(false)
-    }
-  }
 
   // --- EXCEL / CSV BULK IMPORT HANDLERS ---
   // --- EXCEL / CSV BULK IMPORT HANDLERS ---
@@ -381,12 +283,13 @@ export const StockView: React.FC = () => {
         'Fiyat İskontolu': 899.998,
         'Miktar Toplam': 2,
         'CİNSİYET': 'ERKEK',
-        'Müşteri Firma Adı': 'Muhammet Güneysu'
+        'Marka': 'Lufian'
       },
       {
         'Barkod': '8684195532120',
         'Madde Kodu': '112030204',
         'Madde Açıklaması': 'STORM',
+        'Marka': 'Lufian',
         'ÜRÜN GRUBU': 'SWEAT SHIRT',
         'Renk Açıklaması': 'SİYAH',
         'Renk Kodu': '100100',
@@ -395,13 +298,13 @@ export const StockView: React.FC = () => {
         'TSFTL': 1999.995,
         'Fiyat İskontolu': 879.998,
         'Miktar Toplam': 2,
-        'CİNSİYET': 'ERKEK',
-        'Müşteri Firma Adı': 'Muhammet Güneysu'
+        'CİNSİYET': 'ERKEK'
       },
       {
         'Barkod': '8684195523364',
         'Madde Kodu': '122050011',
         'Madde Açıklaması': 'CESSIE',
+        'Marka': 'Lufian',
         'ÜRÜN GRUBU': 'EŞOFMAN',
         'Renk Açıklaması': 'KIRIK BEYAZ',
         'Renk Kodu': '100510',
@@ -410,15 +313,14 @@ export const StockView: React.FC = () => {
         'TSFTL': 2249.99,
         'Fiyat İskontolu': 989.996,
         'Miktar Toplam': 1,
-        'CİNSİYET': 'ERKEK',
-        'Müşteri Firma Adı': 'Muhammet Güneysu'
+        'CİNSİYET': 'ERKEK'
       }
     ]
 
     const ws = XLSX.utils.json_to_sheet(templateData)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Ürün Listesi')
-    XLSX.writeFile(wb, 'Guneysu_Lufian_Urun_Sablonu.xlsx')
+    XLSX.writeFile(wb, 'MagazaPOS_Urun_Sablonu.xlsx')
   }
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -624,10 +526,19 @@ export const StockView: React.FC = () => {
             fullName = category || 'Ürün'
           }
 
-          const brand = String(
+          const rawBrand = String(
             dict['marka'] ||
             dict['brand'] ||
-            (dict['müşteri firma adı'] ? 'Lufian' : 'Mağaza')
+            dict['markası'] ||
+            dict['markasi'] ||
+            dict['marka adı'] ||
+            dict['marka adi'] ||
+            dict['üretici'] ||
+            dict['uretici'] ||
+            dict['firma'] ||
+            dict['tedarikçi'] ||
+            dict['tedarikci'] ||
+            ''
           ).trim()
 
           if (itemsMap.has(rawBarcode)) {
@@ -636,12 +547,13 @@ export const StockView: React.FC = () => {
             if (salePrice > 0) existing.salePrice = Math.round(salePrice * 100) / 100
             if (costPrice > 0) existing.costPrice = Math.round(costPrice * 100) / 100
             if (discountPrice > 0) existing.discountPrice = Math.round(discountPrice * 100) / 100
+            if (!existing.rawBrand && rawBrand) existing.rawBrand = rawBrand
           } else {
             itemsMap.set(rawBarcode, {
               code: code || `PRD-${rawBarcode.slice(-6)}`,
               name: fullName,
               category: category || 'Giyim',
-              brand: brand || 'Lufian',
+              rawBrand,
               barcode: rawBarcode,
               color: color || 'Standart',
               size: size || 'Standart',
@@ -660,7 +572,7 @@ export const StockView: React.FC = () => {
           return
         }
 
-        setExcelRows(mapped)
+        setRawParsedItems(mapped)
       } catch (err: any) {
         setExcelError('Dosya okunurken hata oluştu: ' + err.message)
       }
@@ -920,6 +832,70 @@ export const StockView: React.FC = () => {
       openProductEditModal(pendingProductEdit)
       setPendingProductEdit(null)
     }
+    if (pendingProductDelete) {
+      performProductDelete(pendingProductDelete)
+      setPendingProductDelete(null)
+    }
+  }
+
+  // --- DELETE / ARCHIVE PRODUCT HANDLERS ---
+  const handleProductDeleteClick = (product: any) => {
+    if (!product) return
+    const confirmDelete = window.confirm(
+      `"${product.name}" ürününü silmek istediğinize emin misiniz?\n\n• Satış kaydı yoksa ürün veritabanından tamamen silinir.\n• Geçmiş satışı varsa fiş geçmişini korumak için stoğu 0 yapılarak "Arşiv / Tükenenler"e kaldırılır.`
+    )
+    if (!confirmDelete) return
+
+    if (adminVerifiedForSession) {
+      performProductDelete(product)
+    } else {
+      setPendingProductDelete(product)
+      setIsAdminPinOpen(true)
+    }
+  }
+
+  const performProductDelete = async (product: any, action?: string) => {
+    try {
+      const url = action ? `/api/products/${product.id}?action=${action}` : `/api/products/${product.id}`
+      const res = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Pin': localStorage.getItem('pos_admin_pin_session') || '',
+        },
+      })
+
+      const data = await res.json()
+
+      if (res.ok) {
+        alert(data.message)
+        setSelectedProduct(null)
+        fetchProducts()
+        notifyDataChanged()
+      } else {
+        if (data.code === 'UNAUTHORIZED_ADMIN_PIN') {
+          alert('Yönetici PIN doğrulaması başarısız. Lütfen tekrar deneyin.')
+          setAdminVerifiedForSession(false)
+          setPendingProductDelete(product)
+          setIsAdminPinOpen(true)
+          return
+        }
+
+        // Eğer geçmiş satışı olduğu için silinemiyorsa arşive alma teklif et:
+        if (data.hasSales) {
+          const confirmArchive = window.confirm(
+            `⚠️ DİKKAT:\n${data.error}\n\nStoğunu 0 yaparak bu ürünü "Arşiv / Tükenenler" sekmesine kaldırmak istiyor musunuz?`
+          )
+          if (confirmArchive) {
+            await performProductDelete(product, 'zero_stock')
+          }
+        } else {
+          alert('Silme hatası: ' + (data.error || 'Bilinmeyen hata'))
+        }
+      }
+    } catch (err: any) {
+      alert('İşlem sırasında hata oluştu: ' + err.message)
+    }
   }
 
   // Duplicate barcode check for real-time validation (New product creation)
@@ -945,7 +921,7 @@ export const StockView: React.FC = () => {
     const payload = {
       code: newCode,
       name: newName,
-      brand: newBrand || 'Marka',
+      brand: newBrand ? newBrand.trim() : null,
       categoryId: newCategoryId || null,
       basePrice: parseDecimal(newBasePrice || '100'),
       variants: [
@@ -1034,6 +1010,12 @@ export const StockView: React.FC = () => {
     }
 
     if (matchedProduct) {
+      const prodTotalStock = matchedProduct.variants?.reduce((acc: number, v: any) => acc + (v.stockQuantity || 0), 0) || 0
+      if (prodTotalStock <= 0 && stockFilter === 'active') {
+        setStockFilter('archived')
+      } else if (prodTotalStock > 0 && stockFilter === 'archived') {
+        setStockFilter('active')
+      }
       setSelectedProduct(matchedProduct)
       if (matchedVariant) {
         setHighlightedVariantId(matchedVariant.id)
@@ -1070,9 +1052,12 @@ export const StockView: React.FC = () => {
     let lastKeyTime = Date.now()
 
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (usePosStore.getState().activeTab !== 'stock') {
+        return
+      }
+
       if (
         isAddModalOpen ||
-        isBarcodeStockModalOpen ||
         isCategoryModalOpen ||
         isExcelModalOpen ||
         isAdminPinOpen ||
@@ -1120,7 +1105,6 @@ export const StockView: React.FC = () => {
     return () => window.removeEventListener('keydown', handleGlobalKeyDown)
   }, [
     isAddModalOpen,
-    isBarcodeStockModalOpen,
     isCategoryModalOpen,
     isExcelModalOpen,
     isAdminPinOpen,
@@ -1134,6 +1118,14 @@ export const StockView: React.FC = () => {
 
   const normalizedSearch = searchTerm.trim().toLowerCase()
   const filteredProducts = products.filter((p) => {
+    const totalStock = p.variants?.reduce((acc: number, v: any) => acc + (v.stockQuantity || 0), 0) || 0
+
+    // Arama kutusunda bir şey yazmıyorsa sekmeye göre filtrele:
+    if (!normalizedSearch) {
+      if (stockFilter === 'active' && totalStock <= 0) return false
+      if (stockFilter === 'archived' && totalStock > 0) return false
+    }
+
     if (!normalizedSearch) return true
     if (p.name?.toLowerCase().includes(normalizedSearch)) return true
     if (p.code?.toLowerCase().includes(normalizedSearch)) return true
@@ -1151,40 +1143,63 @@ export const StockView: React.FC = () => {
     return false
   })
 
+  // Sekme değiştirildiğinde (Aktif vs Arşiv), seçili ürün yeni sekme kuralına uymuyorsa o sekmedeki ilk ürünü seç
+  useEffect(() => {
+    if (selectedProduct && !searchTerm.trim()) {
+      const totalStock = selectedProduct.variants?.reduce((acc: number, v: any) => acc + (v.stockQuantity || 0), 0) || 0
+      if (stockFilter === 'active' && totalStock <= 0) {
+        const firstActive = products.find((p) => (p.variants?.reduce((s: number, v: any) => s + (v.stockQuantity || 0), 0) || 0) > 0)
+        setSelectedProduct(firstActive || null)
+      } else if (stockFilter === 'archived' && totalStock > 0) {
+        const firstArchived = products.find((p) => (p.variants?.reduce((s: number, v: any) => s + (v.stockQuantity || 0), 0) || 0) <= 0)
+        setSelectedProduct(firstArchived || null)
+      }
+    }
+  }, [stockFilter, products])
+
+    const activeProductsCount = useMemo(() => {
+    return products.filter((p) => (p.variants?.reduce((s: number, v: any) => s + (v.stockQuantity || 0), 0) || 0) > 0).length
+  }, [products])
+
+  const archivedProductsCount = useMemo(() => {
+    return products.filter((p) => (p.variants?.reduce((s: number, v: any) => s + (v.stockQuantity || 0), 0) || 0) <= 0).length
+  }, [products])
+
+  const totalStockCount = useMemo(() => {
+    return products.reduce(
+      (acc, p) => acc + (p.variants?.reduce((s: number, v: any) => s + (v.stockQuantity || 0), 0) || 0),
+      0
+    )
+  }, [products])
+
+  const filteredStockCount = useMemo(() => {
+    return filteredProducts.reduce(
+      (acc, p) => acc + (p.variants?.reduce((s: number, v: any) => s + (v.stockQuantity || 0), 0) || 0),
+      0
+    )
+  }, [filteredProducts])
+
   return (
     <div className="h-[calc(100vh-3.5rem)] bg-slate-100 flex overflow-hidden font-sans">
       {/* Left List: Products */}
-      <div className="w-1/3 border-r border-white/60 flex flex-col glass-panel shadow-lg">
-        <div className="p-3.5 border-b border-white/40 space-y-2.5 bg-white/40 backdrop-blur-xs">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <h2 className="font-bold text-slate-900 text-xs flex items-center space-x-1.5">
+      <div className="w-1/3 min-w-[300px] max-w-[380px] shrink-0 border-r border-white/60 flex flex-col glass-panel shadow-lg">
+        <div className="p-3 border-b border-white/40 space-y-2 bg-white/40 backdrop-blur-xs">
+          <div className="flex items-center justify-between gap-1.5">
+            <h2 className="font-bold text-slate-900 text-xs flex items-center space-x-1.5 shrink-0">
               <Layers className="w-4 h-4 text-blue-700" />
-              <span>Ürünler ({filteredProducts.length})</span>
+              <span>Ürünler</span>
             </h2>
-            <div className="flex items-center space-x-1.5">
-              <button
-                onClick={() => {
-                  setIsBarcodeStockModalOpen(true)
-                  setLastScannedResult(null)
-                  setScannedBarcode('')
-                  setUnregisteredBarcode(null)
-                  setScannedQty('1')
-                }}
-                className="px-2 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-semibold flex items-center space-x-1 transition shadow-xs"
-                title="Barkod Okuyucu İle Hızlı Stok Girişi (Mal Kabul)"
-              >
-                <Scan className="w-3.5 h-3.5" />
-                <span>Barkodlu Mal Kabul</span>
-              </button>
+            <div className="flex items-center space-x-1 shrink-0">
               <button
                 onClick={() => {
                   setIsExcelModalOpen(true)
+                  setRawParsedItems([])
                   setExcelRows([])
                   setExcelFileName('')
                   setExcelResult(null)
                   setExcelError(null)
                 }}
-                className="px-2 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-semibold flex items-center space-x-1 transition shadow-xs"
+                className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-semibold flex items-center space-x-1 transition shadow-xs"
                 title="Excel / CSV ile Toplu Ürün ve Stok Yükleme"
               >
                 <FileSpreadsheet className="w-3.5 h-3.5" />
@@ -1192,7 +1207,7 @@ export const StockView: React.FC = () => {
               </button>
               <button
                 onClick={() => setIsCategoryModalOpen(true)}
-                className="px-2 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded text-xs font-semibold flex items-center space-x-1 transition"
+                className="px-2 py-1 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded text-xs font-semibold flex items-center space-x-1 transition"
                 title="Kategorileri Yönet"
               >
                 <Tag className="w-3.5 h-3.5 text-blue-700" />
@@ -1200,12 +1215,67 @@ export const StockView: React.FC = () => {
               </button>
               <button
                 onClick={() => setIsAddModalOpen(true)}
-                className="px-2.5 py-1.5 bg-blue-700 hover:bg-blue-800 text-white rounded text-xs font-semibold flex items-center space-x-1 transition shadow-sm"
+                className="px-2.5 py-1 bg-blue-700 hover:bg-blue-800 text-white rounded text-xs font-semibold flex items-center space-x-1 transition shadow-sm"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Yeni Ürün</span>
               </button>
             </div>
+          </div>
+
+          {/* Toplam Kalem ve Toplam Ürün Sayısı Göstergesi */}
+          <div className="flex items-center justify-between bg-white/80 border border-slate-200/90 rounded-lg px-2.5 py-1.5 shadow-2xs">
+            <div className="flex items-center space-x-1.5">
+              <Package className="w-3.5 h-3.5 text-blue-700 shrink-0" />
+              <span className="text-slate-600 font-semibold text-[11px]">Kalem:</span>
+              <span className="font-bold text-slate-900 text-[11px] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                {searchTerm.trim() ? `${filteredProducts.length} / ${products.length}` : products.length} Kalem
+              </span>
+            </div>
+            <div className="flex items-center space-x-1.5">
+              <span className="text-slate-600 font-semibold text-[11px]">Toplam Ürün:</span>
+              <span className="font-bold text-emerald-700 text-[11px] bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                {searchTerm.trim()
+                  ? `${filteredStockCount.toLocaleString('tr-TR')} / ${totalStockCount.toLocaleString('tr-TR')}`
+                  : `${totalStockCount.toLocaleString('tr-TR')} Adet`}
+              </span>
+            </div>
+          </div>
+
+          {/* Aktif Stok vs Arşiv Sekmesi */}
+          <div className="flex items-center space-x-1 bg-slate-200/60 p-0.5 rounded-lg border border-slate-300/60">
+            <button
+              type="button"
+              onClick={() => setStockFilter('active')}
+              className={`flex-1 py-1 px-1.5 rounded-md text-[11px] font-bold transition flex items-center justify-center space-x-1 cursor-pointer ${
+                stockFilter === 'active'
+                  ? 'bg-white text-blue-700 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <span>📦 Aktif Stok</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                stockFilter === 'active' ? 'bg-blue-50 text-blue-800' : 'bg-slate-300 text-slate-700'
+              }`}>
+                {activeProductsCount}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setStockFilter('archived')}
+              className={`flex-1 py-1 px-1.5 rounded-md text-[11px] font-bold transition flex items-center justify-center space-x-1 cursor-pointer ${
+                stockFilter === 'archived'
+                  ? 'bg-white text-amber-800 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <span>🗄️ Arşiv / Tükenen</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                stockFilter === 'archived' ? 'bg-amber-50 text-amber-800' : 'bg-slate-300 text-slate-700'
+              }`}>
+                {archivedProductsCount}
+              </span>
+            </button>
           </div>
 
           <div className="flex items-center space-x-2">
@@ -1318,7 +1388,7 @@ export const StockView: React.FC = () => {
                           : 'bg-rose-50 text-rose-700 border-rose-200'
                       }`}
                     >
-                      {totalStock} Adet
+                      {totalStock > 0 ? `${totalStock} Adet` : '0 (Tükendi / Arşiv)'}
                     </span>
                     <span className="block text-xs font-bold text-slate-900 mt-1">{(Number(prod.basePrice) || 0).toFixed(2)} ₺</span>
                   </div>
@@ -1330,7 +1400,7 @@ export const StockView: React.FC = () => {
       </div>
 
       {/* Right Column: Variant & Stock Details */}
-      <div className="flex-1 flex flex-col glass-panel overflow-y-auto">
+      <div className="flex-1 min-w-0 flex flex-col glass-panel overflow-y-auto">
         {selectedProduct ? (
           <div className="p-6 space-y-6">
             <div className="border-b border-slate-200 pb-4 flex justify-between items-start">
@@ -1348,13 +1418,22 @@ export const StockView: React.FC = () => {
                     <span>Ürünü Düzenle</span>
                     <ShieldAlert className="w-2.5 h-2.5 text-indigo-400 opacity-60" />
                   </button>
+                  <button
+                    onClick={() => handleProductDeleteClick(selectedProduct)}
+                    className="px-2 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-800 border border-rose-300 rounded text-[11px] font-semibold flex items-center space-x-1 transition"
+                    title="Ürünü Sil veya Arşive Gönder (Yönetici PIN Gerekli)"
+                  >
+                    <Trash2 className="w-3 h-3 text-rose-600" />
+                    <span>Ürünü Sil</span>
+                    <ShieldAlert className="w-2.5 h-2.5 text-rose-400 opacity-60" />
+                  </button>
                 </div>
                 <h1 className="text-xl font-bold text-slate-900 mt-0.5">{selectedProduct.name}</h1>
                 <p className="text-xs text-slate-500 font-mono mt-1">
                   Ürün Kodu: {selectedProduct.code} {selectedProduct.brand ? `| Marka: ${selectedProduct.brand}` : ''}
                 </p>
               </div>
-              <div className="glass-card rounded-2xl p-3.5 text-right shadow-xs">
+              <div className="glass-card rounded-2xl p-3.5 text-right shadow-xs shrink-0">
                 <span className="text-[11px] text-slate-500 font-semibold block uppercase">Taban Satış Fiyatı</span>
                 <span className="text-xl font-bold text-emerald-700">{(Number(selectedProduct.basePrice) || 0).toFixed(2)} ₺</span>
               </div>
@@ -1405,16 +1484,16 @@ export const StockView: React.FC = () => {
                 </button>
               </div>
 
-              <div className="glass-card rounded-2xl overflow-hidden shadow-xs border border-white/60">
-                <table className="w-full text-left text-xs text-slate-700">
+              <div className="glass-card rounded-2xl overflow-x-auto shadow-xs border border-white/60">
+                <table className="w-full text-left text-xs text-slate-700 min-w-[700px]">
                   <thead className="bg-slate-50 text-slate-600 font-semibold uppercase tracking-wider border-b border-slate-200 text-[11px]">
                     <tr>
-                      <th className="px-5 py-3">Varyant (Renk / Beden)</th>
-                      <th className="px-5 py-3">SKU</th>
-                      <th className="px-5 py-3">Barkod</th>
-                      <th className="px-5 py-3">Satış Fiyatı</th>
-                      <th className="px-5 py-3">Mevcut Stok</th>
-                      <th className="px-5 py-3 text-right">İşlem</th>
+                      <th className="px-3.5 py-3 whitespace-nowrap">Varyant (Renk / Beden)</th>
+                      <th className="px-3.5 py-3 whitespace-nowrap">SKU</th>
+                      <th className="px-3.5 py-3 whitespace-nowrap">Barkod</th>
+                      <th className="px-3.5 py-3 whitespace-nowrap">Satış Fiyatı</th>
+                      <th className="px-3.5 py-3 whitespace-nowrap">Mevcut Stok</th>
+                      <th className="px-3.5 py-3 text-right whitespace-nowrap w-[220px] min-w-[220px]">İşlem</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -1432,24 +1511,30 @@ export const StockView: React.FC = () => {
                               : 'hover:bg-slate-50'
                           }`}
                         >
-                          <td className="px-5 py-3 font-semibold text-slate-900">
-                            <div className="flex items-center space-x-1.5">
-                              <span>{v.attributes?.color} / {v.attributes?.size}</span>
+                          <td className="px-3.5 py-2.5 font-semibold text-slate-900">
+                            <div className="flex items-center space-x-1.5 max-w-[180px]">
+                              <span className="truncate" title={`${v.attributes?.color || ''} / ${v.attributes?.size || ''}`}>
+                                {v.attributes?.color} / {v.attributes?.size}
+                              </span>
                               {isHighlighted && (
-                                <span className="px-1.5 py-0.5 bg-emerald-600 text-white text-[9px] font-bold rounded shadow-2xs flex items-center space-x-0.5 animate-pulse">
+                                <span className="px-1.5 py-0.5 bg-emerald-600 text-white text-[9px] font-bold rounded shadow-2xs flex items-center space-x-0.5 animate-pulse shrink-0">
                                   <Barcode className="w-2.5 h-2.5" />
                                   <span>Barkod Eşleşti</span>
                                 </span>
                               )}
                             </div>
                           </td>
-                          <td className="px-5 py-3 font-mono text-slate-500">{v.sku}</td>
-                          <td className="px-5 py-3 font-mono text-slate-700 font-medium">
-                            <span className={isHighlighted ? 'text-emerald-800 font-bold' : ''}>
-                              {v.barcode}
+                          <td className="px-3.5 py-2.5 font-mono text-slate-500">
+                            <span className="block truncate max-w-[130px] font-medium" title={v.sku || ''}>
+                              {v.sku || '-'}
                             </span>
                           </td>
-                          <td className="px-5 py-3">
+                          <td className="px-3.5 py-2.5 font-mono text-slate-700 font-medium whitespace-nowrap">
+                            <span className={isHighlighted ? 'text-emerald-800 font-bold' : ''} title={v.barcode || ''}>
+                              {v.barcode || '-'}
+                            </span>
+                          </td>
+                          <td className="px-3.5 py-2.5 whitespace-nowrap">
                             {v.discountPrice && v.discountPrice > 0 ? (
                               <div className="flex flex-col">
                                 <span className="line-through text-slate-400 text-xs font-normal">
@@ -1465,7 +1550,7 @@ export const StockView: React.FC = () => {
                               </span>
                             )}
                           </td>
-                          <td className="px-5 py-3">
+                          <td className="px-3.5 py-2.5 whitespace-nowrap">
                             <span
                               className={`px-2 py-0.5 rounded text-[11px] font-semibold border ${
                                 v.stockQuantity > 10
@@ -1478,27 +1563,27 @@ export const StockView: React.FC = () => {
                               {v.stockQuantity} Adet
                             </span>
                           </td>
-                          <td className="px-5 py-3 text-right">
-                            <div className="flex items-center justify-end space-x-1.5">
+                          <td className="px-3.5 py-2.5 text-right w-[220px] min-w-[220px] whitespace-nowrap">
+                            <div className="flex items-center justify-end space-x-1.5 shrink-0">
                               <button
                                 onClick={() => {
                                   setAddStockVariant(v)
                                   setAddQtyVal('')
                                 }}
-                                className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 rounded transition text-xs font-semibold flex items-center space-x-1"
+                                className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 rounded transition text-xs font-semibold flex items-center space-x-1 shrink-0"
                                 title="Şifresiz Mal Kabul Stok Girişi"
                               >
-                                <Plus className="w-3.5 h-3.5 text-emerald-600" />
+                                <Plus className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                                 <span>+ Stok Ekle</span>
                               </button>
                               <button
                                 onClick={() => handleStockEditClick(v)}
-                                className="px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 border border-slate-300 hover:border-indigo-300 rounded transition text-xs font-semibold flex items-center space-x-1"
+                                className="px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 border border-slate-300 hover:border-indigo-300 rounded transition text-xs font-semibold flex items-center space-x-1 shrink-0"
                                 title="Yönetici PIN ile Tüm Varyant ve Stok Bilgilerini Düzelt"
                               >
-                                <Edit3 className="w-3.5 h-3.5 text-indigo-600" />
+                                <Edit3 className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
                                 <span>Düzelt</span>
-                                <ShieldAlert className="w-3 h-3 text-indigo-400 opacity-60" />
+                                <ShieldAlert className="w-3 h-3 text-indigo-400 opacity-60 shrink-0" />
                               </button>
                             </div>
                           </td>
@@ -1516,290 +1601,6 @@ export const StockView: React.FC = () => {
           </div>
         )}
       </div>
-
-      {/* BARCODE SCANNER FAST STOCK ENTRY MODAL (MAL KABUL) */}
-      {isBarcodeStockModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-lg p-5 w-full max-w-lg shadow-xl space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center space-x-2">
-                <Scan className="w-5 h-5 text-emerald-600" />
-                <div>
-                  <h3 className="font-bold text-slate-900 text-sm">Barkod Okutarak Stok Kabulü</h3>
-                  <p className="text-[11px] text-slate-500">Barkod okuyucu ile okutun veya barkod numarasını yazıp enter'a basın.</p>
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  setIsBarcodeStockModalOpen(false)
-                  setScannedBarcode('')
-                  setUnregisteredBarcode(null)
-                }}
-                className="text-slate-400 hover:text-slate-600 font-bold text-base px-2"
-              >
-                ✕
-              </button>
-            </div>
-
-            {lastScannedResult && (
-              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded text-xs font-semibold text-emerald-800 flex items-center space-x-2 animate-fadeIn">
-                <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>{lastScannedResult}</span>
-              </div>
-            )}
-
-            <form onSubmit={handleBarcodeStockSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
-                  <span>Barkod Okutun (veya yazın)</span>
-                  <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                    Otomatik Odaklı ⚡
-                  </span>
-                </label>
-                <div className="relative flex items-center">
-                  <input
-                    ref={scanInputRef}
-                    type="text"
-                    placeholder="Barkod okuyucu hazır..."
-                    value={scannedBarcode}
-                    onChange={(e) => {
-                      const val = e.target.value
-                      setScannedBarcode(val)
-                      if (unregisteredBarcode && val.trim() !== unregisteredBarcode) {
-                        setUnregisteredBarcode(null)
-                      }
-                    }}
-                    className="w-full bg-slate-50 border border-slate-300 rounded px-3 py-2.5 text-slate-900 font-mono font-bold text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 pr-16"
-                    autoFocus
-                  />
-                  <div className="absolute right-2.5 flex items-center space-x-1.5">
-                    {scannedBarcode && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setScannedBarcode('')
-                          setUnregisteredBarcode(null)
-                          scanInputRef.current?.focus()
-                        }}
-                        className="text-slate-400 hover:text-slate-600 text-xs px-1.5 py-0.5 rounded hover:bg-slate-200 transition"
-                        title="Temizle"
-                      >
-                        ✕
-                      </button>
-                    )}
-                    {foundScannedVariant ? (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    ) : (
-                      scannedBarcode.trim() && <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Matched Product Details Card (Found in database) */}
-              {foundScannedVariant && (
-                <div className="p-3.5 bg-slate-50 border border-emerald-300 rounded-lg space-y-2 animate-fadeIn">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <span className="text-[10px] font-bold text-emerald-700 uppercase">
-                        {foundScannedVariant.product.category?.name || 'Giyim'}
-                      </span>
-                      <h4 className="font-bold text-slate-900 text-sm">{foundScannedVariant.product.name}</h4>
-                      <p className="text-xs text-slate-600 font-medium">
-                        Varyant: <span className="font-bold text-slate-900">{foundScannedVariant.attributes?.color} / {foundScannedVariant.attributes?.size}</span>
-                      </p>
-                      <p className="text-[11px] text-slate-400 font-mono">SKU: {foundScannedVariant.sku} | Barkod: {foundScannedVariant.barcode}</p>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-[10px] text-slate-500 block font-semibold">Mevcut Stok</span>
-                      <span className="text-sm font-bold text-slate-900">{foundScannedVariant.stockQuantity} Adet</span>
-                      <span className="block text-xs font-bold text-emerald-700 mt-0.5">{(Number(foundScannedVariant.salePrice) || 0).toFixed(2)} ₺</span>
-                    </div>
-                  </div>
-
-                  <div className="pt-2 border-t border-slate-200 flex items-center space-x-3">
-                    <div className="w-1/2">
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Stoğa Eklenecek Adet (+)</label>
-                      <input
-                        type="number"
-                        min="1"
-                        value={scannedQty}
-                        onChange={(e) => setScannedQty(e.target.value)}
-                        className="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 font-bold text-sm focus:ring-1 focus:ring-emerald-500"
-                        required
-                      />
-                    </div>
-                    <div className="w-1/2 pt-4">
-                      <button
-                        type="submit"
-                        className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold shadow-xs flex items-center justify-center space-x-1 transition cursor-pointer"
-                      >
-                        <Plus className="w-4 h-4" />
-                        <span>Stoğa Ekle (Enter)</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Unregistered Barcode: Quick Register Card */}
-              {/* Only shown after user/scanner enters barcode and Enter confirms it does NOT exist */}
-              {!foundScannedVariant && unregisteredBarcode && (
-                <div className="p-3.5 bg-amber-50/80 border border-amber-300 rounded-lg space-y-3 animate-fadeIn">
-                  <div className="flex items-center space-x-2 text-amber-800 text-xs font-semibold">
-                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                    <span>Bu barkod (<strong>{unregisteredBarcode}</strong>) sistemde kayıtlı değil!</span>
-                  </div>
-
-                  <div className="bg-white p-3 rounded border border-amber-200 space-y-2.5 shadow-2xs">
-                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
-                      <span className="font-bold text-xs text-slate-800 flex items-center space-x-1">
-                        <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                        <span>⚡ Bu Barkodla Hızlı Ürün Tanımla ve Stoğa Ekle</span>
-                      </span>
-                      <span className="text-[10px] text-slate-400 font-mono">Barkod: {unregisteredBarcode}</span>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="col-span-2">
-                        <label className="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Ürün Adı *</label>
-                        <input
-                          type="text"
-                          placeholder="Örn: Pamuklu Polo Tişört"
-                          value={quickName}
-                          onChange={(e) => setQuickName(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault()
-                              handleQuickCreateAndStock()
-                            }
-                          }}
-                          className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-amber-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Kategori</label>
-                        <select
-                          value={quickCategoryId}
-                          onChange={(e) => setQuickCategoryId(e.target.value)}
-                          className="w-full px-2 py-1.5 bg-slate-50 border border-slate-300 rounded text-xs font-medium focus:outline-none"
-                        >
-                          <option value="">Kategorisiz</option>
-                          {categories.map((c) => (
-                            <option key={c.id} value={c.id}>{c.name}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="grid grid-cols-2 gap-1">
-                        <div>
-                          <label className="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Renk</label>
-                          <input
-                            type="text"
-                            placeholder="Renk"
-                            value={quickColor}
-                            onChange={(e) => setQuickColor(e.target.value)}
-                            className="w-full px-2 py-1.5 bg-slate-50 border border-slate-300 rounded text-xs font-medium"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Beden</label>
-                          <input
-                            type="text"
-                            placeholder="Beden"
-                            value={quickSize}
-                            onChange={(e) => setQuickSize(e.target.value)}
-                            className="w-full px-2 py-1.5 bg-slate-50 border border-slate-300 rounded text-xs font-medium"
-                          />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Satış Fiyatı (₺) *</label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={quickSalePrice}
-                            onChange={(e) => setQuickSalePrice(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault()
-                                handleQuickCreateAndStock()
-                              }
-                            }}
-                            className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded text-xs font-bold text-emerald-700"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] font-bold text-rose-700 uppercase mb-0.5">İndirimli Fiyat (₺)</label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            placeholder="Opsiyonel"
-                            value={quickDiscountPrice}
-                            onChange={(e) => setQuickDiscountPrice(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault()
-                                handleQuickCreateAndStock()
-                              }
-                            }}
-                            className="w-full px-2.5 py-1.5 bg-slate-50 border border-rose-300 rounded text-xs font-bold text-rose-600"
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Giriş Stoğu (Adet) *</label>
-                        <input
-                          type="number"
-                          min="1"
-                          value={quickQty}
-                          onChange={(e) => setQuickQty(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault()
-                              handleQuickCreateAndStock()
-                            }
-                          }}
-                          className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded text-xs font-bold text-slate-900"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-                      <span className="text-[11px] text-slate-500">
-                        Veya yeni bir barkod okutarak devam edin
-                      </span>
-                      <button
-                        type="button"
-                        onClick={handleQuickCreateAndStock}
-                        disabled={isQuickSubmitting || !quickName.trim()}
-                        className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded text-xs font-bold shadow-xs flex items-center space-x-1 disabled:opacity-50 transition cursor-pointer"
-                      >
-                        <Plus className="w-4 h-4" />
-                        <span>{isQuickSubmitting ? 'Kaydediliyor...' : 'Kaydet ve Stoğa Al'}</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="flex justify-end pt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsBarcodeStockModalOpen(false)
-                    setScannedBarcode('')
-                    setUnregisteredBarcode(null)
-                  }}
-                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded text-xs font-semibold hover:bg-slate-200 border border-slate-200 transition"
-                >
-                  Kapat
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* Variant Full Edit Modal (Price, Barcode, Color/Size, Stock) */}
       {editingVariant && (
@@ -2282,10 +2083,11 @@ export const StockView: React.FC = () => {
           setIsAdminPinOpen(false)
           setPendingVariantEdit(null)
           setPendingProductEdit(null)
+          setPendingProductDelete(null)
         }}
         onVerified={handleAdminVerifiedForStock}
-        title="Düzenleme Yetkisi"
-        subtitle="Ürün ve varyant bilgilerini değiştirmek için Yönetici PIN girin."
+        title="Düzenleme ve Silme Yetkisi"
+        subtitle="Ürün ve varyant bilgilerini değiştirmek veya silmek için Yönetici PIN girin."
       />
 
       {/* EXCEL / CSV BULK IMPORT MODAL */}
@@ -2347,6 +2149,100 @@ export const StockView: React.FC = () => {
                 </label>
               </div>
 
+              {/* Marka Atama / Yapılandırma Kartı */}
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-1.5">
+                    <Tag className="w-3.5 h-3.5 text-indigo-600" />
+                    <span className="text-xs font-bold text-slate-800">Marka Atama Kuralı</span>
+                  </div>
+                  <span className="text-[11px] text-slate-500">
+                    {excelDefaultBrand ? `Varsayılan: ${excelDefaultBrand}` : 'Varsayılan: Markasız (Boş)'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                  {/* Kural Seçimi */}
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">Marka Önceliği</label>
+                    <select
+                      value={excelBrandRule}
+                      onChange={(e) => setExcelBrandRule(e.target.value as any)}
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-hidden"
+                    >
+                      <option value="fallback">Excel'de Varsa Onu Al, Yoksa Varsayılan Markayı Ata</option>
+                      <option value="force">Tüm Ürünlere Zorla Bu Markayı Ata</option>
+                      <option value="excel_only">Sadece Excel'deki Markayı Al (Yoksa Boş Bırak)</option>
+                    </select>
+                  </div>
+
+                  {/* Varsayılan Marka Girişi */}
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                      Varsayılan Marka {excelBrandRule === 'excel_only' && '(Devre Dışı)'}
+                    </label>
+                    <div className="flex items-center space-x-1">
+                      <input
+                        type="text"
+                        disabled={excelBrandRule === 'excel_only'}
+                        placeholder="Örn: Lufian, Jack & Jones vb."
+                        value={excelDefaultBrand}
+                        onChange={(e) => setExcelDefaultBrand(e.target.value)}
+                        className="flex-1 px-2.5 py-1.5 bg-white border border-slate-300 rounded text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-hidden disabled:bg-slate-100 disabled:text-slate-400"
+                        list="excel-brand-suggestions"
+                      />
+                      <datalist id="excel-brand-suggestions">
+                        {existingBrands.map((b) => (
+                          <option key={b} value={b} />
+                        ))}
+                      </datalist>
+                      {excelDefaultBrand && (
+                        <button
+                          type="button"
+                          onClick={() => setExcelDefaultBrand('')}
+                          className="px-2 py-1.5 text-[11px] bg-slate-200 hover:bg-slate-300 text-slate-700 rounded font-medium"
+                          title="Markayı Temizle / Boş Bırak"
+                        >
+                          Temizle
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Hızlı Seçim Butonları */}
+                {excelBrandRule !== 'excel_only' && (
+                  <div className="flex items-center gap-1.5 pt-1 flex-wrap">
+                    <span className="text-[10px] text-slate-500 font-medium">Hızlı Seç:</span>
+                    {['Lufian', 'Jack & Jones', ...existingBrands.filter(b => b !== 'Lufian' && b !== 'Jack & Jones').slice(0, 3)].map((brandName) => (
+                      <button
+                        key={brandName}
+                        type="button"
+                        onClick={() => setExcelDefaultBrand(brandName)}
+                        className={`px-2 py-0.5 rounded text-[10px] font-medium transition ${
+                          excelDefaultBrand === brandName
+                            ? 'bg-indigo-600 text-white font-semibold'
+                            : 'bg-white hover:bg-slate-200 text-slate-700 border border-slate-300'
+                        }`}
+                      >
+                        {brandName}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setExcelDefaultBrand('')}
+                      className={`px-2 py-0.5 rounded text-[10px] font-medium transition ${
+                        excelDefaultBrand === ''
+                          ? 'bg-slate-700 text-white font-semibold'
+                          : 'bg-white hover:bg-slate-200 text-slate-600 border border-slate-300'
+                      }`}
+                    >
+                      Boş Bırak (Belirtilmemiş)
+                    </button>
+                  </div>
+                )}
+              </div>
+
               {/* Error Box */}
               {excelError && (
                 <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded text-xs font-medium flex items-center space-x-2">
@@ -2389,6 +2285,7 @@ export const StockView: React.FC = () => {
                       <tr>
                         <th className="px-3 py-1.5">Kod</th>
                         <th className="px-3 py-1.5">Ürün Adı</th>
+                        <th className="px-3 py-1.5">Marka</th>
                         <th className="px-3 py-1.5">Kategori</th>
                         <th className="px-3 py-1.5">Barkod</th>
                         <th className="px-3 py-1.5">Varyant</th>
@@ -2401,6 +2298,15 @@ export const StockView: React.FC = () => {
                         <tr key={i} className="hover:bg-slate-50">
                           <td className="px-3 py-1 font-mono text-[10px] text-slate-600">{row.code || '-'}</td>
                           <td className="px-3 py-1 font-bold text-slate-900">{row.name}</td>
+                          <td className="px-3 py-1">
+                            {row.brand ? (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                {row.brand}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 italic text-[10px]">Belirtilmemiş</span>
+                            )}
+                          </td>
                           <td className="px-3 py-1">{row.category || '-'}</td>
                           <td className="px-3 py-1 font-mono">{row.barcode}</td>
                           <td className="px-3 py-1">

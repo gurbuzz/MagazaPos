@@ -19,10 +19,12 @@ import {
   Copy,
   BadgePercent,
   Save,
-  Tag as TagIcon
+  Tag as TagIcon,
+  X
 } from 'lucide-react'
 import { usePosStore } from '../../store/usePosStore'
 import { generateCode128Svg } from '../../utils/barcode128'
+import { notifyDataChanged, DATA_UPDATED_EVENT } from '../../utils/events'
 
 interface LabelPreset {
   id: string
@@ -44,46 +46,12 @@ const PRESETS: LabelPreset[] = [
     description: 'Standart Mağaza & Tekstil Rulosu (Hem Yatay Hem 90° Dikey Baskı Uyumlu)'
   },
   {
-    id: 'h_50_30',
-    name: '50 x 30 mm',
-    width: 50,
-    height: 30,
-    orientation: 'HORIZONTAL',
-    description: 'Kompakt Yatay Barkod Rulosu'
-  },
-  {
-    id: 'h_70_40',
-    name: '70 x 40 mm',
-    width: 70,
-    height: 40,
-    orientation: 'HORIZONTAL',
-    description: 'Geniş Ürün / Raf Etiketi'
-  },
-  {
     id: 'h_40_20',
     name: '40 x 20 mm',
     width: 40,
     height: 20,
     orientation: 'HORIZONTAL',
     description: 'Mini / Kompakt Barkod'
-  },
-
-  // Fiziksel Dikey Rulolar (Yazıcıya Özel Dikey Takılan Rulolar)
-  {
-    id: 'v_40_60',
-    name: '40 x 60 mm (Fiziksel Dikey)',
-    width: 40,
-    height: 60,
-    orientation: 'VERTICAL',
-    description: 'Yazıcıya Özel Dikey Takılan Rulo'
-  },
-  {
-    id: 'v_30_50',
-    name: '30 x 50 mm (Fiziksel Dikey)',
-    width: 30,
-    height: 50,
-    orientation: 'VERTICAL',
-    description: 'Dar Dikey Sallama Kart Rulosu'
   }
 ]
 
@@ -101,7 +69,7 @@ export const LabelPrinterModal: React.FC = () => {
   const [labelWidth, setLabelWidth] = useState<number>(60)
   const [labelHeight, setLabelHeight] = useState<number>(40)
   const [showStoreName, setShowStoreName] = useState<boolean>(true)
-  const [fontScale, setFontScale] = useState<'COMPACT' | 'NORMAL' | 'LARGE'>('NORMAL')
+  const [fontScale, setFontScale] = useState<'COMPACT' | 'NORMAL' | 'LARGE'>('COMPACT')
 
   // Print controls
   const [printQuantity, setPrintQuantity] = useState<number>(1)
@@ -115,6 +83,9 @@ export const LabelPrinterModal: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState<string>('')
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('')
   const searchInputRef = useRef<HTMLInputElement>(null)
+
+  // Bulk Label Printing State
+  const [selectedBulkVariantIds, setSelectedBulkVariantIds] = useState<Set<string>>(new Set())
 
   // Discount / İskontolu Etiket States
   const [isDiscountMode, setIsDiscountMode] = useState<boolean>(false)
@@ -193,6 +164,7 @@ export const LabelPrinterModal: React.FC = () => {
           }))
         )
         setSaveSuccessMsg('✅ İndirimli fiyat ürün kartına kaydedildi!')
+        notifyDataChanged()
         setTimeout(() => setSaveSuccessMsg(''), 3500)
       } else {
         const err = await res.json()
@@ -210,25 +182,60 @@ export const LabelPrinterModal: React.FC = () => {
     }
   }
 
-  useEffect(() => {
+  const loadProducts = () => {
     fetch('/api/products')
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
           setProducts(data)
-          if (data.length > 0 && data[0].variants?.length > 0) {
-            setSelectedVariant({ ...data[0].variants[0], product: data[0] })
-          }
+          setSelectedVariant((curr: any) => {
+            if (!curr) {
+              if (data.length > 0 && data[0].variants?.length > 0) {
+                return { ...data[0].variants[0], product: data[0] }
+              }
+              return null
+            }
+            // Keep currently viewed variant up-to-date with latest server data
+            for (const prod of data) {
+              const matched = prod.variants?.find((v: any) => v.id === curr.id)
+              if (matched) {
+                return { ...matched, product: prod }
+              }
+            }
+            return curr
+          })
+
+          // Clean up any stale variant IDs from bulk selection if deleted
+          const validIds = new Set(data.flatMap((p: any) => p.variants?.map((v: any) => v.id) || []))
+          setSelectedBulkVariantIds((prev) => {
+            let changed = false
+            const next = new Set<string>()
+            prev.forEach((id) => {
+              if (validIds.has(id)) {
+                next.add(id)
+              } else {
+                changed = true
+              }
+            })
+            return changed ? next : prev
+          })
         }
       })
       .catch(() => {})
+  }
 
+  const loadCategories = () => {
     fetch('/api/products/categories')
       .then((res) => res.json())
       .then((catData) => {
         if (Array.isArray(catData)) setCategories(catData)
       })
       .catch(() => {})
+  }
+
+  useEffect(() => {
+    loadProducts()
+    loadCategories()
 
     if (window.electron?.getPrinters) {
       window.electron.getPrinters().then((printerList) => {
@@ -236,6 +243,23 @@ export const LabelPrinterModal: React.FC = () => {
         const defaultPrinter = printerList.find((p: any) => p.isDefault)?.name || printerList[0]?.name || ''
         setSelectedPrinter(defaultPrinter)
       })
+    }
+
+    let lastUpdate = 0
+    const handleDataUpdate = () => {
+      const now = Date.now()
+      if (now - lastUpdate < 500) return
+      lastUpdate = now
+      loadProducts()
+      loadCategories()
+    }
+
+    window.addEventListener(DATA_UPDATED_EVENT, handleDataUpdate)
+    window.addEventListener('focus', handleDataUpdate)
+
+    return () => {
+      window.removeEventListener(DATA_UPDATED_EVENT, handleDataUpdate)
+      window.removeEventListener('focus', handleDataUpdate)
     }
   }, [])
 
@@ -309,70 +333,120 @@ export const LabelPrinterModal: React.FC = () => {
     return generateCode128Svg(code, svgHeight)
   }, [selectedVariant, printLayout, labelHeight, labelWidth, fontScale])
 
-  // Build Full HTML Document for Silent Thermal Printing
-  const buildPrintHtml = (copiesCount: number) => {
-    if (!selectedVariant) return ''
+  // Bulk Selection Helpers
+  const toggleBulkVariant = (variantId: string) => {
+    setSelectedBulkVariantIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(variantId)) {
+        next.delete(variantId)
+      } else {
+        next.add(variantId)
+      }
+      return next
+    })
+  }
 
-    const barcode = selectedVariant.barcode || selectedVariant.sku || '123456789012'
-    const standardPrice = Number(selectedVariant.salePrice || 0).toFixed(2)
-    const formattedOrigPrice = origPriceNum.toFixed(2)
-    const formattedDiscPrice = discPriceNum.toFixed(2)
-    const productName = selectedVariant.product?.name || 'Ürün Adı'
-    const color = selectedVariant.attributes?.color || '-'
-    const size = selectedVariant.attributes?.size || '-'
-    const sku = selectedVariant.sku || '-'
+  const handleClearBulkSelection = () => {
+    setSelectedBulkVariantIds(new Set())
+  }
 
-    const isRotatedVertical = printLayout === 'ROTATED_VERTICAL'
-    const isNaturalVertical = printLayout === 'NATURAL_VERTICAL'
-    const isAnyVertical = isRotatedVertical || isNaturalVertical
+  const allFilteredSelected =
+    filteredVariants.length > 0 && filteredVariants.every((v) => selectedBulkVariantIds.has(v.id))
 
-    const isTiny = labelHeight <= 25 || labelWidth <= 45
-    const isSmall = labelHeight < 35 || labelWidth < 50
+  const handleToggleAllFiltered = () => {
+    setSelectedBulkVariantIds((prev) => {
+      const next = new Set(prev)
+      if (allFilteredSelected) {
+        filteredVariants.forEach((v) => next.delete(v.id))
+      } else {
+        filteredVariants.forEach((v) => next.add(v.id))
+      }
+      return next
+    })
+  }
 
-    // Horizontal text size calculations
-    let hPriceFont = fontScale === 'COMPACT' ? 18 : fontScale === 'LARGE' ? 24 : 21
-    let hDiscPriceFont = fontScale === 'COMPACT' ? 16 : fontScale === 'LARGE' ? 22 : 19
-    let hTitleFont = fontScale === 'COMPACT' ? 10 : fontScale === 'LARGE' ? 12 : 11
-    let hStoreFont = fontScale === 'COMPACT' ? 9 : fontScale === 'LARGE' ? 11 : 10
-    let hBarcodeH = fontScale === 'COMPACT' ? 18 : fontScale === 'LARGE' ? 22 : 20
+  // Dimension & typography calculations for print output (shared by single and bulk)
+  const isRotatedVertical = printLayout === 'ROTATED_VERTICAL'
+  const isNaturalVertical = printLayout === 'NATURAL_VERTICAL'
+  const isAnyVertical = isRotatedVertical || isNaturalVertical
 
-    if (isTiny) {
-      hPriceFont = 14
-      hDiscPriceFont = 13
-      hTitleFont = 9
-      hStoreFont = 8
-      hBarcodeH = 14
-    } else if (isSmall) {
-      hPriceFont = Math.min(hPriceFont, 17)
-      hDiscPriceFont = Math.min(hDiscPriceFont, 16)
-      hTitleFont = Math.min(hTitleFont, 10)
-      hBarcodeH = Math.min(hBarcodeH, 18)
-    }
+  const isTiny = labelHeight <= 25 || labelWidth <= 45
+  const isSmall = labelHeight < 35 || labelWidth < 50
 
-    // Vertical / Rotated Vertical (usable width is narrower, e.g. 40mm)
-    let vPriceFont = fontScale === 'COMPACT' ? 18 : fontScale === 'LARGE' ? 24 : 21
-    let vDiscPriceFont = fontScale === 'COMPACT' ? 16 : fontScale === 'LARGE' ? 21 : 19
-    let vTitleFont = fontScale === 'COMPACT' ? 9.5 : fontScale === 'LARGE' ? 11.5 : 10.5
-    let vStoreFont = fontScale === 'COMPACT' ? 9 : fontScale === 'LARGE' ? 11 : 10
-    let vBarcodeH = fontScale === 'COMPACT' ? 16 : fontScale === 'LARGE' ? 20 : 18
+  // Horizontal text size calculations
+  let hPriceFont = fontScale === 'COMPACT' ? 18 : fontScale === 'LARGE' ? 24 : 21
+  let hDiscPriceFont = fontScale === 'COMPACT' ? 16 : fontScale === 'LARGE' ? 22 : 19
+  let hTitleFont = fontScale === 'COMPACT' ? 10 : fontScale === 'LARGE' ? 12 : 11
+  let hStoreFont = fontScale === 'COMPACT' ? 9 : fontScale === 'LARGE' ? 11 : 10
+  let hBarcodeH = fontScale === 'COMPACT' ? 18 : fontScale === 'LARGE' ? 22 : 20
 
-    if (isTiny) {
-      vPriceFont = 14
-      vDiscPriceFont = 13
-      vTitleFont = 8.5
-      vStoreFont = 8
-      vBarcodeH = 13
-    } else if (isSmall) {
-      vPriceFont = Math.min(vPriceFont, 17)
-      vDiscPriceFont = Math.min(vDiscPriceFont, 16)
-      vTitleFont = Math.min(vTitleFont, 9.5)
-      vBarcodeH = Math.min(vBarcodeH, 16)
+  if (isTiny) {
+    hPriceFont = 14
+    hDiscPriceFont = 13
+    hTitleFont = 9
+    hStoreFont = 8
+    hBarcodeH = 14
+  } else if (isSmall) {
+    hPriceFont = Math.min(hPriceFont, 17)
+    hDiscPriceFont = Math.min(hDiscPriceFont, 16)
+    hTitleFont = Math.min(hTitleFont, 10)
+    hBarcodeH = Math.min(hBarcodeH, 18)
+  }
+
+  // Vertical / Rotated Vertical (usable width is narrower, e.g. 40mm)
+  let vPriceFont = fontScale === 'COMPACT' ? 18 : fontScale === 'LARGE' ? 24 : 21
+  let vDiscPriceFont = fontScale === 'COMPACT' ? 16 : fontScale === 'LARGE' ? 21 : 19
+  let vTitleFont = fontScale === 'COMPACT' ? 9.5 : fontScale === 'LARGE' ? 11.5 : 10.5
+  let vStoreFont = fontScale === 'COMPACT' ? 9 : fontScale === 'LARGE' ? 11 : 10
+  let vBarcodeH = fontScale === 'COMPACT' ? 16 : fontScale === 'LARGE' ? 20 : 18
+
+  if (isTiny) {
+    vPriceFont = 14
+    vDiscPriceFont = 13
+    vTitleFont = 8.5
+    vStoreFont = 8
+    vBarcodeH = 13
+  } else if (isSmall) {
+    vPriceFont = Math.min(vPriceFont, 17)
+    vDiscPriceFont = Math.min(vDiscPriceFont, 16)
+    vTitleFont = Math.min(vTitleFont, 9.5)
+    vBarcodeH = Math.min(vBarcodeH, 16)
+  }
+
+  // Generates single page HTML fragment for any variant
+  const buildSingleVariantLabelPage = (variant: any) => {
+    if (!variant) return ''
+
+    const barcode = variant.barcode || variant.sku || '123456789012'
+    const productName = variant.product?.name || 'Ürün Adı'
+    const color = variant.attributes?.color || '-'
+    const size = variant.attributes?.size || '-'
+    const sku = variant.sku || '-'
+
+    const isCurrentActive = variant.id === selectedVariant?.id
+    let isItemDiscounted = false
+    let formattedOrigPrice = ''
+    let formattedDiscPrice = ''
+    let standardPrice = Number(variant.salePrice || 0).toFixed(2)
+
+    if (isCurrentActive && isDiscounted) {
+      isItemDiscounted = true
+      formattedOrigPrice = origPriceNum.toFixed(2)
+      formattedDiscPrice = discPriceNum.toFixed(2)
+    } else if (
+      variant.discountPrice &&
+      Number(variant.discountPrice) > 0 &&
+      Number(variant.discountPrice) < Number(variant.salePrice || 0)
+    ) {
+      isItemDiscounted = true
+      formattedOrigPrice = Number(variant.salePrice || 0).toFixed(2)
+      formattedDiscPrice = Number(variant.discountPrice || 0).toFixed(2)
     }
 
     const svgHeight = isAnyVertical ? vBarcodeH : hBarcodeH
     const vectorBarcodeSvg = generateCode128Svg(barcode, svgHeight)
 
-    const horizontalPriceSection = isDiscounted
+    const horizontalPriceSection = isItemDiscounted
       ? `
         <div class="discount-price-row">
           <div class="old-price-col">
@@ -392,7 +466,7 @@ export const LabelPrinterModal: React.FC = () => {
         </div>
       `
 
-    const verticalPriceSection = isDiscounted
+    const verticalPriceSection = isItemDiscounted
       ? `
         <div class="price-box discounted-box">
           <div class="v-old-row">
@@ -412,11 +486,8 @@ export const LabelPrinterModal: React.FC = () => {
         </div>
       `
 
-    let singlePageContent = ''
-
     if (isRotatedVertical) {
-      // 90 DEGREE ROTATED PRINT ON HORIZONTAL ROLL (e.g. 60x40mm paper, 40x60mm rotated content)
-      singlePageContent = `
+      return `
         <div class="label-page rotated-page">
           <div class="rotated-vertical-inner">
             <div class="v-header">
@@ -437,7 +508,7 @@ export const LabelPrinterModal: React.FC = () => {
         </div>
       `
     } else if (isNaturalVertical) {
-      singlePageContent = `
+      return `
         <div class="label-page vertical">
           <div class="v-header">
             <div class="store-name">${showStoreName ? effectiveStoreName : ''}</div>
@@ -456,7 +527,7 @@ export const LabelPrinterModal: React.FC = () => {
         </div>
       `
     } else {
-      singlePageContent = `
+      return `
         <div class="label-page horizontal">
           <div class="h-header">
             <span class="store-name">${showStoreName ? effectiveStoreName : ''}</span>
@@ -472,11 +543,10 @@ export const LabelPrinterModal: React.FC = () => {
         </div>
       `
     }
+  }
 
-    const allPagesHtml = Array.from({ length: copiesCount })
-      .map(() => singlePageContent)
-      .join('')
-
+  // Wraps generated pages with full thermal printer CSS stylesheet
+  const wrapLabelDocumentHtml = (allPagesHtml: string) => {
     return `
       <!DOCTYPE html>
       <html>
@@ -879,6 +949,93 @@ export const LabelPrinterModal: React.FC = () => {
     `
   }
 
+  // Build Full HTML Document for Single Selected Variant
+  const buildPrintHtml = (copiesCount: number) => {
+    if (!selectedVariant) return ''
+    const singlePage = buildSingleVariantLabelPage(selectedVariant)
+    const allPagesHtml = Array.from({ length: copiesCount })
+      .map(() => singlePage)
+      .join('')
+    return wrapLabelDocumentHtml(allPagesHtml)
+  }
+
+  // Build Full HTML Document for Bulk Selected Variants
+  const buildBulkPrintHtml = (variantsList: any[], quantityPerItem: number) => {
+    const allPagesHtml = variantsList
+      .flatMap((v) => {
+        const page = buildSingleVariantLabelPage(v)
+        return Array.from({ length: quantityPerItem }).map(() => page)
+      })
+      .join('')
+    return wrapLabelDocumentHtml(allPagesHtml)
+  }
+
+  // Bulk Print Dispatch (Sends all selected variants to thermal roll in one silent job)
+  const handleBulkPrintDispatch = async (isSilent = true) => {
+    const selectedList = allVariants.filter((v) => selectedBulkVariantIds.has(v.id))
+    if (selectedList.length === 0) {
+      alert('Lütfen toplu etiket basımı için en az bir ürün seçin.')
+      return
+    }
+
+    setIsPrinting(true)
+    setMessage('')
+
+    try {
+      const bulkHtml = buildBulkPrintHtml(selectedList, printQuantity)
+
+      if (window.electron?.printSilent) {
+        const result = await window.electron.printSilent(
+          bulkHtml,
+          selectedPrinter ? selectedPrinter.trim() : undefined,
+          {
+            width: labelWidth,
+            height: labelHeight
+          },
+          isSilent
+        )
+        if (result && !result.success && result.failureReason) {
+          throw new Error(result.failureReason)
+        }
+      } else {
+        await fetch('/api/print/label', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            variants: selectedList,
+            quantity: printQuantity,
+            orientation: printLayout === 'HORIZONTAL' ? 'HORIZONTAL' : 'VERTICAL',
+            layout: printLayout,
+            width: labelWidth,
+            height: labelHeight,
+            printerName: selectedPrinter,
+          }),
+        })
+
+        const printWin = window.open('', '_blank')
+        if (printWin) {
+          printWin.document.write(bulkHtml)
+          printWin.document.close()
+          setTimeout(() => {
+            printWin.focus()
+            printWin.print()
+            printWin.close()
+          }, 350)
+        }
+      }
+
+      const totalLabels = selectedList.length * printQuantity
+      const layoutLabel = printLayout === 'HORIZONTAL' ? '↔ Yatay' : '↕ 90° Dikey (Askı)'
+      setMessage(
+        `Toplu Yazdırma Başarılı: ${selectedList.length} ürün için toplam ${totalLabels} adet ${layoutLabel} (${labelWidth}x${labelHeight}mm) etiket yazıcıya gönderildi!`
+      )
+    } catch (err: any) {
+      setMessage(`Toplu yazdırma hatası: ${err.message}`)
+    } finally {
+      setIsPrinting(false)
+    }
+  }
+
   // Print Dispatch (Copies or 1-piece test, with silent or native dialog option)
   const handlePrintDispatch = async (quantityToPrint = printQuantity, isSilent = true) => {
     if (!selectedVariant) return
@@ -940,8 +1097,8 @@ export const LabelPrinterModal: React.FC = () => {
   }
 
   return (
-    <div className="h-[calc(100vh-3.5rem)] bg-slate-100 p-4 overflow-y-auto font-sans select-none">
-      <div className="max-w-6xl mx-auto space-y-4">
+    <div className="h-[calc(100vh-3.5rem)] bg-slate-100 p-3 sm:p-4 overflow-y-auto font-sans select-none">
+      <div className="w-full max-w-[98%] 2xl:max-w-[1750px] mx-auto space-y-4">
         {/* Header */}
         <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-wrap justify-between items-center shadow-xs gap-3">
           <div>
@@ -960,6 +1117,13 @@ export const LabelPrinterModal: React.FC = () => {
               <span className="text-slate-600 font-medium">Mağaza:</span>
               <span className="font-bold text-slate-900 uppercase">{effectiveStoreName}</span>
             </div>
+
+            {selectedBulkVariantIds.size > 0 && (
+              <div className="bg-blue-600 text-white px-2.5 py-1.5 rounded-lg flex items-center space-x-1.5 text-xs font-bold shadow-2xs shrink-0">
+                <Check className="w-3.5 h-3.5 stroke-[3]" />
+                <span>{selectedBulkVariantIds.size} Ürün Toplu Seçili</span>
+              </div>
+            )}
 
             {selectedVariant && (
               <div className="bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-lg flex items-center space-x-3 text-xs">
@@ -1040,6 +1204,55 @@ export const LabelPrinterModal: React.FC = () => {
               ))}
             </div>
 
+            {/* Toplu Seçim Kontrol ve Durum Çubuğu */}
+            <div className="bg-gradient-to-r from-blue-50/80 to-slate-50 border border-blue-200/80 rounded-lg p-2.5 flex items-center justify-between text-xs gap-2">
+              <div className="flex items-center space-x-2">
+                <div
+                  className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition ${
+                    selectedBulkVariantIds.size > 0
+                      ? 'bg-blue-600 border-blue-600 text-white shadow-2xs'
+                      : 'border-slate-300 bg-white'
+                  }`}
+                >
+                  {selectedBulkVariantIds.size > 0 && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                </div>
+                <div className="flex items-center space-x-1.5">
+                  <span className="font-bold text-slate-800">Toplu Seçim:</span>
+                  <span
+                    className={`px-2 py-0.5 rounded-full font-extrabold text-[11px] ${
+                      selectedBulkVariantIds.size > 0
+                        ? 'bg-blue-600 text-white shadow-2xs'
+                        : 'bg-slate-200 text-slate-600'
+                    }`}
+                  >
+                    {selectedBulkVariantIds.size} Ürün Seçili
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={handleToggleAllFiltered}
+                  className="px-2.5 py-1 text-[11px] font-bold bg-white border border-slate-300 hover:border-blue-400 hover:bg-blue-50 text-slate-700 rounded transition cursor-pointer shadow-2xs"
+                >
+                  {allFilteredSelected ? 'Görünenleri Kaldır' : `Görünenleri Seç (${filteredVariants.length})`}
+                </button>
+
+                {selectedBulkVariantIds.size > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearBulkSelection}
+                    className="px-2.5 py-1 text-[11px] font-bold bg-rose-50 border border-rose-300 text-rose-700 hover:bg-rose-100 rounded transition flex items-center space-x-1 cursor-pointer shadow-2xs"
+                    title="Tüm seçilen ürünlerin seçimini tek tıkla iptal et"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>Seçimi İptal Et</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
             {/* Scrollable Variant List */}
             <div className="flex-1 overflow-y-auto space-y-1.5 pr-1">
               {filteredVariants.length === 0 ? (
@@ -1049,34 +1262,54 @@ export const LabelPrinterModal: React.FC = () => {
                 </div>
               ) : (
                 filteredVariants.map((v) => {
-                  const isSelected = selectedVariant?.id === v.id
+                  const isPreviewSelected = selectedVariant?.id === v.id
+                  const isBulkSelected = selectedBulkVariantIds.has(v.id)
                   return (
                     <div
                       key={v.id}
                       onClick={() => setSelectedVariant(v)}
                       className={`p-2.5 rounded-lg border cursor-pointer transition flex items-center justify-between text-xs ${
-                        isSelected
-                          ? 'bg-blue-50/80 border-blue-500 shadow-2xs'
+                        isPreviewSelected
+                          ? 'bg-blue-50/90 border-blue-500 shadow-2xs ring-1 ring-blue-500'
+                          : isBulkSelected
+                          ? 'bg-blue-50/30 border-blue-300'
                           : 'bg-white border-slate-200 hover:bg-slate-50'
                       }`}
                     >
                       <div className="flex items-center space-x-3">
-                        <div
-                          className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${
-                            isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300 bg-slate-50'
+                        {/* Yuvarlak Mavi Tik Butonu (Toplu Seçim) */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            toggleBulkVariant(v.id)
+                          }}
+                          title={isBulkSelected ? 'Toplu seçimden kaldır' : 'Toplu basım için seç'}
+                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition cursor-pointer ${
+                            isBulkSelected
+                              ? 'bg-blue-600 border-blue-600 text-white shadow-2xs scale-105'
+                              : 'border-slate-300 bg-white hover:border-blue-500 hover:bg-blue-50/50'
                           }`}
                         >
-                          {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
-                        </div>
+                          {isBulkSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                        </button>
+
                         <div>
                           <div className="font-bold text-slate-900 flex items-center space-x-2">
                             <span>{v.product.name}</span>
                             <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 font-mono font-bold">
                               {v.attributes?.color || '-'} / {v.attributes?.size || '-'}
                             </span>
+                            {isPreviewSelected && (
+                              <span className="text-[9px] px-1.5 py-0.2 bg-blue-600 text-white font-extrabold rounded uppercase tracking-wider">
+                                Önizleniyor
+                              </span>
+                            )}
                           </div>
                           <div className="text-[11px] text-slate-500 font-mono mt-0.5 flex items-center space-x-3">
-                            <span>Barkod: <strong className="text-slate-800">{v.barcode}</strong></span>
+                            <span>
+                              Barkod: <strong className="text-slate-800">{v.barcode}</strong>
+                            </span>
                             <span>SKU: {v.sku}</span>
                           </div>
                         </div>
@@ -1085,11 +1318,17 @@ export const LabelPrinterModal: React.FC = () => {
                       <div className="text-right shrink-0">
                         {v.discountPrice && v.discountPrice > 0 ? (
                           <>
-                            <span className="text-[10px] text-slate-400 line-through block">{v.salePrice?.toFixed(2)} ₺</span>
-                            <span className="font-extrabold text-rose-700 text-xs block">{v.discountPrice?.toFixed(2)} ₺</span>
+                            <span className="text-[10px] text-slate-400 line-through block">
+                              {v.salePrice?.toFixed(2)} ₺
+                            </span>
+                            <span className="font-extrabold text-rose-700 text-xs block">
+                              {v.discountPrice?.toFixed(2)} ₺
+                            </span>
                           </>
                         ) : (
-                          <span className="font-extrabold text-emerald-700 text-xs block">{v.salePrice?.toFixed(2)} ₺</span>
+                          <span className="font-extrabold text-emerald-700 text-xs block">
+                            {v.salePrice?.toFixed(2)} ₺
+                          </span>
                         )}
                         <span className="text-[10px] text-slate-500 font-medium">Stok: {v.stockQuantity} Adet</span>
                       </div>
@@ -1443,13 +1682,13 @@ export const LabelPrinterModal: React.FC = () => {
                     onChange={(e) => setPrintQuantity(Math.max(1, parseInt(e.target.value) || 1))}
                     className="w-24 bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-slate-900 font-extrabold text-sm focus:outline-none focus:ring-1 focus:ring-blue-600 text-center"
                   />
-                  <div className="flex items-center space-x-1">
-                    {[1, 5, 10, 20, 50].map((qty) => (
+                  <div className="flex items-center space-x-1 flex-wrap gap-y-1">
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((qty) => (
                       <button
                         key={qty}
                         type="button"
                         onClick={() => setPrintQuantity(qty)}
-                        className={`px-2 py-1 rounded text-xs font-bold transition ${
+                        className={`px-2 py-1 min-w-[28px] text-center rounded text-xs font-bold transition cursor-pointer ${
                           printQuantity === qty
                             ? 'bg-blue-700 text-white shadow-2xs'
                             : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
@@ -1463,41 +1702,81 @@ export const LabelPrinterModal: React.FC = () => {
               </div>
 
               {/* Action Buttons: Main Print, Windows Dialog & 1-Piece Test Print */}
-              <div className="pt-1 space-y-2">
-                <button
-                  disabled={isPrinting || !selectedVariant}
-                  onClick={() => handlePrintDispatch(printQuantity, true)}
-                  className="w-full py-2.5 bg-[#00268A] hover:bg-[#001f70] text-white font-bold rounded-lg shadow-sm transition flex items-center justify-center space-x-2 text-xs disabled:opacity-50"
-                >
-                  <Printer className="w-4 h-4" />
-                  <span>
-                    {isPrinting
-                      ? 'Yazdırılıyor...'
-                      : `${printQuantity} Adet ${printLayout === 'HORIZONTAL' ? 'Yatay' : '90° Dikey (Askı)'} Etiket Yazdır`}
-                  </span>
-                </button>
-
-                <div className="grid grid-cols-2 gap-2">
+              {selectedBulkVariantIds.size > 0 ? (
+                <div className="pt-1 space-y-2">
+                  {/* Toplu Yazdırma Ana Butonu */}
                   <button
-                    disabled={isPrinting || !selectedVariant}
-                    onClick={() => handlePrintDispatch(printQuantity, false)}
-                    className="py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-900 font-bold rounded-lg border border-blue-200 transition flex items-center justify-center space-x-1.5 text-[11px] disabled:opacity-50"
-                    title="Windows'un kendi yazdırma penceresini açar; kağıt boyutu ve önizlemeyi doğrulamanızı sağlar"
+                    disabled={isPrinting}
+                    onClick={() => handleBulkPrintDispatch(true)}
+                    className="w-full py-2.5 bg-blue-700 hover:bg-blue-800 text-white font-extrabold rounded-lg shadow-md transition flex items-center justify-center space-x-2 text-xs disabled:opacity-50 cursor-pointer"
                   >
-                    <Sliders className="w-3.5 h-3.5 text-blue-700" />
-                    <span>Windows Diyaloğu Aç</span>
+                    <Printer className="w-4 h-4" />
+                    <span>
+                      {isPrinting
+                        ? 'Toplu Yazdırılıyor...'
+                        : `Toplu Yazdır: ${selectedBulkVariantIds.size} Ürün (Toplam ${selectedBulkVariantIds.size * printQuantity} Etiket)`}
+                    </span>
                   </button>
 
-                  <button
-                    disabled={isPrinting || !selectedVariant}
-                    onClick={() => handlePrintDispatch(1, true)}
-                    className="py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg border border-slate-300 transition flex items-center justify-center space-x-1.5 text-[11px] disabled:opacity-50"
-                  >
-                    <Copy className="w-3.5 h-3.5 text-slate-500" />
-                    <span>1 Adet Test Baskısı</span>
-                  </button>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      disabled={isPrinting}
+                      onClick={() => handleBulkPrintDispatch(false)}
+                      className="py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-900 font-bold rounded-lg border border-blue-200 transition flex items-center justify-center space-x-1.5 text-[11px] disabled:opacity-50 cursor-pointer"
+                      title="Seçili tüm ürünleri Windows yazdırma penceresi ile önizleyerek yazdır"
+                    >
+                      <Sliders className="w-3.5 h-3.5 text-blue-700" />
+                      <span>Toplu Windows Diyaloğu</span>
+                    </button>
+
+                    <button
+                      disabled={isPrinting || !selectedVariant}
+                      onClick={() => handlePrintDispatch(printQuantity, true)}
+                      className="py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg border border-slate-300 transition flex items-center justify-center space-x-1.5 text-[11px] disabled:opacity-50 cursor-pointer"
+                      title="Yalnızca önizlenen tekil ürünü yazdır"
+                    >
+                      <Tag className="w-3.5 h-3.5 text-slate-500" />
+                      <span>Yalnızca Önizlenen ({printQuantity} Adet)</span>
+                    </button>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="pt-1 space-y-2">
+                  <button
+                    disabled={isPrinting || !selectedVariant}
+                    onClick={() => handlePrintDispatch(printQuantity, true)}
+                    className="w-full py-2.5 bg-[#00268A] hover:bg-[#001f70] text-white font-bold rounded-lg shadow-sm transition flex items-center justify-center space-x-2 text-xs disabled:opacity-50 cursor-pointer"
+                  >
+                    <Printer className="w-4 h-4" />
+                    <span>
+                      {isPrinting
+                        ? 'Yazdırılıyor...'
+                        : `${printQuantity} Adet ${printLayout === 'HORIZONTAL' ? 'Yatay' : '90° Dikey (Askı)'} Etiket Yazdır`}
+                    </span>
+                  </button>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      disabled={isPrinting || !selectedVariant}
+                      onClick={() => handlePrintDispatch(printQuantity, false)}
+                      className="py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-900 font-bold rounded-lg border border-blue-200 transition flex items-center justify-center space-x-1.5 text-[11px] disabled:opacity-50 cursor-pointer"
+                      title="Windows'un kendi yazdırma penceresini açar; kağıt boyutu ve önizlemeyi doğrulamanızı sağlar"
+                    >
+                      <Sliders className="w-3.5 h-3.5 text-blue-700" />
+                      <span>Windows Diyaloğu Aç</span>
+                    </button>
+
+                    <button
+                      disabled={isPrinting || !selectedVariant}
+                      onClick={() => handlePrintDispatch(1, true)}
+                      className="py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg border border-slate-300 transition flex items-center justify-center space-x-1.5 text-[11px] disabled:opacity-50 cursor-pointer"
+                    >
+                      <Copy className="w-3.5 h-3.5 text-slate-500" />
+                      <span>1 Adet Test Baskısı</span>
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {message && (
                 <div className="p-2.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-xs flex items-center space-x-2 font-semibold">

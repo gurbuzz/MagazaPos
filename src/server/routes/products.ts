@@ -203,7 +203,7 @@ productRouter.post('/', async (req, res) => {
         data: {
           code,
           name,
-          brand,
+          brand: brand ? String(brand).trim() : null,
           basePrice: parseFloat(basePrice) || 0,
           description,
           categoryId: categoryId || null,
@@ -363,11 +363,20 @@ productRouter.post('/import', async (req, res) => {
         const categoryName = String(row.category || '').trim().toLocaleUpperCase('tr-TR')
         const color = String(row.color || 'Standart').trim()
         const size = String(row.size || 'Standart').trim()
-        const brand = String(row.brand || 'Marka').trim()
+        const brand = row.brand !== undefined && row.brand !== null && String(row.brand).trim() !== ''
+          ? String(row.brand).trim()
+          : null
+        const forceBrand = Boolean(row.forceBrand)
         const costPrice = parseDecimal(row.costPrice)
         const salePrice = parseDecimal(row.salePrice)
         const discountPrice = parseDecimal(row.discountPrice || row.indirimliFiyat || row.iskontoluFiyat)
         const quantity = parseInt(row.quantity) || 0
+
+        const isGenericBrand = (currentBrand: string | null | undefined): boolean => {
+          if (!currentBrand) return true
+          const norm = currentBrand.trim().toLowerCase()
+          return norm === '' || norm === 'marka' || norm === 'mağaza' || norm === 'magaza' || norm === 'bilinmiyor'
+        }
 
         if (!name || !barcode) {
           errors.push(`Satır ${rowIndex}: Ürün adı ve barkod zorunludur.`)
@@ -391,6 +400,13 @@ productRouter.post('/import', async (req, res) => {
         })
 
         if (existingVariant) {
+          if (brand && existingVariant.product && (forceBrand || isGenericBrand(existingVariant.product.brand))) {
+            await tx.product.update({
+              where: { id: existingVariant.product.id },
+              data: { brand }
+            })
+          }
+
           const updateData: any = {}
           if (quantity > 0) {
             updateData.stockQuantity = { increment: quantity }
@@ -429,16 +445,21 @@ productRouter.post('/import', async (req, res) => {
             data: {
               code: productCode,
               name,
-              brand,
+              brand: brand || null,
               basePrice: salePrice > 0 ? salePrice : 100,
               categoryId: categoryId || null
             }
           })
           createdProducts++
+        } else if (brand && (forceBrand || isGenericBrand(product.brand))) {
+          await tx.product.update({
+            where: { id: product.id },
+            data: { brand }
+          })
         }
 
         // 4. Create new variant
-        const sku = `${productCode}-${color.toUpperCase()}-${size.toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`
+        const sku = `${productCode}-${color.toLocaleUpperCase('tr-TR')}-${size.toLocaleUpperCase('tr-TR')}-${Math.floor(1000 + Math.random() * 9000)}`
         const newVariant = await tx.productVariant.create({
           data: {
             productId: product.id,
@@ -701,4 +722,92 @@ productRouter.put('/variants/:id', requireAdminPinAuth, async (req, res) => {
     res.status(400).json({ error: error.message })
   }
 })
+
+// DELETE /api/products/:id - Satış Geçmişi Kontrollü Ürün Silme / Arşive Kaldırma (Yönetici PIN Gerekli)
+productRouter.delete('/:id', requireAdminPinAuth, async (req, res) => {
+  try {
+    const { id } = req.params
+    const action = req.query.action as string | undefined
+
+    const product = await prisma.product.findUnique({
+      where: { id },
+      include: {
+        variants: {
+          include: {
+            saleItems: true,
+          },
+        },
+      },
+    })
+
+    if (!product) {
+      res.status(404).json({ error: 'Ürün bulunamadı!' })
+      return
+    }
+
+    // Toplam satış kalemi sayısı
+    const totalSalesCount = product.variants.reduce((acc, v) => acc + (v.saleItems?.length || 0), 0)
+
+    // Kullanıcı geçmiş satışları olan ürünü stoğunu sıfırlayarak arşive kaldırmak istediyse:
+    if (action === 'zero_stock') {
+      await prisma.$transaction(async (tx) => {
+        for (const v of product.variants) {
+          if (v.stockQuantity > 0) {
+            await tx.productVariant.update({
+              where: { id: v.id },
+              data: { stockQuantity: 0 },
+            })
+            await tx.stockMovement.create({
+              data: {
+                variantId: v.id,
+                type: 'ADJUSTMENT',
+                quantity: 0,
+                note: 'Ürün Arşivlendi (Stok Sıfırlandı)',
+              },
+            })
+          }
+        }
+      })
+
+      res.json({
+        success: true,
+        archived: true,
+        message: `"${product.name}" ürünü geçmiş satış kayıtları korumak adına stoğu 0 yapılarak "Arşiv / Tükenenler" listesine kaldırıldı.`,
+      })
+      return
+    }
+
+    // Eğer geçmişte satışı varsa doğrudan silmeyi engelle
+    if (totalSalesCount > 0) {
+      res.status(400).json({
+        canDelete: false,
+        hasSales: true,
+        totalSalesCount,
+        error: `Bu ürüne ait ${totalSalesCount} adet geçmiş satış fişi bulunmaktadır! Mali geçmişi ve fişleri korumak adına tamamen silinemez. Stoğunu sıfırlayarak Arşiv'e kaldırabilirsiniz.`,
+      })
+      return
+    }
+
+    // Hiç satışı yoksa (test veya hatalı açılmış): Tamamen ve kalıcı olarak sil
+    await prisma.$transaction(async (tx) => {
+      for (const v of product.variants) {
+        await tx.stockMovement.deleteMany({
+          where: { variantId: v.id },
+        })
+      }
+      await tx.product.delete({
+        where: { id },
+      })
+    })
+
+    res.json({
+      success: true,
+      deleted: true,
+      message: `"${product.name}" ürünü hiç satış görmediği için veritabanından tamamen silindi ve barkodu boşa çıkarıldı.`,
+    })
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Ürün silinirken bir hata oluştu!' })
+  }
+})
+
 
