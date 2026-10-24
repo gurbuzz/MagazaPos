@@ -118,7 +118,24 @@ salesRouter.post('/', async (req, res) => {
     }
 
     const prefix = typeof receiptPrefix === 'string' && receiptPrefix.trim() ? receiptPrefix.trim().replace(/[-_]+$/, '') : 'FIS'
-    const receiptNo = `${prefix}-${Date.now().toString().slice(-6)}${Math.floor(100 + Math.random() * 900)}`
+
+    // Generate collision-resistant unique receipt number (e.g. FIS-261024-081520-4821)
+    let receiptNo = ''
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const now = new Date()
+      const datePart = `${now.getFullYear().toString().slice(-2)}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`
+      const timePart = `${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`
+      const rand = Math.floor(1000 + Math.random() * 9000)
+      const candidate = `${prefix}-${datePart}-${timePart}-${rand}`
+      const existing = await prisma.sale.findUnique({ where: { receiptNo: candidate } })
+      if (!existing) {
+        receiptNo = candidate
+        break
+      }
+    }
+    if (!receiptNo) {
+      receiptNo = `${prefix}-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`
+    }
 
     // Transaction to create sale, items, update stock and log movements atomically
     const result = await prisma.$transaction(async (tx) => {

@@ -104,6 +104,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
   const handleCheckoutSubmit = async () => {
     setCheckoutError(null)
     if (paymentMode === 'SPLIT' && total > 0) {
+      if (cashAmount < 0 || cardAmount < 0) {
+        setCheckoutError('Nakit ve kart tutarları 0 veya daha büyük olmalıdır!')
+        return
+      }
       const splitSum = Math.round((cashAmount + cardAmount) * 100) / 100
       if (Math.abs(splitSum - total) > 0.05) {
         setCheckoutError(`Parçalı ödeme toplamı (${splitSum.toFixed(2)} ₺), ödenecek tutara (${total.toFixed(2)} ₺) eşit olmalıdır!`)
