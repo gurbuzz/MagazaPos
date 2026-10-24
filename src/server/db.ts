@@ -594,6 +594,8 @@ export async function initDbPragmas() {
     await prisma.$queryRawUnsafe('PRAGMA cache_size = -64000;') // 64 MB RAM cache (Celeron I/O yükünü önler)
     await prisma.$queryRawUnsafe('PRAGMA temp_store = MEMORY;')  // Geçici tablolar ve sıralamalar RAM'de çalışır
     await prisma.$queryRawUnsafe('PRAGMA mmap_size = 268435456;') // 256 MB Bellek Eşlemeli I/O
+    await prisma.$queryRawUnsafe('PRAGMA wal_autocheckpoint = 1000;') // Otomatik WAL temizliği (log dosyasının şişmesini önler)
+    await prisma.$queryRawUnsafe('PRAGMA optimize;') // SQLite dahili sorgu planlayıcı optimizasyonu
 
     // Ensure database schema, migrations and starter data
     await ensureDatabaseSchema()

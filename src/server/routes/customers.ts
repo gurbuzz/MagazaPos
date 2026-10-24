@@ -6,7 +6,7 @@ export const customersRouter = Router()
 // GET /api/customers - List all customers with optional search filter
 customersRouter.get('/', async (req, res) => {
   try {
-    const { search } = req.query
+    const { search, limit } = req.query
     const whereClause: any = {}
 
     if (search && typeof search === 'string' && search.trim() !== '') {
@@ -27,7 +27,8 @@ customersRouter.get('/', async (req, res) => {
           select: { sales: true }
         }
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
+      take: limit ? parseInt(limit as string) : 250
     })
 
     res.json(customers)
@@ -55,7 +56,8 @@ customersRouter.get('/:id', async (req, res) => {
               }
             }
           },
-          orderBy: { createdAt: 'desc' }
+          orderBy: { createdAt: 'desc' },
+          take: 100
         }
       }
     })
