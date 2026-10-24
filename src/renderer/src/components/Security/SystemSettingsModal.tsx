@@ -99,6 +99,8 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
 
   const [detectedIps, setDetectedIps] = useState<any[]>([])
   const [savedSuccess, setSavedSuccess] = useState(false)
+  const [settingsError, setSettingsError] = useState<string | null>(null)
+  const [copiedNotice, setCopiedNotice] = useState<'display' | 'mobile' | null>(null)
   const [isResetting, setIsResetting] = useState(false)
   const [mobileQrDataUrl, setMobileQrDataUrl] = useState<string>('')
 
@@ -227,9 +229,10 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    setSettingsError(null)
 
     if (!formPinCode || formPinCode.length !== 4 || !/^\d{4}$/.test(formPinCode)) {
-      alert('PIN Şifresi tam 4 haneli rakamlardan oluşmalıdır! (Örn: 1234)')
+      setSettingsError('PIN Şifresi tam 4 haneli rakamlardan oluşmalıdır! (Örn: 1234)')
       return
     }
 
@@ -647,6 +650,19 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
 
         {/* Settings Form */}
         <form onSubmit={handleSubmit} className="p-5 space-y-5 max-h-[70vh] overflow-y-auto">
+          {settingsError && (
+            <div className="p-3 bg-rose-50 border border-rose-300 rounded-xl text-xs font-semibold text-rose-800 flex items-center justify-between shadow-2xs">
+              <span>⚠️ {settingsError}</span>
+              <button
+                type="button"
+                onClick={() => setSettingsError(null)}
+                className="text-rose-500 hover:text-rose-800 font-bold ml-2 text-sm"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
           {/* TAB 1: General & Security */}
           {activeTab === 'general' && (
             <div className="space-y-3.5">
@@ -1040,11 +1056,12 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
                       type="button"
                       onClick={() => {
                         navigator.clipboard.writeText(customerDisplayUrl)
-                        alert('Kablosuz müşteri ekranı bağlantı adresi kopyalandı!')
+                        setCopiedNotice('display')
+                        setTimeout(() => setCopiedNotice(null), 3000)
                       }}
-                      className="px-2.5 py-1 bg-blue-700 hover:bg-blue-800 text-white rounded text-xs font-semibold transition shadow-2xs"
+                      className="px-2.5 py-1 bg-blue-700 hover:bg-blue-800 text-white rounded text-xs font-semibold transition shadow-2xs cursor-pointer"
                     >
-                      Adresi Kopyala
+                      {copiedNotice === 'display' ? '✓ Kopyalandı' : 'Adresi Kopyala'}
                     </button>
                     <button
                       type="button"
@@ -1100,11 +1117,12 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
                         type="button"
                         onClick={() => {
                           navigator.clipboard.writeText(mobileUrl)
-                          alert('Mobil depo adresi kopyalandı!')
+                          setCopiedNotice('mobile')
+                          setTimeout(() => setCopiedNotice(null), 3000)
                         }}
-                        className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-semibold transition shadow-2xs"
+                        className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-semibold transition shadow-2xs cursor-pointer"
                       >
-                        Adresi Kopyala
+                        {copiedNotice === 'mobile' ? '✓ Kopyalandı' : 'Adresi Kopyala'}
                       </button>
                       <button
                         type="button"

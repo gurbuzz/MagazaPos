@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import {
   Users,
   Search,
@@ -51,6 +51,19 @@ export const CustomerView: React.FC = () => {
   // Return Modal State
   const [selectedReturnSale, setSelectedReturnSale] = useState<any | null>(null)
   const [isReturnModalOpen, setIsReturnModalOpen] = useState(false)
+
+  // Custom Delete Confirm & Toast States (No window.alert/confirm)
+  const [deleteConfirmCustomer, setDeleteConfirmCustomer] = useState<Customer | null>(null)
+  const [customerToast, setCustomerToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const toastTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  const showToast = (type: 'success' | 'error', message: string) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    setCustomerToast({ type, message })
+    toastTimerRef.current = setTimeout(() => {
+      setCustomerToast(null)
+    }, 4000)
+  }
 
   const fetchCustomers = async (query = '') => {
     setIsLoading(true)
@@ -138,11 +151,15 @@ export const CustomerView: React.FC = () => {
     setIsModalOpen(true)
   }
 
-  const handleDeleteCustomer = async (c: Customer, e: React.MouseEvent) => {
+  const handleDeleteCustomer = (c: Customer, e: React.MouseEvent) => {
     e.stopPropagation()
-    if (!confirm(`${c.firstName} ${c.lastName} isimli müşteriyi silmek istediğinizden emin misiniz?`)) {
-      return
-    }
+    setDeleteConfirmCustomer(c)
+  }
+
+  const executeDeleteCustomer = async () => {
+    if (!deleteConfirmCustomer) return
+    const c = deleteConfirmCustomer
+    setDeleteConfirmCustomer(null)
     try {
       const res = await fetch(`/api/customers/${c.id}`, { method: 'DELETE' })
       if (res.ok) {
@@ -151,12 +168,13 @@ export const CustomerView: React.FC = () => {
         }
         fetchCustomers(searchTerm)
         notifyDataChanged()
+        showToast('success', `"${c.firstName} ${c.lastName}" başarıyla silindi.`)
       } else {
         const err = await res.json()
-        alert(`Hata: ${err.error}`)
+        showToast('error', `Hata: ${err.error || 'Silme işlemi başarısız'}`)
       }
     } catch (err: any) {
-      alert(`Silme hatası: ${err.message}`)
+      showToast('error', `Silme hatası: ${err.message || 'Bağlantı hatası'}`)
     }
   }
 
@@ -827,6 +845,59 @@ export const CustomerView: React.FC = () => {
           }
         }}
       />
+
+      {/* Delete Customer Confirmation Modal (No window.confirm) */}
+      {deleteConfirmCustomer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4 border border-slate-200">
+            <div className="flex items-center space-x-3 text-rose-600">
+              <div className="p-2.5 bg-rose-50 rounded-xl">
+                <Trash2 className="w-5 h-5 text-rose-600" />
+              </div>
+              <h3 className="font-bold text-sm text-slate-900">Müşteri Kaydını Sil</h3>
+            </div>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              <strong>{deleteConfirmCustomer.firstName} {deleteConfirmCustomer.lastName}</strong> isimli müşteriyi silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.
+            </p>
+            <div className="flex space-x-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmCustomer(null)}
+                className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition cursor-pointer"
+              >
+                Vazgeç
+              </button>
+              <button
+                type="button"
+                onClick={executeDeleteCustomer}
+                className="flex-1 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl transition shadow-xs cursor-pointer"
+              >
+                Evet, Sil
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* High-Z Toast Notification (No window.alert) */}
+      {customerToast && (
+        <div
+          className={`fixed top-4 right-4 z-50 px-4 py-2.5 rounded-xl text-xs font-bold shadow-lg border flex items-center space-x-2 animate-fadeIn ${
+            customerToast.type === 'success'
+              ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+              : 'bg-rose-50 text-rose-800 border-rose-300'
+          }`}
+        >
+          <span>{customerToast.type === 'success' ? '✅' : '⚠️'} {customerToast.message}</span>
+          <button
+            type="button"
+            onClick={() => setCustomerToast(null)}
+            className="text-slate-400 hover:text-slate-700 font-bold ml-2"
+          >
+            ✕
+          </button>
+        </div>
+      )}
     </div>
   )
 }
