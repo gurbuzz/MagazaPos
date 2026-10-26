@@ -164,7 +164,7 @@ export const MusicModal: React.FC = () => {
   }
 
   const handleCopyRedirectUri = () => {
-    const uri = config?.redirectUri || 'http://localhost:3782/api/music/spotify/callback'
+    const uri = config?.redirectUri || 'http://127.0.0.1:3782/api/music/spotify/callback'
     navigator.clipboard.writeText(uri)
     setCopiedRedirect(true)
     setTimeout(() => setCopiedRedirect(false), 2000)
@@ -1063,7 +1063,7 @@ export const MusicModal: React.FC = () => {
                     </label>
                     <div className="flex items-center justify-between gap-2">
                       <code className="text-xs font-mono text-slate-800 bg-slate-100 px-2 py-1 rounded select-all break-all">
-                        {config?.redirectUri || 'http://localhost:3782/api/music/spotify/callback'}
+                        {config?.redirectUri || 'http://127.0.0.1:3782/api/music/spotify/callback'}
                       </code>
                       <button
                         type="button"

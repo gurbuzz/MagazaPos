@@ -6,7 +6,7 @@ export const musicRouter = Router()
 // Helper to calculate callback redirect URI based on current request
 function getRedirectUri(_req?: any): string {
   const port = process.env.PORT || 3782
-  return `http://localhost:${port}/api/music/spotify/callback`
+  return `http://127.0.0.1:${port}/api/music/spotify/callback`
 }
 
 // GET /api/music/status - Get current player and schedule status
