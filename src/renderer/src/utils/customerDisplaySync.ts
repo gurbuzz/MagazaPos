@@ -20,6 +20,7 @@ export interface CustomerDisplayPayload {
   } | null
   lastItemAdded?: any
   hidePrices?: boolean
+  theme?: 'dark' | 'light'
   force?: boolean
   updatedAt?: string
 }
@@ -66,6 +67,7 @@ export function syncCustomerDisplay(payload: Partial<CustomerDisplayPayload & { 
     paymentInfo: payload.paymentInfo || null,
     lastItemAdded: payload.lastItemAdded || null,
     hidePrices: payload.hidePrices ?? (localStorage.getItem('pos_stock_only_mode') === 'true'),
+    theme: payload.theme || (localStorage.getItem('pos_customer_display_theme') as 'dark' | 'light') || 'dark',
     updatedAt: new Date().toISOString(),
   }
 

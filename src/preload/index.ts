@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('electron', {
   getLocalIp: () => ipcRenderer.invoke('get-local-ip'),
   toggleFullscreen: () => ipcRenderer.invoke('toggle-fullscreen'),
   isFullscreen: () => ipcRenderer.invoke('is-fullscreen'),
+  openExternal: (url: string) => ipcRenderer.invoke('open-external', url),
 
   // Customer Display (Müşteri Ekranı) IPC methods
   openCustomerDisplay: () => ipcRenderer.invoke('open-customer-display'),

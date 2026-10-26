@@ -26,10 +26,13 @@ import {
   Monitor,
   ExternalLink,
   QrCode,
+  Sun,
+  Moon,
 } from 'lucide-react'
 import QRCode from 'qrcode'
 import { usePosStore } from '../../store/usePosStore'
 import { useKeyboardStore } from '../../store/useKeyboardStore'
+import { syncCustomerDisplay } from '../../utils/customerDisplaySync'
 import lufianLogo from '../../assets/lufian-og.png'
 import jackJonesLogo from '../../assets/org_logo.svg'
 
@@ -57,6 +60,7 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
     localIp,
     autoOpenCustomerDisplay,
     customerDisplayMessage,
+    customerDisplayTheme,
     updateSystemSettings,
     lockApp,
   } = usePosStore()
@@ -76,6 +80,7 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
   const [formCustomIp, setFormCustomIp] = useState(customIp)
   const [formAutoOpenCustomerDisplay, setFormAutoOpenCustomerDisplay] = useState(autoOpenCustomerDisplay)
   const [formCustomerDisplayMessage, setFormCustomerDisplayMessage] = useState(customerDisplayMessage)
+  const [formCustomerDisplayTheme, setFormCustomerDisplayTheme] = useState<'dark' | 'light'>(customerDisplayTheme || 'dark')
 
   const { autoOpen: autoOpenKeyboard, setAutoOpen: setAutoOpenKeyboard } = useKeyboardStore()
   const [formAutoOpenKeyboard, setFormAutoOpenKeyboard] = useState(autoOpenKeyboard)
@@ -104,7 +109,7 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
   const [isResetting, setIsResetting] = useState(false)
   const [mobileQrDataUrl, setMobileQrDataUrl] = useState<string>('')
 
-  const activeIp = formCustomIp.trim() || localIp || '127.0.0.1'
+  const activeIp = (formCustomIp || '').trim() || localIp || '127.0.0.1'
   const mobileUrl = `http://${activeIp}:3782/mobile`
   const customerDisplayUrl = `http://${activeIp}:3782/customer-display`
 
@@ -185,11 +190,14 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
     setFormCustomIp(customIp)
     setFormAutoOpenCustomerDisplay(autoOpenCustomerDisplay)
     setFormCustomerDisplayMessage(customerDisplayMessage)
+    setFormCustomerDisplayTheme(customerDisplayTheme || 'dark')
     setFormAutoOpenKeyboard(autoOpenKeyboard)
 
     // Check display hardware
     if (window.electron?.getCustomerDisplayStatus) {
-      window.electron.getCustomerDisplayStatus().then((s) => setCustomerDisplayHardware(s))
+      window.electron.getCustomerDisplayStatus().then((s) => {
+        setCustomerDisplayHardware(s || { isOpen: false, hasSecondary: false, displaysCount: 1 })
+      }).catch(() => {})
     }
 
     // Ensure server security PIN is synchronized when settings modal opens
@@ -215,6 +223,7 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
     customIp,
     autoOpenCustomerDisplay,
     customerDisplayMessage,
+    customerDisplayTheme,
     autoOpenKeyboard,
   ])
 
@@ -237,19 +246,25 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
     }
 
     updateSystemSettings({
-      storeName: formStoreName.trim() || 'JACK & JONES',
-      storeAddress: formStoreAddress.trim(),
-      storePhone: formStorePhone.trim(),
-      cashierName: formCashierName.trim() || 'Kasiyer 1',
+      storeName: (formStoreName || '').trim() || 'JACK & JONES',
+      storeAddress: (formStoreAddress || '').trim(),
+      storePhone: (formStorePhone || '').trim(),
+      cashierName: (formCashierName || '').trim() || 'Kasiyer 1',
       pinCode: formPinCode,
-      receiptPrefix: formReceiptPrefix.trim() || 'FIS-',
-      receiptFooterNote: formReceiptFooter.trim(),
+      receiptPrefix: (formReceiptPrefix || '').trim() || 'FIS-',
+      receiptFooterNote: (formReceiptFooter || '').trim(),
       vatRate: Number(formVatRate) || 10,
       lowStockThreshold: Number(formLowStock) || 5,
       autoPrintReceipt: formAutoPrint,
-      customIp: formCustomIp.trim(),
+      customIp: (formCustomIp || '').trim(),
       autoOpenCustomerDisplay: formAutoOpenCustomerDisplay,
-      customerDisplayMessage: formCustomerDisplayMessage.trim(),
+      customerDisplayMessage: (formCustomerDisplayMessage || '').trim(),
+      customerDisplayTheme: formCustomerDisplayTheme,
+    })
+
+    syncCustomerDisplay({
+      theme: formCustomerDisplayTheme,
+      force: true,
     })
 
     setAutoOpenKeyboard(formAutoOpenKeyboard)
@@ -620,7 +635,7 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
             }`}
           >
             <span>Müşteri Ekranı (2. Ekran)</span>
-            {customerDisplayHardware.hasSecondary && (
+            {customerDisplayHardware?.hasSecondary && (
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
             )}
           </button>
@@ -912,7 +927,7 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
                       Çift Ekran POS Donanım Durumu
                     </h5>
                   </div>
-                  {customerDisplayHardware.hasSecondary ? (
+                  {customerDisplayHardware?.hasSecondary ? (
                     <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-bold flex items-center space-x-1">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
                       <span>2. Ekran Algılandı (Çift Ekran Aktif ✅)</span>
@@ -926,10 +941,10 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
 
                 <div className="text-xs text-slate-600 space-y-1">
                   <p>
-                    {customerDisplayHardware.hasSecondary ? (
+                    {customerDisplayHardware?.hasSecondary ? (
                       <>
-                        Bilgisayarınıza bağlı <strong>{customerDisplayHardware.displaysCount} adet monitör</strong> tespit edildi.
-                        {customerDisplayHardware.secondaryResolution && (
+                        Bilgisayarınıza bağlı <strong>{customerDisplayHardware?.displaysCount || 2} adet monitör</strong> tespit edildi.
+                        {customerDisplayHardware?.secondaryResolution && (
                           <span className="ml-1 text-slate-500 font-mono">
                             (2. Ekran Çözünürlüğü: {customerDisplayHardware.secondaryResolution})
                           </span>
@@ -996,6 +1011,83 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
 
               {/* Startup & Behavior Settings */}
               <div className="space-y-3 pt-1">
+                {/* Theme Selector for Customer Display */}
+                <div className="p-3.5 bg-white border border-slate-200 rounded-xl space-y-2.5 shadow-2xs">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="text-xs font-bold text-slate-800 block">
+                        Müşteri Ekranı Teması / Arka Plan Rengi
+                      </label>
+                      <p className="text-[11px] text-slate-500 font-medium">
+                        Müşteri ekranının renk düzenini seçin (yalnızca renkler değişir, yerleşim ve özellikler korunur).
+                      </p>
+                    </div>
+                    <span className="px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-slate-100 text-slate-700 border border-slate-200">
+                      {formCustomerDisplayTheme === 'light' ? 'Açık / Beyaz Tema' : 'Klasik Koyu Tema'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 pt-1">
+                    {/* Dark Theme Option */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormCustomerDisplayTheme('dark')
+                        syncCustomerDisplay({ theme: 'dark', force: true })
+                      }}
+                      className={`p-3 rounded-xl border text-left flex items-center space-x-3 transition-all cursor-pointer ${
+                        formCustomerDisplayTheme === 'dark'
+                          ? 'bg-slate-900 text-white border-blue-600 shadow-md ring-2 ring-blue-500/40'
+                          : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200/70'
+                      }`}
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0">
+                        <Moon className={`w-4 h-4 ${formCustomerDisplayTheme === 'dark' ? 'text-blue-400' : 'text-slate-500'}`} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold flex items-center space-x-1.5">
+                          <span>Koyu Tema</span>
+                          {formCustomerDisplayTheme === 'dark' && (
+                            <span className="w-2 h-2 rounded-full bg-blue-400"></span>
+                          )}
+                        </div>
+                        <div className={`text-[10px] truncate ${formCustomerDisplayTheme === 'dark' ? 'text-slate-300' : 'text-slate-500'}`}>
+                          Klasik koyu lacivert arka plan
+                        </div>
+                      </div>
+                    </button>
+
+                    {/* Light / White Theme Option */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormCustomerDisplayTheme('light')
+                        syncCustomerDisplay({ theme: 'light', force: true })
+                      }}
+                      className={`p-3 rounded-xl border text-left flex items-center space-x-3 transition-all cursor-pointer ${
+                        formCustomerDisplayTheme === 'light'
+                          ? 'bg-white text-slate-900 border-blue-600 shadow-md ring-2 ring-blue-500/40'
+                          : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center shrink-0">
+                        <Sun className={`w-4 h-4 ${formCustomerDisplayTheme === 'light' ? 'text-amber-500' : 'text-slate-500'}`} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold flex items-center space-x-1.5">
+                          <span>Beyaz / Açık Tema</span>
+                          {formCustomerDisplayTheme === 'light' && (
+                            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                          )}
+                        </div>
+                        <div className={`text-[10px] truncate ${formCustomerDisplayTheme === 'light' ? 'text-slate-600' : 'text-slate-500'}`}>
+                          Ferah modern beyaz arka plan
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
                 <div className="flex items-center space-x-2.5 p-3 bg-white border border-slate-200 rounded-xl shadow-2xs">
                   <input
                     type="checkbox"

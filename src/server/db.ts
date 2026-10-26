@@ -11,6 +11,11 @@ export function toSqliteUrl(filePath: string): string {
   if (!normalized.startsWith('file:')) {
     normalized = `file:${normalized}`
   }
+  // SQLite dosya kilitlemelerini (file locking) ve çoklu bağlantı havuzu çakışmalarını önlemek için:
+  if (!normalized.includes('connection_limit=')) {
+    const separator = normalized.includes('?') ? '&' : '?'
+    normalized = `${normalized}${separator}connection_limit=1&socket_timeout=15`
+  }
   return normalized
 }
 
@@ -505,7 +510,7 @@ export async function ensureDatabaseSchema(allowSeed: boolean = true) {
       ]
 
       for (const sql of statements) {
-        await prisma.$queryRawUnsafe(sql)
+        await prisma.$executeRawUnsafe(sql)
       }
       logDebug('DB_INIT', 'Database schema created successfully!')
       console.log('[DB] Tablolar basariyla olusturuldu.')
@@ -518,7 +523,7 @@ export async function ensureDatabaseSchema(allowSeed: boolean = true) {
         const hasDiscountPrice = columns.some((c: any) => c.name === 'discountPrice')
         if (!hasDiscountPrice) {
           logDebug('DB_INIT', 'Column discountPrice missing on ProductVariant! Running ALTER TABLE...')
-          await prisma.$queryRawUnsafe(`ALTER TABLE "ProductVariant" ADD COLUMN "discountPrice" REAL;`)
+          await prisma.$executeRawUnsafe(`ALTER TABLE "ProductVariant" ADD COLUMN "discountPrice" REAL;`)
           logDebug('DB_INIT', 'Column discountPrice successfully added to ProductVariant.')
           console.log('[DB] ProductVariant tablosuna discountPrice kolonu eklendi.')
         }
@@ -570,7 +575,7 @@ export async function ensureDatabaseSchema(allowSeed: boolean = true) {
       ]
 
       for (const idxSql of performanceIndexes) {
-        await prisma.$queryRawUnsafe(idxSql).catch((e: any) => {
+        await prisma.$executeRawUnsafe(idxSql).catch((e: any) => {
           logDebug('DB_INIT', `Notice creating index: ${idxSql}`, e?.message)
         })
       }
@@ -584,32 +589,95 @@ export async function ensureDatabaseSchema(allowSeed: boolean = true) {
   }
 }
 
+let initPragmasPromise: Promise<void> | null = null
+
 // Configure SQLite WAL mode & busy timeout for concurrent read/write operations
-export async function initDbPragmas() {
-  try {
-    logDebug('PRISMA_TEST', `Attempting to execute PRAGMA commands...`)
-    await prisma.$queryRawUnsafe('PRAGMA journal_mode=WAL;')
-    await prisma.$queryRawUnsafe('PRAGMA busy_timeout=5000;')
-    await prisma.$queryRawUnsafe('PRAGMA synchronous=NORMAL;')
-    await prisma.$queryRawUnsafe('PRAGMA cache_size = -64000;') // 64 MB RAM cache (Celeron I/O yükünü önler)
-    await prisma.$queryRawUnsafe('PRAGMA temp_store = MEMORY;')  // Geçici tablolar ve sıralamalar RAM'de çalışır
-    await prisma.$queryRawUnsafe('PRAGMA mmap_size = 268435456;') // 256 MB Bellek Eşlemeli I/O
-    await prisma.$queryRawUnsafe('PRAGMA wal_autocheckpoint = 1000;') // Otomatik WAL temizliği (log dosyasının şişmesini önler)
-    await prisma.$queryRawUnsafe('PRAGMA optimize;') // SQLite dahili sorgu planlayıcı optimizasyonu
-
-    // Ensure database schema, migrations and starter data
-    await ensureDatabaseSchema()
-
-    // Test the database structure
-    const tableCount: any = await prisma.$queryRawUnsafe(`SELECT count(*) as count FROM sqlite_master WHERE type='table';`)
-    logDebug('PRISMA_TEST', `SUCCESS: Database connected. SQLite tables count: ${Number(tableCount?.[0]?.count || 0)}`)
-
-    console.log(`[DB] SQLite WAL modu, 64MB RAM önbellek ve indeksler aktifleştirildi. [${dbUrl}]`)
-  } catch (err: any) {
-    logDebug('PRISMA_TEST', `ERROR: Failed to run PRAGMA commands or verify tables.`, err)
-    console.error('[DB] PRAGMA ayarları uygulanırken hata:', err)
+export async function initDbPragmas(): Promise<void> {
+  if (initPragmasPromise) {
+    return initPragmasPromise
   }
+
+  initPragmasPromise = (async () => {
+    try {
+      logDebug('PRISMA_TEST', `Starting safe database connection and PRAGMA configuration...`)
+
+      // 1. Explicit connection with retry loop (handles temporary file locking on Windows)
+      let connected = false
+      let attempts = 0
+      const maxAttempts = 5
+
+      while (!connected && attempts < maxAttempts) {
+        try {
+          attempts++
+          await prisma.$connect()
+          connected = true
+          logDebug('PRISMA_TEST', `Prisma $connect successful on attempt ${attempts}`)
+        } catch (connErr: any) {
+          logDebug('PRISMA_TEST', `Prisma $connect attempt ${attempts} notice: ${connErr.message}`)
+          if (attempts >= maxAttempts) {
+            throw connErr
+          }
+          await new Promise((resolve) => setTimeout(resolve, 350))
+        }
+      }
+
+      logDebug('PRISMA_TEST', `Applying safe PRAGMA commands...`)
+
+      // Helper function to safely execute individual PRAGMA with isolated try/catch and executeRawUnsafe
+      const safePragma = async (sql: string, name: string) => {
+        try {
+          await prisma.$executeRawUnsafe(sql)
+          logDebug('PRISMA_TEST', `PRAGMA [${name}] applied successfully.`)
+        } catch (err: any) {
+          logDebug('PRISMA_TEST', `Notice on PRAGMA [${name}]: ${err.message}`)
+          console.warn(`[DB] PRAGMA [${name}] uyarısı:`, err.message)
+        }
+      }
+
+      // 2. Set busy timeout FIRST: Prevents SQLITE_BUSY / locked database crashes on Windows
+      await safePragma('PRAGMA busy_timeout = 5000;', 'busy_timeout')
+
+      // 3. Set journal mode to WAL for non-blocking concurrent reads
+      await safePragma('PRAGMA journal_mode = WAL;', 'journal_mode')
+
+      // 4. Set synchronous mode to NORMAL
+      await safePragma('PRAGMA synchronous = NORMAL;', 'synchronous')
+
+      // 5. Safe cache & memory temp_store (16MB cache)
+      // Note: Removed dangerous 256MB mmap_size which causes native access violation crashes (0xC0000005) on Windows
+      await safePragma('PRAGMA temp_store = MEMORY;', 'temp_store')
+      await safePragma('PRAGMA cache_size = -16000;', 'cache_size')
+      await safePragma('PRAGMA wal_autocheckpoint = 1000;', 'wal_autocheckpoint')
+
+      // 6. Ensure database schema, migrations and starter data
+      await ensureDatabaseSchema()
+
+      // 7. Verify tables count
+      try {
+        const tableCount: any = await prisma.$queryRawUnsafe(
+          `SELECT count(*) as count FROM sqlite_master WHERE type='table';`
+        )
+        logDebug(
+          'PRISMA_TEST',
+          `SUCCESS: Database verified. SQLite tables count: ${Number(tableCount?.[0]?.count || 0)}`
+        )
+        console.log(`[DB] SQLite WAL modu ve güvenli bağlantı ayarları aktifleştirildi. [${dbUrl}]`)
+      } catch (verifyErr: any) {
+        logDebug('PRISMA_TEST', `Notice on table verification: ${verifyErr.message}`)
+      }
+    } catch (err: any) {
+      logDebug('PRISMA_TEST', `ERROR in initDbPragmas: ${err.message}`, err)
+      console.error('[DB] PRAGMA ayarları uygulanırken hata:', err)
+    } finally {
+      initPragmasPromise = null
+    }
+  })()
+
+  return initPragmasPromise
 }
 
-initDbPragmas()
+// Safely execute on startup with unhandled error handler
+initDbPragmas().catch((err) => {
+  console.error('[DB] Background initDbPragmas error:', err)
+})
 

@@ -204,6 +204,7 @@ export const PosView: React.FC = () => {
       window.removeEventListener('pos-data-updated', handleDataUpdate)
       window.removeEventListener('focus', handleDataUpdate)
       clearInterval(syncInterval)
+      if (clearTimerRef.current) clearTimeout(clearTimerRef.current)
       if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
     }
   }, [])

@@ -10,6 +10,7 @@ import { LicenseLockModal } from './components/Security/LicenseLockModal'
 import { VirtualKeyboard } from './components/Common/VirtualKeyboard'
 import { CustomerDisplayView } from './components/CustomerDisplay/CustomerDisplayView'
 import { MusicPlayerAudio } from './components/Music/MusicPlayerAudio'
+import { ErrorBoundary } from './components/Common/ErrorBoundary'
 import { usePosStore } from './store/usePosStore'
 
 export const App: React.FC = () => {
@@ -48,42 +49,48 @@ export const App: React.FC = () => {
 
   // If this window is dedicated for the customer display, render full-screen customer display directly
   if (isCustomerDisplay) {
-    return <CustomerDisplayView />
+    return (
+      <ErrorBoundary>
+        <CustomerDisplayView />
+      </ErrorBoundary>
+    )
   }
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-gradient-to-br from-slate-100 via-[#edf3fc] to-slate-200/90 flex flex-col font-sans text-slate-800 antialiased select-none">
-      <Header />
-      <main className="flex-1 overflow-hidden relative">
-        {activeTab === 'pos' && <PosView />}
-        {activeTab === 'customers' && <CustomerView />}
-        {activeTab === 'sales' && <SalesHistoryView />}
+    <ErrorBoundary>
+      <div className="h-screen w-screen overflow-hidden bg-gradient-to-br from-slate-100 via-[#edf3fc] to-slate-200/90 flex flex-col font-sans text-slate-800 antialiased select-none">
+        <Header />
+        <main className="flex-1 overflow-hidden relative">
+          {activeTab === 'pos' && <PosView />}
+          {activeTab === 'customers' && <CustomerView />}
+          {activeTab === 'sales' && <SalesHistoryView />}
 
-        {/* Hafızalı Sekmeler: Sadece Stok & Varyant ile Etiket Basımı */}
-        {stockVisited && (
-          <div className={activeTab === 'stock' ? 'h-full w-full' : 'hidden'}>
-            <StockView />
-          </div>
-        )}
-        {labelsVisited && (
-          <div className={activeTab === 'labels' ? 'h-full w-full' : 'hidden'}>
-            <LabelPrinterModal />
-          </div>
-        )}
-      </main>
+          {/* Hafızalı Sekmeler: Sadece Stok & Varyant ile Etiket Basımı */}
+          {stockVisited && (
+            <div className={activeTab === 'stock' ? 'h-full w-full' : 'hidden'}>
+              <StockView />
+            </div>
+          )}
+          {labelsVisited && (
+            <div className={activeTab === 'labels' ? 'h-full w-full' : 'hidden'}>
+              <LabelPrinterModal />
+            </div>
+          )}
+        </main>
 
-      {/* Security 4-Digit PIN Lock Screen */}
-      <PinLockModal />
+        {/* Security 4-Digit PIN Lock Screen */}
+        <PinLockModal />
 
-      {/* Hardware-Locked Single Device License Modal */}
-      <LicenseLockModal />
+        {/* Hardware-Locked Single Device License Modal */}
+        <LicenseLockModal />
 
-      {/* On-Screen Touch Virtual Keyboard */}
-      <VirtualKeyboard />
+        {/* On-Screen Touch Virtual Keyboard */}
+        <VirtualKeyboard />
 
-      {/* Store Radio Audio Engine */}
-      <MusicPlayerAudio />
-    </div>
+        {/* Store Radio Audio Engine */}
+        <MusicPlayerAudio />
+      </div>
+    </ErrorBoundary>
   )
 }
 

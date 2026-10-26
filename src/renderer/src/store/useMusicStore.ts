@@ -75,6 +75,7 @@ interface MusicState {
   errorMessage: string | null
   config: any
 
+  isConnectingSpotify: boolean
   setIsModalOpen: (open: boolean) => void
   setActiveTab: (tab: 'player' | 'search' | 'playlists' | 'schedule' | 'spotify') => void
   setErrorMessage: (msg: string | null) => void
@@ -91,13 +92,15 @@ interface MusicState {
   selectTrack: (track: MusicTrack) => Promise<void>
   selectPlaylist: (id: string) => Promise<void>
   playSpotifyPlaylist: (uri: string) => Promise<void>
-  connectSpotify: () => void
+  connectSpotify: () => Promise<void>
+  cancelSpotifyConnect: () => void
   disconnectSpotify: () => Promise<void>
   fetchConfig: () => Promise<void>
   saveConfig: (updates: any) => Promise<boolean>
 }
 
 let spotifyListenerAttached = false
+let spotifyPollTimer: any = null
 
 export const useMusicStore = create<MusicState>((set, get) => ({
   isModalOpen: false,
@@ -126,6 +129,7 @@ export const useMusicStore = create<MusicState>((set, get) => ({
   isSearching: false,
   errorMessage: null,
   config: null,
+  isConnectingSpotify: false,
 
   setIsModalOpen: (open) => {
     set({ isModalOpen: open })
@@ -394,35 +398,135 @@ export const useMusicStore = create<MusicState>((set, get) => ({
     }
   },
 
-  connectSpotify: () => {
-    // Open OAuth login popup
-    const width = 540
-    const height = 720
-    const left = window.screen.width / 2 - width / 2
-    const top = window.screen.height / 2 - height / 2
+  connectSpotify: async () => {
+    const state = get()
+    // 1. Önce Client ID ve Client Secret kontrolü yap
+    const hasKeys = state.spotify.hasKeys || (state.config?.spotifyClientId && state.config?.hasClientSecret)
+    if (!hasKeys) {
+      set({
+        errorMessage: 'Spotify bağlantısı için önce "Spotify API & Giriş" sekmesinden Client ID ve Client Secret bilgilerinizi girip kaydetmelisiniz.',
+        activeTab: 'spotify',
+      })
+      return
+    }
 
-    const popup = window.open(
-      '/api/music/spotify/login',
-      'spotify_login_window',
-      `toolbar=no, location=no, directories=no, status=no, menubar=no, scrollbars=yes, resizable=yes, copyhistory=no, width=${width}, height=${height}, top=${top}, left=${left}`
-    )
+    try {
+      set({ isConnectingSpotify: true, errorMessage: null })
 
-    if (!spotifyListenerAttached) {
-      spotifyListenerAttached = true
-      window.addEventListener('message', (event) => {
-        if (event.data?.type === 'SPOTIFY_AUTH_SUCCESS') {
-          if (popup && !popup.closed) popup.close()
-          get().fetchConfig()
-          get().fetchStatus()
-          get().fetchPlaylists()
-          get().fetchDevices()
+      // Server'dan tam Spotify yetkilendirme URL'sini al
+      const res = await fetch('/api/music/spotify/login?json=true')
+      const data = await res.json()
+
+      if (!res.ok) {
+        set({
+          isConnectingSpotify: false,
+          errorMessage: data.error || 'Spotify bağlantı adresi alınamadı. Lütfen Client ID ayarlarınızı kontrol edin.',
+          activeTab: 'spotify',
+        })
+        return
+      }
+
+      const authUrl = data.url
+      if (!authUrl) {
+        throw new Error('Spotify yetkilendirme bağlantısı oluşturulamadı.')
+      }
+
+      // 2. Tarayıcıda veya popup pencerede aç
+      if ((window as any).electron?.openExternal) {
+        await (window as any).electron.openExternal(authUrl)
+      } else {
+        const width = 540
+        const height = 720
+        const left = window.screen.width / 2 - width / 2
+        const top = window.screen.height / 2 - height / 2
+        window.open(
+          authUrl,
+          'spotify_login_window',
+          `toolbar=no, location=no, directories=no, status=no, menubar=no, scrollbars=yes, resizable=yes, copyhistory=no, width=${width}, height=${height}, top=${top}, left=${left}`
+        )
+      }
+
+      // 3. PostMessage dinleyicisi (popup üzerinden mesaj dönerse)
+      if (!spotifyListenerAttached) {
+        spotifyListenerAttached = true
+        window.addEventListener('message', (event) => {
+          if (event.data?.type === 'SPOTIFY_AUTH_SUCCESS') {
+            if (spotifyPollTimer) {
+              clearInterval(spotifyPollTimer)
+              spotifyPollTimer = null
+            }
+            set({ isConnectingSpotify: false, errorMessage: null })
+            get().fetchConfig()
+            get().fetchStatus()
+            get().fetchPlaylists()
+            get().fetchDevices()
+          }
+        })
+      }
+
+      // 4. Polling: Tarayıcıda 'Kabul Et' tıklandığında durumu otomatik tespit et
+      if (spotifyPollTimer) {
+        clearInterval(spotifyPollTimer)
+        spotifyPollTimer = null
+      }
+
+      let attempts = 0
+      const maxAttempts = 60 // 60 * 1500ms = 90 saniye
+
+      spotifyPollTimer = setInterval(async () => {
+        attempts++
+        try {
+          await get().fetchStatus()
+          const current = get()
+          if (current.spotify.isConnected) {
+            if (spotifyPollTimer) {
+              clearInterval(spotifyPollTimer)
+              spotifyPollTimer = null
+            }
+            set({ isConnectingSpotify: false, errorMessage: null })
+            await get().fetchConfig()
+            await get().fetchPlaylists()
+            await get().fetchDevices()
+          } else if (attempts >= maxAttempts) {
+            if (spotifyPollTimer) {
+              clearInterval(spotifyPollTimer)
+              spotifyPollTimer = null
+            }
+            set({ isConnectingSpotify: false })
+          }
+        } catch {
+          if (attempts >= maxAttempts) {
+            if (spotifyPollTimer) {
+              clearInterval(spotifyPollTimer)
+              spotifyPollTimer = null
+            }
+            set({ isConnectingSpotify: false })
+          }
         }
+      }, 1500)
+    } catch (err: any) {
+      set({
+        isConnectingSpotify: false,
+        errorMessage: err.message || 'Spotify bağlantısı başlatılamadı.',
       })
     }
   },
 
+  cancelSpotifyConnect: () => {
+    if (spotifyPollTimer) {
+      clearInterval(spotifyPollTimer)
+      spotifyPollTimer = null
+    }
+    set({ isConnectingSpotify: false })
+  },
+
   disconnectSpotify: async () => {
     try {
+      if (spotifyPollTimer) {
+        clearInterval(spotifyPollTimer)
+        spotifyPollTimer = null
+      }
+      set({ isConnectingSpotify: false })
       const res = await fetch('/api/music/spotify/disconnect', { method: 'POST' })
       if (res.ok) {
         await get().fetchConfig()

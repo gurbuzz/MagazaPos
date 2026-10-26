@@ -1,7 +1,8 @@
-import { app, BrowserWindow, ipcMain, Menu, screen } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, screen, shell } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import { startServer } from '../server'
+import { prisma } from '../server/db'
 import { getLocalIpAddress } from '../server/utils/network'
 
 // MağazaPOS Main Electron Process & Express Server Entry
@@ -21,6 +22,8 @@ if (!gotSingleInstanceLock) {
       if (mainWindow.isMinimized()) mainWindow.restore()
       mainWindow.show()
       mainWindow.focus()
+    } else {
+      createWindow()
     }
   })
 }
@@ -264,10 +267,15 @@ function createWindow() {
   // Ekranı tam kaplayacak şekilde maximize et
   mainWindow.maximize()
 
-  // Prevent multiple popups / hijack window.open for customer display
+  // Prevent multiple popups / hijack window.open for customer display & open web links in default browser
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.includes('customer-display') || url.includes('#customer-display')) {
       openCustomerDisplayWindow()
+      return { action: 'deny' }
+    }
+    // External links and Spotify login should open in default browser
+    if (url.startsWith('https:') || url.startsWith('http:') || url.startsWith('spotify:')) {
+      shell.openExternal(url).catch((err) => console.error('Failed to open external URL:', err))
       return { action: 'deny' }
     }
     return { action: 'allow' }
@@ -279,6 +287,12 @@ function createWindow() {
       mainWindow?.setFullScreen(!mainWindow.isFullScreen())
       event.preventDefault()
     }
+  })
+
+  // Ana POS penceresi kapatıldığında bağlı tüm pencereleri (müşteri ekranı vb.) ve süreci temizce sonlandır
+  mainWindow.on('closed', () => {
+    mainWindow = null
+    app.quit()
   })
 
   // Start embedded Node.js Express server
@@ -306,127 +320,149 @@ function createWindow() {
 
 // IPC Handler: Silent Thermal Label/Receipt Printing
 ipcMain.handle('print-silent', async (_, htmlContent: string, printerName?: string, customPageSize?: { width: number; height: number }, silent: boolean = true) => {
-  const tempPath = path.join(app.getPath('temp'), `magazapos_print_${Date.now()}.html`)
-
   try {
-    fs.writeFileSync(tempPath, htmlContent, 'utf-8')
-  } catch (err: any) {
-    console.error('Failed to write print temp file:', err)
-  }
+    const tempPath = path.join(app.getPath('temp'), `magazapos_print_${Date.now()}.html`)
 
-  // Calculate pixel size for the window from mm to prevent blank viewport
-  const winWidth = customPageSize?.width ? Math.max(300, Math.round(customPageSize.width * 4)) : 400
-  const winHeight = customPageSize?.height ? Math.max(300, Math.round(customPageSize.height * 4)) : 600
-
-  let printWindow: BrowserWindow | null = new BrowserWindow({
-    width: winWidth,
-    height: winHeight,
-    show: false,
-    webPreferences: {
-      nodeIntegration: false,
-      backgroundThrottling: false, // CRITICAL: Never pause paint/rasterization in background
-    }
-  })
-
-  return new Promise((resolve) => {
-    let resolved = false
-
-    const safeCleanup = (result: { success: boolean; failureReason?: string }) => {
-      if (resolved) return
-      resolved = true
-      clearTimeout(failsafeTimer)
-      resolve(result)
-
-      // CRITICAL: Keep window alive for 2 seconds after print call so Windows Print Spooler (spoolsv.exe)
-      // completely flushes the EMF/GDI raster data to the printer driver. Immediate destruction cuts off the spool!
-      setTimeout(() => {
-        if (printWindow && !printWindow.isDestroyed()) {
-          try { printWindow.close() } catch {}
-          printWindow = null
-        }
-        try {
-          if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath)
-        } catch {}
-      }, 2000)
+    try {
+      fs.writeFileSync(tempPath, htmlContent, 'utf-8')
+    } catch (err: any) {
+      console.error('Failed to write print temp file:', err)
     }
 
-    const failsafeTimer = setTimeout(() => {
-      safeCleanup({ success: false, failureReason: 'Yazdırma zaman aşımına uğradı (15sn)' })
-    }, 15000)
+    // Calculate pixel size for the window from mm to prevent blank viewport
+    const winWidth = customPageSize?.width ? Math.max(300, Math.round(customPageSize.width * 4)) : 400
+    const winHeight = customPageSize?.height ? Math.max(300, Math.round(customPageSize.height * 4)) : 600
 
-    printWindow?.webContents.on('did-fail-load', (_, errorCode, errorDescription) => {
-      safeCleanup({ success: false, failureReason: `Yükleme hatası: ${errorDescription} (${errorCode})` })
-    })
-
-    printWindow?.webContents.on('did-finish-load', () => {
-      // 450ms delay to guarantee full CSS layout, font rasterization and SVG paint before dispatching to print spooler
-      setTimeout(() => {
-        if (!printWindow || printWindow.isDestroyed()) return
-
-        const printOptions: any = {
-          silent: silent !== false,
-          printBackground: true,
-          margins: { marginType: 'none' },
-        }
-
-        if (printerName && printerName.trim()) {
-          printOptions.deviceName = printerName.trim()
-        }
-
-        if (customPageSize && customPageSize.width && customPageSize.height) {
-          // Electron pageSize in microns (1 mm = 1000 microns)
-          printOptions.pageSize = {
-            width: Math.round(customPageSize.width * 1000),
-            height: Math.round(customPageSize.height * 1000),
-          }
-        }
-
-        printWindow.webContents.print(
-          printOptions,
-          (success, failureReason) => {
-            if (!success) console.error('Print failed:', failureReason)
-            safeCleanup({ success, failureReason })
-          }
-        )
-      }, 450)
-    })
-
-    // Load local temp file (more reliable than data: URLs on Windows drivers)
-    if (printWindow) {
-      if (fs.existsSync(tempPath)) {
-        printWindow.loadFile(tempPath)
-      } else {
-        printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`)
+    let printWindow: BrowserWindow | null = new BrowserWindow({
+      width: winWidth,
+      height: winHeight,
+      show: false,
+      webPreferences: {
+        nodeIntegration: false,
+        backgroundThrottling: false, // CRITICAL: Never pause paint/rasterization in background
       }
-    }
-  })
+    })
+
+    return new Promise((resolve) => {
+      let resolved = false
+
+      const safeCleanup = (result: { success: boolean; failureReason?: string }) => {
+        if (resolved) return
+        resolved = true
+        clearTimeout(failsafeTimer)
+        resolve(result)
+
+        // CRITICAL: Keep window alive for 2 seconds after print call so Windows Print Spooler (spoolsv.exe)
+        // completely flushes the EMF/GDI raster data to the printer driver. Immediate destruction cuts off the spool!
+        setTimeout(() => {
+          if (printWindow && !printWindow.isDestroyed()) {
+            try { printWindow.close() } catch {}
+            printWindow = null
+          }
+          try {
+            if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath)
+          } catch {}
+        }, 2000)
+      }
+
+      const failsafeTimer = setTimeout(() => {
+        safeCleanup({ success: false, failureReason: 'Yazdırma zaman aşımına uğradı (15sn)' })
+      }, 15000)
+
+      printWindow?.webContents.on('did-fail-load', (_, errorCode, errorDescription) => {
+        safeCleanup({ success: false, failureReason: `Yükleme hatası: ${errorDescription} (${errorCode})` })
+      })
+
+      printWindow?.webContents.on('did-finish-load', () => {
+        // 450ms delay to guarantee full CSS layout, font rasterization and SVG paint before dispatching to print spooler
+        setTimeout(() => {
+          if (!printWindow || printWindow.isDestroyed()) return
+
+          const printOptions: any = {
+            silent: silent !== false,
+            printBackground: true,
+            margins: { marginType: 'none' },
+          }
+
+          if (printerName && printerName.trim()) {
+            printOptions.deviceName = printerName.trim()
+          }
+
+          if (customPageSize && customPageSize.width && customPageSize.height) {
+            // Electron pageSize in microns (1 mm = 1000 microns)
+            printOptions.pageSize = {
+              width: Math.round(customPageSize.width * 1000),
+              height: Math.round(customPageSize.height * 1000),
+            }
+          }
+
+          printWindow.webContents.print(
+            printOptions,
+            (success, failureReason) => {
+              if (!success) console.error('Print failed:', failureReason)
+              safeCleanup({ success, failureReason })
+            }
+          )
+        }, 450)
+      })
+
+      // Load local temp file (more reliable than data: URLs on Windows drivers)
+      if (printWindow) {
+        if (fs.existsSync(tempPath)) {
+          printWindow.loadFile(tempPath)
+        } else {
+          printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`)
+        }
+      }
+    })
+  } catch (err: any) {
+    console.error('print-silent unexpected error:', err)
+    return { success: false, failureReason: err.message || 'Yazdırma penceresi başlatılamadı' }
+  }
 })
 
 // IPC Handler: Get system printers list
 ipcMain.handle('get-printers', async () => {
-  if (!mainWindow) return []
-  return await mainWindow.webContents.getPrintersAsync()
+  if (!mainWindow || mainWindow.isDestroyed()) return []
+  try {
+    return await mainWindow.webContents.getPrintersAsync()
+  } catch (err) {
+    console.error('getPrintersAsync error:', err)
+    return []
+  }
 })
 
 // IPC Handler: Get local IP for WiFi mobile connection
 ipcMain.handle('get-local-ip', async () => {
-  return getLocalIpAddress()
+  try {
+    return getLocalIpAddress()
+  } catch {
+    return '127.0.0.1'
+  }
 })
 
 // IPC Handler: Toggle fullscreen (F11) - targets the window that sent the event
 ipcMain.handle('toggle-fullscreen', async (event) => {
-  const win = BrowserWindow.fromWebContents(event.sender) || mainWindow
-  if (!win) return false
-  const isFull = !win.isFullScreen()
-  win.setFullScreen(isFull)
-  return isFull
+  try {
+    const win = BrowserWindow.fromWebContents(event.sender) || mainWindow
+    if (!win || win.isDestroyed()) return false
+    const isFull = !win.isFullScreen()
+    win.setFullScreen(isFull)
+    return isFull
+  } catch {
+    return false
+  }
 })
 
 // IPC Handler: Query current fullscreen state
 ipcMain.handle('is-fullscreen', async (event) => {
-  const win = BrowserWindow.fromWebContents(event.sender) || mainWindow
-  if (!win) return false
-  return win.isFullScreen()
+  try {
+    const win = BrowserWindow.fromWebContents(event.sender) || mainWindow
+    if (!win || win.isDestroyed()) return false
+    return win.isFullScreen()
+  } catch {
+    return false
+  }
 })
 
 
@@ -479,14 +515,31 @@ ipcMain.handle('get-customer-display-status', async () => {
 
 ipcMain.handle('update-customer-display', async (_, data: any) => {
   cachedCustomerData = data
-  if (customerWindow && !customerWindow.isDestroyed()) {
-    customerWindow.webContents.send('customer-display-data', data)
+  try {
+    if (customerWindow && !customerWindow.isDestroyed()) {
+      customerWindow.webContents.send('customer-display-data', data)
+    }
+  } catch (err) {
+    console.warn('[CustomerDisplay] Error sending IPC data:', err)
   }
   return true
 })
 
 ipcMain.handle('get-customer-display-state', async () => {
   return cachedCustomerData
+})
+
+ipcMain.handle('open-external', async (_, url: string) => {
+  try {
+    if (url && (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('spotify:'))) {
+      await shell.openExternal(url)
+      return { success: true }
+    }
+    return { success: false, error: 'Geçersiz URL' }
+  } catch (err: any) {
+    console.error('Failed to open external URL:', err)
+    return { success: false, error: err.message }
+  }
 })
 
 app.whenReady().then(() => {
@@ -502,6 +555,14 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', function () {
-  if (process.platform !== 'darwin') app.quit()
+  app.quit()
+})
+
+app.on('before-quit', async () => {
+  try {
+    if (prisma) {
+      await prisma.$disconnect().catch(() => {})
+    }
+  } catch {}
 })
 

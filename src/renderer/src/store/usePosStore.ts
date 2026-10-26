@@ -59,6 +59,7 @@ interface PosState {
   customIp: string
   autoOpenCustomerDisplay: boolean
   customerDisplayMessage: string
+  customerDisplayTheme: 'dark' | 'light'
 
   unlockApp: (enteredPin: string) => boolean
   lockApp: () => void
@@ -76,6 +77,7 @@ interface PosState {
     customIp?: string
     autoOpenCustomerDisplay?: boolean
     customerDisplayMessage?: string
+    customerDisplayTheme?: 'dark' | 'light'
   }) => void
 
   cartItems: CartItem[]
@@ -143,6 +145,7 @@ export const usePosStore = create<PosState>((set, get) => ({
   customIp: localStorage.getItem('pos_custom_ip') || '',
   autoOpenCustomerDisplay: localStorage.getItem('pos_auto_customer_display') !== 'false',
   customerDisplayMessage: localStorage.getItem('pos_customer_display_msg') || 'JACK & JONES Kalitesiyle Keyifli Alışverişler Dileriz',
+  customerDisplayTheme: (localStorage.getItem('pos_customer_display_theme') as 'dark' | 'light') || 'dark',
 
   unlockApp: (enteredPin) => {
     const currentPin = get().pinCode
@@ -182,6 +185,7 @@ export const usePosStore = create<PosState>((set, get) => ({
     if (settings.customIp !== undefined) localStorage.setItem('pos_custom_ip', settings.customIp)
     if (settings.autoOpenCustomerDisplay !== undefined) localStorage.setItem('pos_auto_customer_display', settings.autoOpenCustomerDisplay ? 'true' : 'false')
     if (settings.customerDisplayMessage !== undefined) localStorage.setItem('pos_customer_display_msg', settings.customerDisplayMessage)
+    if (settings.customerDisplayTheme !== undefined) localStorage.setItem('pos_customer_display_theme', settings.customerDisplayTheme)
 
     set((state) => ({
       storeName: settings.storeName ?? state.storeName,
@@ -197,6 +201,7 @@ export const usePosStore = create<PosState>((set, get) => ({
       customIp: settings.customIp ?? state.customIp,
       autoOpenCustomerDisplay: settings.autoOpenCustomerDisplay ?? state.autoOpenCustomerDisplay,
       customerDisplayMessage: settings.customerDisplayMessage ?? state.customerDisplayMessage,
+      customerDisplayTheme: settings.customerDisplayTheme ?? state.customerDisplayTheme,
     }))
   },
 
@@ -459,6 +464,7 @@ usePosStore.subscribe((state) => {
     customer: state.selectedCustomer?.id,
     stockMode: state.isStockOnlyMode,
     store: state.storeName,
+    theme: state.customerDisplayTheme,
   })
 
   if (syncKey === prevSyncedState) return
@@ -478,5 +484,6 @@ usePosStore.subscribe((state) => {
     activeCampaign: state.activeCampaign,
     selectedCustomer: state.selectedCustomer,
     hidePrices: state.isStockOnlyMode,
+    theme: state.customerDisplayTheme,
   })
 })

@@ -394,6 +394,25 @@
     function render() {
       const main = document.getElementById('mainContainer');
       const custGreet = document.getElementById('customerGreeting');
+      const isLight = state.theme === 'light';
+
+      document.body.className = `h-full w-full ${isLight ? 'bg-gradient-to-br from-slate-100 via-slate-50 to-blue-50/60 text-slate-800' : 'bg-gradient-to-br from-[#0c1322] via-[#101b33] to-[#0c1424] text-white'} select-none overflow-hidden flex flex-col relative text-base m-0 p-0`;
+      const headerEl = document.querySelector('header');
+      if (headerEl) {
+        headerEl.className = `h-[64px] ${isLight ? 'bg-white/90 border-slate-200/90 shadow-sm text-slate-800' : 'bg-slate-900/70 border-white/10 text-white shadow-lg'} backdrop-blur-2xl border-b px-5 md:px-7 flex items-center justify-between z-20 shrink-0 relative`;
+      }
+      const footerEl = document.getElementById('customerDisplayFooter');
+      if (footerEl) {
+        footerEl.className = `customer-display-footer h-7 min-h-[28px] max-h-[28px] leading-none ${isLight ? 'bg-white/90 border-slate-200/80 text-slate-500' : 'bg-slate-900/85 border-white/10 text-blue-300/80'} backdrop-blur-2xl border-t px-4 md:px-5 flex items-center justify-between text-[11px] z-20 shrink-0 flex-none overflow-hidden select-none whitespace-nowrap`;
+      }
+      const clockEl = document.getElementById('liveClock');
+      if (clockEl) {
+        clockEl.className = `text-xl md:text-2xl font-black font-mono tracking-wider ${isLight ? 'text-slate-900' : 'text-white'} leading-tight`;
+      }
+      const dateEl = document.getElementById('liveDate');
+      if (dateEl) {
+        dateEl.className = `text-[11px] md:text-xs font-bold ${isLight ? 'text-slate-500' : 'text-blue-200'} capitalize`;
+      }
 
       // Check for screen transition from idle
       if (prevStatus !== state.status) {
@@ -475,25 +494,35 @@
         const given = state.paymentInfo?.givenCash || 0;
         const change = state.paymentInfo?.changeDue || 0;
 
-        const itemsHtml = (state.cartItems || []).map(item => `
+        const itemsHtml = (state.cartItems || []).map(item => {
+          const isDisc = item.originalPrice && item.originalPrice > item.unitPrice;
+          const discTotal = isDisc ? (item.originalPrice - item.unitPrice) * item.quantity : 0;
+          return `
           <div class="flex items-center justify-between p-3 rounded-2xl bg-white/[0.05] border border-white/[0.1] text-sm">
             <div class="flex-1 min-w-0 pr-3">
               <div class="font-black text-white text-base truncate">${item.productName}</div>
               ${!state.hidePrices ? `
                 <div class="text-xs text-blue-300/80 font-medium">
                   ${item.quantity} Adet × 
-                  ${item.originalPrice && item.originalPrice > item.unitPrice ? `
-                    <span class="line-through text-slate-400 mr-1">${Number(item.originalPrice).toFixed(2)} ₺</span>
-                    <span class="text-rose-300 font-bold">${Number(item.unitPrice).toFixed(2)} ₺</span>
+                  ${isDisc ? `
+                    <span class="line-through text-slate-400 mr-1">${Number(item.originalPrice || 0).toFixed(2)} ₺</span>
+                    <span class="text-rose-300 font-bold">${Number(item.unitPrice || 0).toFixed(2)} ₺</span>
                   ` : `
-                    <span>${Number(item.unitPrice).toFixed(2)} ₺</span>
+                    <span>${Number(item.unitPrice || 0).toFixed(2)} ₺</span>
                   `}
                 </div>
               ` : `<div class="text-xs text-blue-300/80 font-medium">${item.quantity} Adet</div>`}
             </div>
-            ${!state.hidePrices ? `<span class="font-black font-mono text-white text-base shrink-0">${Number(item.totalPrice).toFixed(2)} ₺</span>` : ''}
+            ${!state.hidePrices ? `
+              <div class="text-right shrink-0">
+                <span class="font-black font-mono text-white text-base block">${Number(item.totalPrice || 0).toFixed(2)} ₺</span>
+                ${isDisc ? `
+                  <span class="text-[10px] font-bold text-emerald-400 block">İndirim: -${Number(discTotal || 0).toFixed(2)} ₺</span>
+                ` : ''}
+              </div>
+            ` : ''}
           </div>
-        `).join('');
+        `}).join('');
 
         main.innerHTML = `
           <div class="flex-1 flex overflow-hidden gap-4 md:gap-5 min-h-0">
@@ -634,7 +663,13 @@
                 <div class="text-4xl md:text-5xl font-black text-white tracking-tight drop-shadow-md">
                   ${!state.hidePrices ? `${Number(state.total).toFixed(2)} <span class="text-2xl md:text-3xl text-blue-200 font-bold">₺</span>` : `${state.cartItems.reduce((acc, i) => acc + i.quantity, 0)} <span class="text-2xl text-blue-200 font-bold">ADET</span>`}
                 </div>
-                <div class="text-xs text-blue-200 font-semibold mt-1">${!state.hidePrices ? 'Net Tutar' : 'Stok Çıkış Listesi'}</div>
+                ${!state.hidePrices && state.discountAmount > 0 ? `
+                  <div class="text-xs text-emerald-300 font-black mt-1">
+                    Toplam Tasarrufunuz: -${Number(state.discountAmount).toFixed(2)} ₺
+                  </div>
+                ` : `
+                  <div class="text-xs text-blue-200 font-semibold mt-1">${!state.hidePrices ? 'Net Tutar' : 'Stok Çıkış Listesi'}</div>
+                `}
               </div>
             </div>
           </div>
@@ -670,13 +705,18 @@
                   <div class="text-right min-w-[105px]">
                     ${isDiscounted ? `
                       <div class="flex flex-col items-end">
-                        <span class="text-[11px] text-rose-300 line-through font-medium leading-none">${Number(item.originalPrice).toFixed(2)} ₺</span>
-                        <span class="text-[11px] text-emerald-300 font-bold leading-tight">İndirimli: ${Number(item.unitPrice).toFixed(2)} ₺</span>
+                        <span class="text-[11px] text-rose-300 line-through font-medium leading-none">${Number(item.originalPrice || 0).toFixed(2)} ₺</span>
+                        <span class="text-[11px] text-emerald-300 font-bold leading-tight">İndirimli: ${Number(item.unitPrice || 0).toFixed(2)} ₺</span>
                       </div>
                     ` : `
-                      <span class="text-xs text-blue-200/80 block font-medium">Birim: ${Number(item.unitPrice).toFixed(2)} ₺</span>
+                      <span class="text-xs text-blue-200/80 block font-medium">Birim: ${Number(item.unitPrice || 0).toFixed(2)} ₺</span>
                     `}
-                    <span class="text-xl md:text-2xl font-black text-white">${Number(item.totalPrice).toFixed(2)} ₺</span>
+                    <span class="text-xl md:text-2xl font-black text-white block">${Number(item.totalPrice || 0).toFixed(2)} ₺</span>
+                    ${isDiscounted ? `
+                      <span class="text-[11px] font-bold text-emerald-400 block leading-tight mt-0.5 whitespace-nowrap">
+                        İndirim: -${((Number(item.originalPrice || 0) - Number(item.unitPrice || 0)) * (item.quantity || 1)).toFixed(2)} ₺
+                      </span>
+                    ` : ''}
                   </div>
                 ` : ''}
               </div>
@@ -760,6 +800,11 @@
               <div class="text-4xl md:text-5xl font-black text-white tracking-tight drop-shadow-md">
                 ${Number(state.total).toFixed(2)} <span class="text-2xl md:text-3xl text-blue-200 font-bold">₺</span>
               </div>
+              ${state.discountAmount > 0 ? `
+                <div class="text-xs text-emerald-300 font-black mt-1">
+                  Toplam Tasarrufunuz: -${Number(state.discountAmount).toFixed(2)} ₺
+                </div>
+              ` : ''}
             </div>
 
             <div class="text-center shrink-0 pt-0.5">

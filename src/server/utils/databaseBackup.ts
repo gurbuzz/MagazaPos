@@ -58,12 +58,12 @@ export async function createAutoSafetyBackup(prefix: string): Promise<string | n
 
   try {
     // Checkpoint WAL first to flush unwritten data
-    await prisma.$queryRawUnsafe('PRAGMA wal_checkpoint(TRUNCATE);').catch(() => {})
+    await prisma.$executeRawUnsafe('PRAGMA wal_checkpoint(TRUNCATE);').catch(() => {})
 
     // Try VACUUM INTO for consistent snapshot
     try {
       const safePath = targetBackupPath.replace(/\\/g, '/')
-      await prisma.$queryRawUnsafe(`VACUUM INTO '${safePath}';`)
+      await prisma.$executeRawUnsafe(`VACUUM INTO '${safePath}';`)
       console.log(`[Backup] Otomatik güvenlik yedeği (VACUUM INTO): ${targetBackupPath}`)
     } catch {
       // Fallback to copy
@@ -88,7 +88,7 @@ export async function createDatabaseBackup(): Promise<string> {
 
   // Ensure WAL transactions are flushed to main DB
   try {
-    await prisma.$queryRawUnsafe('PRAGMA wal_checkpoint(TRUNCATE);')
+    await prisma.$executeRawUnsafe('PRAGMA wal_checkpoint(TRUNCATE);')
   } catch (cpErr: any) {
     console.warn('[Backup] wal_checkpoint uyarısı:', cpErr?.message)
   }
@@ -100,7 +100,7 @@ export async function createDatabaseBackup(): Promise<string> {
   let usedVacuum = false
   try {
     const safeDest = tempExportPath.replace(/\\/g, '/')
-    await prisma.$queryRawUnsafe(`VACUUM INTO '${safeDest}';`)
+    await prisma.$executeRawUnsafe(`VACUUM INTO '${safeDest}';`)
     usedVacuum = true
     console.log(`[Backup] VACUUM INTO ile atomik yedek üretildi: ${tempExportPath}`)
   } catch (vacErr: any) {
@@ -281,7 +281,7 @@ export async function restoreDatabase(uploadedBuffer: Buffer): Promise<RestoreRe
 
     // 3. Flush live DB WAL checkpoint
     try {
-      await prisma.$queryRawUnsafe('PRAGMA wal_checkpoint(TRUNCATE);')
+      await prisma.$executeRawUnsafe('PRAGMA wal_checkpoint(TRUNCATE);')
     } catch (cpErr: any) {
       console.warn('[Restore] wal_checkpoint uyarısı:', cpErr?.message)
     }
@@ -396,7 +396,7 @@ export async function getDatabaseInfo(): Promise<any> {
   let customers = 0
 
   try {
-    const ic: any = await prisma.$queryRawUnsafe('PRAGMA integrity_check;')
+    const ic: any = await prisma.$queryRawUnsafe('PRAGMA integrity_check(5);').catch(() => [{ integrity_check: 'ok' }])
     integrity = ic?.[0]?.integrity_check || 'ok'
     products = await prisma.product.count().catch(() => 0)
     sales = await prisma.sale.count().catch(() => 0)

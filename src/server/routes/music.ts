@@ -4,10 +4,9 @@ import { musicController, PRESET_PLAYLISTS } from '../utils/musicController'
 export const musicRouter = Router()
 
 // Helper to calculate callback redirect URI based on current request
-function getRedirectUri(req: any): string {
-  const host = req.get('host') || 'localhost:3782'
-  const protocol = req.protocol || 'http'
-  return `${protocol}://${host}/api/music/spotify/callback`
+function getRedirectUri(_req?: any): string {
+  const port = process.env.PORT || 3782
+  return `http://localhost:${port}/api/music/spotify/callback`
 }
 
 // GET /api/music/status - Get current player and schedule status
@@ -161,16 +160,20 @@ musicRouter.get('/spotify/login', (req, res) => {
       res.redirect(authUrl)
     }
   } catch (err: any) {
-    res.status(400).send(`
+    if (req.query.json === 'true' || req.headers.accept?.includes('application/json')) {
+      res.status(400).json({ error: err.message })
+    } else {
+      res.status(400).send(`
       <!DOCTYPE html>
       <html>
         <head><title>Spotify Giriş Hatası</title><meta charset="utf-8">
         <style>body{font-family:sans-serif;background:#0f172a;color:#f87171;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center;}
         .card{background:#1e293b;padding:30px;border-radius:16px;max-width:480px;border:1px solid #334155;}h3{margin-top:0;}</style>
         </head>
-        <body><div class="card"><h3>⚠️ Spotify Giriş Hatası</h3><p>${err.message}</p></div></body>
+        <body><div class="card"><h3>⚠️ Spotify Giriş Hatası</h3><p>${err.message}</p><button onclick="window.close()" style="background:#475569;color:white;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;font-weight:bold;margin-top:15px;">Pencereyi Kapat</button></div></body>
       </html>
     `)
+    }
   }
 })
 
@@ -218,8 +221,11 @@ musicRouter.get('/spotify/callback', async (req, res) => {
         <body>
           <div class="card">
             <h2>✅ Spotify Başarıyla Bağlandı!</h2>
-            <p>Mağaza müzik sistemi hesabınızla eşleştirildi.<br/>Bu pencere otomatik olarak kapanacaktır.</p>
+            <p>Mağaza müzik sistemi hesabınızla eşleştirildi.<br/>Bu sekmeyi kapatıp MagazaPOS uygulamasına dönebilirsiniz.</p>
             <div class="badge">Eşleşme Tamamlandı</div>
+            <div style="margin-top: 24px;">
+              <button onclick="window.close()" style="background:#10b981;color:white;border:none;padding:10px 24px;border-radius:12px;font-size:13px;font-weight:bold;cursor:pointer;">Sekmeyi / Pencereyi Kapat</button>
+            </div>
           </div>
           <script>
             try {
@@ -229,7 +235,7 @@ musicRouter.get('/spotify/callback', async (req, res) => {
             } catch(e){}
             setTimeout(function() {
               window.close();
-            }, 1200);
+            }, 1800);
           </script>
         </body>
       </html>
