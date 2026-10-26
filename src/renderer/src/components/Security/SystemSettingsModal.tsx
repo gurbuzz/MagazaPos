@@ -234,7 +234,12 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
     }
   }, [pinDialogAction])
 
-  if (!isOpen) return null
+  // Fetch DB diagnostics when database tab is clicked
+  useEffect(() => {
+    if (isOpen && activeTab === 'database') {
+      fetchDbInfo()
+    }
+  }, [isOpen, activeTab])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -283,12 +288,6 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
     }, 1000)
   }
 
-  // Fetch DB diagnostics when database tab is clicked
-  useEffect(() => {
-    if (activeTab === 'database') {
-      fetchDbInfo()
-    }
-  }, [activeTab])
 
   // ─── Backup Download (fetch + Blob) ────────────────────────────
   const handleBackupDb = async () => {
@@ -550,6 +549,8 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
     onClose()
     lockApp()
   }
+
+  if (!isOpen) return null
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 select-none font-sans">
