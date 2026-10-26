@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { X, RotateCcw, AlertTriangle, Check, PackageCheck, ShoppingBag, User } from 'lucide-react'
+import { X, RotateCcw, AlertTriangle, Check, PackageCheck, ShoppingBag, User, Banknote, CreditCard } from 'lucide-react'
 import { notifyDataChanged } from '../../utils/events'
 
 interface ReturnModalProps {
@@ -14,6 +14,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({ isOpen, onClose, sale,
   const [reason, setReason] = useState<string>('')
   const [anonCustomerName, setAnonCustomerName] = useState<string>('')
   const [anonPhone, setAnonPhone] = useState<string>('')
+  const [refundMethod, setRefundMethod] = useState<'CASH' | 'CARD' | 'ORIGINAL'>('CASH')
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
   const [errorMsg, setErrorMsg] = useState<string>('')
 
@@ -28,6 +29,15 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({ isOpen, onClose, sale,
       setAnonCustomerName('')
       setAnonPhone('')
       setErrorMsg('')
+
+      const pay = sale.paymentType || {}
+      if (pay.cash > 0 && (!pay.card || pay.card === 0)) {
+        setRefundMethod('CASH')
+      } else if (pay.card > 0 && (!pay.cash || pay.cash === 0)) {
+        setRefundMethod('CARD')
+      } else {
+        setRefundMethod('ORIGINAL')
+      }
     }
   }, [isOpen, sale])
 
@@ -74,6 +84,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({ isOpen, onClose, sale,
           reason: reason.trim(),
           customerName: anonCustomerName.trim(),
           phone: anonPhone.trim(),
+          refundMethod,
         }),
       })
 
@@ -102,7 +113,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({ isOpen, onClose, sale,
           <div className="flex items-center space-x-2">
             <RotateCcw className="w-5 h-5 text-amber-600" />
             <div>
-              <h3 className="font-bold text-slate-900 text-sm">Ürün İadesi & Stok Girişi</h3>
+              <h3 className="font-bold text-slate-900 text-sm">Ürün İadesi & Kasa Düşümü</h3>
               <span className="text-[11px] text-slate-500 font-mono">Fiş No: {sale.receiptNo}</span>
             </div>
           </div>
@@ -229,6 +240,39 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({ isOpen, onClose, sale,
             })}
           </div>
 
+          {/* Refund Method Selector (Kasadan Para Çıkışı) */}
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-700 mb-1.5 uppercase">
+              İade Ödeme Yöntemi (Kasadan Çıkış Türü)
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setRefundMethod('CASH')}
+                className={`p-2 rounded-lg border text-xs font-bold flex items-center justify-center space-x-1.5 transition ${
+                  refundMethod === 'CASH'
+                    ? 'bg-amber-600 text-white border-amber-600 shadow-2xs'
+                    : 'bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100'
+                }`}
+              >
+                <Banknote className="w-3.5 h-3.5" />
+                <span>Nakit Kasasından Çık</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setRefundMethod('CARD')}
+                className={`p-2 rounded-lg border text-xs font-bold flex items-center justify-center space-x-1.5 transition ${
+                  refundMethod === 'CARD'
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                    : 'bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100'
+                }`}
+              >
+                <CreditCard className="w-3.5 h-3.5" />
+                <span>Kart / POS İptal</span>
+              </button>
+            </div>
+          </div>
+
           {/* Optional Return Reason */}
           <div>
             <label className="block text-[11px] font-semibold text-slate-700 mb-1 uppercase">
@@ -236,7 +280,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({ isOpen, onClose, sale,
             </label>
             <input
               type="text"
-              placeholder="Örn: Beden küçük geldi, ürün değişimi yapıldı..."
+              placeholder="Örn: Beden küçük geldi, ürün kusurlu..."
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-amber-600 font-medium"
@@ -250,10 +294,10 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({ isOpen, onClose, sale,
                 <PackageCheck className="w-5 h-5 text-amber-700" />
                 <div>
                   <span className="text-xs font-bold text-slate-900 block">
-                    Stoğa İade Edilecek: {totalReturnCount} Adet Ürün
+                    Stoğa İade: {totalReturnCount} Adet Ürün
                   </span>
                   <span className="text-[10px] text-amber-800">
-                    İade onaylandığında varyant stokları otomatik güncellenecektir.
+                    Kasadan {refundMethod === 'CASH' ? 'nakit para düşülecek' : 'kart iadesi düşülecek'}.
                   </span>
                 </div>
               </div>
@@ -279,7 +323,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({ isOpen, onClose, sale,
                 className="flex-1 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded transition flex items-center justify-center space-x-1 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
               >
                 <RotateCcw className="w-4 h-4" />
-                <span>{isSubmitting ? 'İade İşleniyor...' : 'İadeyi Onayla & Stoğa Ekle'}</span>
+                <span>{isSubmitting ? 'İade İşleniyor...' : 'İadeyi Onayla & Kasadan Düş'}</span>
               </button>
             </div>
           </div>

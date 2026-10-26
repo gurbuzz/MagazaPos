@@ -709,12 +709,12 @@ class MusicController {
         await this.executeSpotifyPlay()
       } catch (e: any) {
         console.warn('[MusicController] Spotify play error:', e.message)
-        // If device not found, let error bubble or log
         if (e.message?.includes('Spotify cihazı bulunamadı')) {
           this.isPlaying = false
           throw e
         }
       }
+      return
     }
 
     if (fade) {
@@ -756,8 +756,10 @@ class MusicController {
       try {
         await this.spotifyApiCall('/v1/me/player/next', 'POST')
         setTimeout(() => this.syncSpotifyPlayerState(), 400)
-        return
-      } catch (e) {}
+      } catch (e: any) {
+        console.warn('[MusicController] Spotify next error:', e.message)
+      }
+      return // In Spotify mode, always return; never fall through to preset playlists!
     }
 
     const activePlaylist = PRESET_PLAYLISTS.find((p) => p.id === this.config.activePlaylistId) || PRESET_PLAYLISTS[0]
@@ -770,8 +772,10 @@ class MusicController {
       try {
         await this.spotifyApiCall('/v1/me/player/previous', 'POST')
         setTimeout(() => this.syncSpotifyPlayerState(), 400)
-        return
-      } catch (e) {}
+      } catch (e: any) {
+        console.warn('[MusicController] Spotify prev error:', e.message)
+      }
+      return // In Spotify mode, always return; never fall through to preset playlists!
     }
 
     const activePlaylist = PRESET_PLAYLISTS.find((p) => p.id === this.config.activePlaylistId) || PRESET_PLAYLISTS[0]
@@ -781,34 +785,40 @@ class MusicController {
   }
 
   public async switchTrack(track: MusicTrack) {
+    const isSpotifyTrack = Boolean(
+      (track.uri && track.uri.startsWith('spotify:')) ||
+      (this.config.sourceMode === 'spotify' && this.config.spotifyRefreshToken)
+    )
+
+    if (isSpotifyTrack) {
+      this.config.sourceMode = 'spotify'
+      this.saveConfig({ sourceMode: 'spotify' })
+    }
+
+    this.currentTrack = track
+    this.trackProgressSec = 0
+
+    if (isSpotifyTrack && track.uri) {
+      try {
+        await this.executeSpotifyPlay({ uris: [track.uri] })
+        this.isPlaying = true
+        setTimeout(() => this.syncSpotifyPlayerState(), 500)
+        return
+      } catch (e: any) {
+        console.warn('[MusicController] switchTrack Spotify error:', e.message)
+        throw e
+      }
+    }
+
+    // Otherwise, preset / local stream mode with volume ramp
     const targetVol = this.config.volume > 0 ? this.config.volume : 70
     const halfDuration = Math.round(((this.config.fadeDurationSec || 2.5) * 1000) / 2)
 
     if (this.isPlaying) {
       this.rampVolume(0, halfDuration, async () => {
-        this.currentTrack = track
-        this.trackProgressSec = 0
-
-        if (track.uri && this.config.sourceMode === 'spotify' && this.config.spotifyRefreshToken) {
-          try {
-            await this.executeSpotifyPlay({ uris: [track.uri] })
-          } catch (e: any) {
-            console.warn('[MusicController] switchTrack Spotify error:', e.message)
-          }
-        }
-
         this.rampVolume(targetVol, halfDuration)
       })
     } else {
-      this.currentTrack = track
-      this.trackProgressSec = 0
-      if (track.uri && this.config.sourceMode === 'spotify' && this.config.spotifyRefreshToken) {
-        try {
-          await this.executeSpotifyPlay({ uris: [track.uri] })
-        } catch (e: any) {
-          console.warn('[MusicController] switchTrack Spotify error:', e.message)
-        }
-      }
       this.play(true)
     }
   }
@@ -817,29 +827,13 @@ class MusicController {
     this.config.sourceMode = 'spotify'
     this.saveConfig({ sourceMode: 'spotify' })
 
-    const targetVol = this.config.volume > 0 ? this.config.volume : 70
-    const halfDuration = Math.round(((this.config.fadeDurationSec || 2.5) * 1000) / 2)
-
-    if (this.isPlaying) {
-      this.rampVolume(0, halfDuration, async () => {
-        try {
-          await this.executeSpotifyPlay({ context_uri: playlistUri })
-        } catch (e: any) {
-          console.warn('[MusicController] playSpotifyPlaylist error:', e.message)
-          throw e
-        }
-        setTimeout(() => this.syncSpotifyPlayerState(), 500)
-        this.rampVolume(targetVol, halfDuration)
-      })
-    } else {
-      try {
-        await this.executeSpotifyPlay({ context_uri: playlistUri })
-      } catch (e: any) {
-        console.warn('[MusicController] playSpotifyPlaylist error:', e.message)
-        throw e
-      }
-      this.play(true)
+    try {
+      await this.executeSpotifyPlay({ context_uri: playlistUri })
+      this.isPlaying = true
       setTimeout(() => this.syncSpotifyPlayerState(), 500)
+    } catch (e: any) {
+      console.warn('[MusicController] playSpotifyPlaylist error:', e.message)
+      throw e
     }
   }
 
@@ -991,6 +985,12 @@ class MusicController {
     if (this.playbackTimer) clearInterval(this.playbackTimer)
     this.playbackTimer = setInterval(() => {
       if (this.isPlaying) {
+        // In Spotify mode, Spotify natively manages its own playback, timers, crossfades, and queue progression.
+        // We must NEVER artificially skip tracks or run fake progress timeouts for Spotify!
+        if (this.config.sourceMode === 'spotify') {
+          return
+        }
+
         this.trackProgressSec++
         const maxSec = this.currentTrack?.durationSec || 200
         if (this.trackProgressSec >= maxSec) {

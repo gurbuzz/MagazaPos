@@ -312,6 +312,14 @@
   white-space: nowrap !important;
 }
 
+html,
+body,
+#root {
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+}
+
+
 
 
 

@@ -1313,14 +1313,14 @@ export const StockView: React.FC = () => {
   return (
     <div className="h-[calc(100vh-3.5rem)] bg-slate-100 flex overflow-hidden font-sans">
       {/* Left List: Products */}
-      <div className="w-1/3 min-w-[300px] max-w-[380px] shrink-0 border-r border-white/60 flex flex-col glass-panel shadow-lg">
-        <div className="p-3 border-b border-white/40 space-y-2 bg-white/40 backdrop-blur-xs">
-          <div className="flex items-center justify-between gap-1.5">
-            <h2 className="font-bold text-slate-900 text-xs flex items-center space-x-1.5 shrink-0">
-              <Layers className="w-4 h-4 text-blue-700" />
+      <div className="w-1/3 min-w-[320px] max-w-[420px] shrink-0 border-r border-white/60 flex flex-col glass-panel shadow-lg">
+        <div className="p-2.5 border-b border-white/40 space-y-2 bg-white/40 backdrop-blur-xs">
+          <div className="flex items-center justify-between gap-1">
+            <h2 className="font-bold text-slate-900 text-xs flex items-center space-x-1 shrink-0">
+              <Layers className="w-3.5 h-3.5 text-blue-700" />
               <span>Ürünler</span>
             </h2>
-            <div className="flex items-center space-x-1 shrink-0">
+            <div className="flex items-center gap-1 shrink-0">
               <button
                 onClick={() => {
                   setIsExcelModalOpen(true)
@@ -1330,25 +1330,26 @@ export const StockView: React.FC = () => {
                   setExcelResult(null)
                   setExcelError(null)
                 }}
-                className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-semibold flex items-center space-x-1 transition shadow-xs"
+                className="px-1.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[11px] font-semibold flex items-center space-x-1 transition shadow-2xs whitespace-nowrap"
                 title="Excel / CSV ile Toplu Ürün ve Stok Yükleme"
               >
-                <FileSpreadsheet className="w-3.5 h-3.5" />
+                <FileSpreadsheet className="w-3 h-3 shrink-0" />
                 <span>Toplu Excel</span>
               </button>
               <button
                 onClick={() => setIsCategoryModalOpen(true)}
-                className="px-2 py-1 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded text-xs font-semibold flex items-center space-x-1 transition"
+                className="px-1.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded text-[11px] font-semibold flex items-center space-x-1 transition shadow-2xs whitespace-nowrap"
                 title="Kategorileri Yönet"
               >
-                <Tag className="w-3.5 h-3.5 text-blue-700" />
-                <span>Kategoriler</span>
+                <Tag className="w-3 h-3 text-blue-700 shrink-0" />
+                <span>Kategori</span>
               </button>
               <button
                 onClick={() => setIsAddModalOpen(true)}
-                className="px-2.5 py-1 bg-blue-700 hover:bg-blue-800 text-white rounded text-xs font-semibold flex items-center space-x-1 transition shadow-sm"
+                className="px-2 py-1 bg-blue-700 hover:bg-blue-800 text-white rounded text-[11px] font-semibold flex items-center space-x-1 transition shadow-xs whitespace-nowrap"
+                title="Yeni Ürün Ekle"
               >
-                <Plus className="w-3.5 h-3.5" />
+                <Plus className="w-3 h-3 shrink-0" />
                 <span>Yeni Ürün</span>
               </button>
             </div>

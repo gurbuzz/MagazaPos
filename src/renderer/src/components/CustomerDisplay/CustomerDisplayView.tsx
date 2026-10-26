@@ -81,7 +81,7 @@ export const CustomerDisplayView: React.FC = () => {
   const [currentSlide, setCurrentSlide] = useState(0)
   const [isTransitionActive, setIsTransitionActive] = useState(false)
   const [transitionMessage, setTransitionMessage] = useState<string | null>(null)
-  const cartBottomRef = useRef<HTMLDivElement>(null)
+  const cartListRef = useRef<HTMLDivElement>(null)
   const prevStatusRef = useRef<string>('idle')
 
   const isLight = (data.theme || localStorage.getItem('pos_customer_display_theme')) === 'light'
@@ -164,10 +164,19 @@ export const CustomerDisplayView: React.FC = () => {
     }
   }, [data.status])
 
-  // Auto-scroll to latest item when cart changes
+  // Reset any ancestor/window scroll displacement on status or cart changes
   useEffect(() => {
-    if (data.cartItems && data.cartItems.length > 0) {
-      cartBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    window.scrollTo(0, 0)
+    if (document.documentElement) document.documentElement.scrollTop = 0
+    if (document.body) document.body.scrollTop = 0
+    const root = document.getElementById('root')
+    if (root) root.scrollTop = 0
+  }, [data.status, data.cartItems?.length])
+
+  // Auto-scroll inside cart items container without scrolling window or ancestor elements
+  useEffect(() => {
+    if (cartListRef.current) {
+      cartListRef.current.scrollTop = cartListRef.current.scrollHeight
     }
   }, [data.cartItems?.length])
 
@@ -179,7 +188,7 @@ export const CustomerDisplayView: React.FC = () => {
 
   return (
     <div
-      className={`h-full w-full ${
+      className={`h-screen w-screen max-h-screen max-w-screen ${
         isLight
           ? 'bg-gradient-to-br from-slate-100 via-slate-50 to-blue-50/60 text-slate-800'
           : 'bg-gradient-to-br from-[#0c1322] via-[#101b33] to-[#0c1424] text-white'
@@ -1061,7 +1070,7 @@ export const CustomerDisplayView: React.FC = () => {
               </div>
 
               {/* Items List - Fully Scrollable */}
-              <div className="flex-1 overflow-y-auto p-3 space-y-2.5 min-h-0">
+              <div ref={cartListRef} className="flex-1 overflow-y-auto p-3 space-y-2.5 min-h-0">
                 {data.cartItems.map((item, idx) => {
                   const isLastItem = idx === data.cartItems.length - 1
                   const isDiscounted = item.originalPrice && item.originalPrice > item.unitPrice
@@ -1197,7 +1206,6 @@ export const CustomerDisplayView: React.FC = () => {
                     </div>
                   )
                 })}
-                <div ref={cartBottomRef} />
               </div>
             </div>
 
@@ -1399,9 +1407,9 @@ export const CustomerDisplayView: React.FC = () => {
         ) : (
           /* CASE 4: STANDBY / IDLE STATE */
           <div
-            className={`flex-1 w-full min-h-0 flex flex-col items-center justify-between p-3.5 md:p-5 lg:p-6 ${
+            className={`flex-1 w-full min-h-0 flex flex-col items-center justify-center p-3.5 md:p-5 lg:p-6 ${
               isLight ? 'border-slate-200/80 bg-white/40' : 'border-white/20'
-            } border rounded-3xl shadow-2xl relative overflow-hidden animate-slowmotion-fade gap-2.5 md:gap-3`}
+            } border rounded-3xl shadow-2xl relative overflow-hidden animate-slowmotion-fade gap-3 md:gap-4`}
           >
             {/* Cinematic Store Atmosphere Background Image */}
             <div className="absolute inset-0 z-0">
@@ -1429,21 +1437,21 @@ export const CustomerDisplayView: React.FC = () => {
             </div>
 
             {/* Top Standby Welcome */}
-            <div className="text-center space-y-1.5 md:space-y-2 z-10 max-w-2xl shrink-0 pt-0.5">
+            <div className="text-center space-y-1 md:space-y-1.5 z-10 max-w-2xl shrink-0">
               <div>
                 <span
-                  className={`px-4 py-1 rounded-full ${
+                  className={`px-3.5 py-1 rounded-full ${
                     isLight
                       ? 'bg-blue-600 text-white border-blue-500 shadow-sm'
                       : 'bg-blue-500/30 text-blue-100 border-blue-400/50 shadow-lg'
-                  } border text-[11px] md:text-xs font-black tracking-widest uppercase inline-block backdrop-blur-md`}
+                  } border text-[11px] md:text-xs font-black tracking-widest uppercase inline-block backdrop-blur-md shrink-0`}
                 >
                   PREMIUM RETAIL EXPERIENCE
                 </span>
               </div>
 
               <h2
-                className={`text-3xl md:text-4xl lg:text-5xl font-black ${
+                className={`text-2xl md:text-3xl lg:text-4xl font-black ${
                   isLight ? 'text-slate-900 drop-shadow-sm' : 'text-white drop-shadow-2xl'
                 } tracking-tight leading-tight`}
               >
@@ -1451,9 +1459,10 @@ export const CustomerDisplayView: React.FC = () => {
               </h2>
 
               <p
-                className={`text-sm md:text-base ${
+                className={`text-xs md:text-sm ${
                   isLight ? 'text-slate-700' : 'text-blue-100'
-                } font-bold ${isLight ? 'drop-shadow-none' : 'drop-shadow-lg'} max-w-xl mx-auto`}>
+                } font-bold ${isLight ? 'drop-shadow-none' : 'drop-shadow-lg'} max-w-xl mx-auto line-clamp-2`}
+              >
                 {data.storeAddress || 'Yeni sezon koleksiyonumuz ve ayrıcalıklı alışveriş deneyimi için buradayız.'}
               </p>
             </div>
@@ -1465,32 +1474,32 @@ export const CustomerDisplayView: React.FC = () => {
                   isLight
                     ? 'bg-white/90 border-slate-200/90 shadow-xl'
                     : 'bg-slate-900/50 border-white/25 shadow-2xl'
-                } border rounded-2xl md:rounded-3xl p-3.5 md:p-4 backdrop-blur-xl transition-all duration-500 h-[140px] md:h-[148px] flex flex-col justify-between`}
+                } border rounded-2xl md:rounded-3xl p-3 md:p-3.5 backdrop-blur-xl transition-all duration-500 h-[115px] md:h-[125px] max-h-[125px] flex flex-col justify-between`}
               >
-                <div className="flex items-center space-x-3.5 md:space-x-4 min-w-0">
+                <div className="flex items-center space-x-3 md:space-x-4 min-w-0">
                   <div
-                    className={`p-2.5 md:p-3 rounded-2xl ${PROMO_SLIDES[currentSlide].iconBg} shadow-lg shrink-0 border border-white/20 text-2xl md:text-3xl`}
+                    className={`p-2 md:p-2.5 rounded-2xl ${PROMO_SLIDES[currentSlide].iconBg} shadow-lg shrink-0 border border-white/20 text-xl md:text-2xl`}
                   >
-                    <SlideIcon className="w-6 h-6 md:w-7 md:h-7" />
+                    <SlideIcon className="w-5 h-5 md:w-6 md:h-6" />
                   </div>
 
                   <div className="flex-1 min-w-0">
                     <span
-                      className={`px-2.5 py-0.5 rounded-full text-[10px] md:text-xs font-black uppercase tracking-wider border inline-block mb-1 ${PROMO_SLIDES[currentSlide].badgeColor}`}
+                      className={`px-2 py-0.5 rounded-full text-[10px] md:text-[11px] font-black uppercase tracking-wider border inline-block mb-0.5 ${PROMO_SLIDES[currentSlide].badgeColor}`}
                     >
                       {PROMO_SLIDES[currentSlide].badge}
                     </span>
                     <h3
-                      className={`text-lg md:text-xl font-black ${
+                      className={`text-base md:text-lg font-black ${
                         isLight ? 'text-slate-900' : 'text-white'
                       } tracking-tight drop-shadow-md truncate`}
                     >
                       {PROMO_SLIDES[currentSlide].title}
                     </h3>
                     <p
-                      className={`text-xs md:text-sm ${
+                      className={`text-xs ${
                         isLight ? 'text-slate-600' : 'text-blue-100/90'
-                      } font-medium leading-relaxed drop-shadow-sm line-clamp-2 mt-0.5`}
+                      } font-medium leading-relaxed drop-shadow-sm line-clamp-1 mt-0.5`}
                     >
                       {PROMO_SLIDES[currentSlide].subtitle}
                     </p>
@@ -1499,7 +1508,7 @@ export const CustomerDisplayView: React.FC = () => {
 
                 {/* Carousel Dots */}
                 <div
-                  className={`flex justify-center space-x-2 pt-2 border-t ${
+                  className={`flex justify-center space-x-2 pt-1.5 border-t ${
                     isLight ? 'border-slate-200/80' : 'border-white/10'
                   } shrink-0`}
                 >
@@ -1509,7 +1518,7 @@ export const CustomerDisplayView: React.FC = () => {
                       onClick={() => setCurrentSlide(idx)}
                       className={`h-1.5 rounded-full transition-all ${
                         idx === currentSlide
-                          ? 'w-7 md:w-8 bg-blue-500 shadow-xs'
+                          ? 'w-6 md:w-7 bg-blue-500 shadow-xs'
                           : isLight
                           ? 'w-1.5 md:w-2 bg-slate-300 hover:bg-slate-400'
                           : 'w-1.5 md:w-2 bg-white/30 hover:bg-white/50'
@@ -1522,25 +1531,25 @@ export const CustomerDisplayView: React.FC = () => {
 
             {/* Bottom Standby Badge Pills */}
             <div
-              className={`z-10 flex flex-wrap items-center justify-center gap-2.5 md:gap-3 text-xs md:text-sm font-bold ${
+              className={`z-10 flex flex-wrap items-center justify-center gap-2 md:gap-3 text-xs font-bold ${
                 isLight ? 'text-slate-700' : 'text-blue-100/90'
-              } shrink-0 pb-0.5`}
+              } shrink-0`}
             >
               <span
-                className={`px-3.5 py-1.5 md:px-4 md:py-1.5 rounded-full ${
+                className={`px-3 py-1 md:px-3.5 md:py-1 rounded-full ${
                   isLight
-                    ? 'bg-white/95 border-slate-200 text-slate-800 shadow-md'
+                    ? 'bg-white/95 border-slate-200 text-slate-800 shadow-sm'
                     : 'bg-slate-900/60 border-white/20 text-blue-100/90'
-                } border backdrop-blur-md flex items-center gap-2 whitespace-nowrap`}
+                } border backdrop-blur-md flex items-center gap-1.5 whitespace-nowrap`}
               >
                 <span>💳</span> Nakit & Tüm Banka Kartları
               </span>
               <span
-                className={`px-3.5 py-1.5 md:px-4 md:py-1.5 rounded-full ${
+                className={`px-3 py-1 md:px-3.5 md:py-1 rounded-full ${
                   isLight
-                    ? 'bg-white/95 border-slate-200 text-slate-800 shadow-md'
+                    ? 'bg-white/95 border-slate-200 text-slate-800 shadow-sm'
                     : 'bg-slate-900/60 border-white/20 text-blue-100/90'
-                } border backdrop-blur-md flex items-center gap-2 whitespace-nowrap`}
+                } border backdrop-blur-md flex items-center gap-1.5 whitespace-nowrap`}
               >
                 <span>🔄</span> 14 Gün İçinde Fiş ile Değişim
               </span>

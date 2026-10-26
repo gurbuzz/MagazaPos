@@ -297,9 +297,18 @@ export const CustomerView: React.FC = () => {
     }
   }
 
-  // Calculate customer metrics
+  // Calculate customer metrics (İadeler düşülmüş net harcama)
   const totalSalesCount = customerDetails?.sales?.length || 0
-  const totalSpent = customerDetails?.sales?.reduce((sum: number, s: any) => sum + s.totalAmount, 0) || 0
+  const totalSpent =
+    customerDetails?.sales?.reduce((sum: number, s: any) => {
+      const net =
+        s.netAmount !== undefined
+          ? Number(s.netAmount)
+          : s.status === 'RETURNED'
+          ? 0
+          : Math.max(0, (Number(s.totalAmount) || 0) - (Number(s.refundAmount) || 0))
+      return sum + net
+    }, 0) || 0
   const averageSpent = totalSalesCount > 0 ? totalSpent / totalSalesCount : 0
 
   return (
@@ -597,9 +606,31 @@ export const CustomerView: React.FC = () => {
                           <div className="flex items-center space-x-3">
                             <div className="text-right">
                               <span className="text-[10px] text-slate-400 block font-medium">Toplam</span>
-                              <span className="font-bold text-sm text-slate-900">
-                                {(Number(sale.totalAmount) || 0).toFixed(2)} ₺
-                              </span>
+                              {isFullyReturned ? (
+                                <div>
+                                  <span className="line-through text-slate-400 text-xs block">
+                                    {(Number(sale.totalAmount) || 0).toFixed(2)} ₺
+                                  </span>
+                                  <span className="font-bold text-xs text-rose-600">0,00 ₺ (İade Edildi)</span>
+                                </div>
+                              ) : isPartialReturned || (sale.refundAmount && sale.refundAmount > 0) ? (
+                                <div>
+                                  <span className="font-bold text-sm text-slate-900 block">
+                                    {(sale.netAmount !== undefined
+                                      ? Number(sale.netAmount)
+                                      : Math.max(0, (Number(sale.totalAmount) || 0) - (Number(sale.refundAmount) || 0))
+                                    ).toFixed(2)}{' '}
+                                    ₺
+                                  </span>
+                                  <span className="text-[10px] text-amber-700 font-semibold block">
+                                    (-{(Number(sale.refundAmount) || 0).toFixed(2)} ₺ İade)
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="font-bold text-sm text-slate-900">
+                                  {(Number(sale.totalAmount) || 0).toFixed(2)} ₺
+                                </span>
+                              )}
                             </div>
 
                             {/* RETURN BUTTON FOR REGISTERED CUSTOMER SALE */}

@@ -29,6 +29,7 @@ export const MusicPlayerAudio: React.FC = () => {
 
     // Handle stream stall / disconnect with soft reconnect
     const handleStall = () => {
+      if (useMusicStore.getState().sourceMode === 'spotify') return
       if (isPlayingRef.current && audio.src) {
         console.warn('[MusicPlayerAudio] Stream stalled, refreshing source...')
         audio.load()
@@ -37,7 +38,8 @@ export const MusicPlayerAudio: React.FC = () => {
     }
 
     const handleEnded = () => {
-      // When preview ends, proceed to next track
+      // In Spotify mode, Spotify handles playback natively - never trigger next() on HTML5 audio end!
+      if (useMusicStore.getState().sourceMode === 'spotify') return
       useMusicStore.getState().next()
     }
 
@@ -60,9 +62,12 @@ export const MusicPlayerAudio: React.FC = () => {
     const audio = audioRef.current
     if (!audio) return
 
-    // Priority 1: Current track has preview audio URL (e.g. from song search)
-    // Priority 2: Store radio live stream
-    const targetUrl = currentTrack?.previewUrl || (sourceMode === 'store_radio' ? activePlaylist?.streamUrl : null)
+    // In Spotify mode, Spotify Connect / Desktop app handles playback.
+    // HTML5 Audio must NEVER play 30s previews or interfere in Spotify mode!
+    const targetUrl =
+      sourceMode === 'spotify'
+        ? null
+        : currentTrack?.previewUrl || (sourceMode === 'store_radio' ? activePlaylist?.streamUrl : null)
 
     if (targetUrl) {
       // Update source if changed
@@ -82,8 +87,12 @@ export const MusicPlayerAudio: React.FC = () => {
         audio.pause()
       }
     } else {
-      // In Spotify mode or if no stream url, pause HTML5 audio (Spotify handles its own playback)
+      // In Spotify mode or if no stream url, pause and clear HTML5 audio
       audio.pause()
+      if (audio.src) {
+        audio.removeAttribute('src')
+        audio.load()
+      }
     }
   }, [isPlaying, sourceMode, activePlaylist?.streamUrl, currentTrack?.previewUrl])
 

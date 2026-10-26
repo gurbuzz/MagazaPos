@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { prisma } from '../db'
+import { formatSale } from './sales'
 
 export const customersRouter = Router()
 
@@ -67,30 +68,8 @@ customersRouter.get('/:id', async (req, res) => {
       return
     }
 
-    // Format sales items and payment type JSON
-    const formattedSales = customer.sales.map((s: any) => {
-      let pay = s.paymentType
-      if (typeof pay === 'string') {
-        try {
-          pay = JSON.parse(pay)
-        } catch (e) {
-          if (pay === 'CASH') pay = { cash: s.totalAmount || 0, card: 0 }
-          else if (pay === 'CARD') pay = { cash: 0, card: s.totalAmount || 0 }
-          else pay = { note: pay }
-        }
-      }
-      const items = s.items?.map((item: any) => {
-        let attrs = item.variant?.attributes
-        if (typeof attrs === 'string') {
-          try { attrs = JSON.parse(attrs) } catch (e) { attrs = {} }
-        }
-        return {
-          ...item,
-          variant: item.variant ? { ...item.variant, attributes: attrs } : undefined,
-        }
-      })
-      return { ...s, paymentType: pay, items }
-    })
+    // Format sales items and payment type with refund deductions
+    const formattedSales = customer.sales.map(formatSale)
 
     res.json({
       ...customer,

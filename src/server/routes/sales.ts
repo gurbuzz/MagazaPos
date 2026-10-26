@@ -11,7 +11,7 @@ function parseDecimal(val: any): number {
   return isNaN(num) ? 0 : num
 }
 
-function formatSale(s: any) {
+export function formatSale(s: any) {
   let pay = s.paymentType
   if (typeof pay === 'string') {
     try {
@@ -22,6 +22,7 @@ function formatSale(s: any) {
       else pay = { note: pay }
     }
   }
+
   const items = s.items?.map((item: any) => {
     let attrs = item.variant?.attributes
     if (typeof attrs === 'string') {
@@ -32,8 +33,71 @@ function formatSale(s: any) {
       variant: item.variant ? { ...item.variant, attributes: attrs } : undefined,
     }
   })
-  return { ...s, paymentType: pay, items }
+
+  // Calculate item-based refund
+  const itemsSubtotal = (items || []).reduce(
+    (sum: number, it: any) => sum + (Number(it.quantity) || 0) * (Number(it.unitPrice) || 0),
+    0
+  )
+  const totalAmountNum = Number(s.totalAmount) || 0
+  const discountFactor = itemsSubtotal > 0 ? Math.min(1, totalAmountNum / itemsSubtotal) : 1
+
+  let calculatedRefund = (items || []).reduce((sum: number, it: any) => {
+    const retQty = Number(it.returnedQuantity) || 0
+    return sum + retQty * (Number(it.unitPrice) || 0) * discountFactor
+  }, 0)
+  calculatedRefund = Math.round(calculatedRefund * 100) / 100
+
+  const isFullyReturned =
+    s.status === 'RETURNED' ||
+    (items && items.length > 0 && items.every((it: any) => (Number(it.returnedQuantity) || 0) >= (Number(it.quantity) || 0)))
+
+  const refundAmount = isFullyReturned ? totalAmountNum : Math.min(totalAmountNum, calculatedRefund)
+  const netAmount = isFullyReturned ? 0 : Math.max(0, Math.round((totalAmountNum - refundAmount) * 100) / 100)
+
+  // Payment breakdown & refund deductions
+  const origCash = Number(pay?.cash) || 0
+  const origCard = Number(pay?.card) || 0
+
+  let refundCash = Number(pay?.refundCash) || 0
+  let refundCard = Number(pay?.refundCard) || 0
+
+  // If refund occurred but refundCash/refundCard was not explicitly logged, derive from original payment method:
+  if (refundAmount > 0 && refundCash === 0 && refundCard === 0) {
+    if (origCash > 0 && origCard === 0) {
+      refundCash = refundAmount
+    } else if (origCard > 0 && origCash === 0) {
+      refundCard = refundAmount
+    } else if (origCash + origCard > 0) {
+      const cashRatio = origCash / (origCash + origCard)
+      refundCash = Math.round(refundAmount * cashRatio * 100) / 100
+      refundCard = Math.round((refundAmount - refundCash) * 100) / 100
+    }
+  }
+
+  const netCash = Math.max(0, Math.round((origCash - refundCash) * 100) / 100)
+  const netCard = Math.max(0, Math.round((origCard - refundCard) * 100) / 100)
+
+  const updatedPaymentType = {
+    ...pay,
+    cash: origCash,
+    card: origCard,
+    refundCash,
+    refundCard,
+    refundTotal: refundAmount,
+    netCash,
+    netCard
+  }
+
+  return {
+    ...s,
+    paymentType: updatedPaymentType,
+    items,
+    refundAmount,
+    netAmount
+  }
 }
+
 
 // GET /api/sales - Sales history with optional date-time range filters and search
 salesRouter.get('/', async (req, res) => {
@@ -301,9 +365,73 @@ salesRouter.post('/:id/return', async (req, res) => {
       const allFullyReturned = freshSaleItems.every((item: any) => (item.returnedQuantity || 0) >= item.quantity)
       const newStatus = allFullyReturned ? 'RETURNED' : 'PARTIAL_RETURN'
 
+      // Calculate refund amount for items returned in this transaction
+      const itemsSubtotal = (sale.items || []).reduce(
+        (sum: number, it: any) => sum + (Number(it.quantity) || 0) * (Number(it.unitPrice) || 0),
+        0
+      )
+      const totalAmountNum = Number(sale.totalAmount) || 0
+      const discountFactor = itemsSubtotal > 0 ? Math.min(1, totalAmountNum / itemsSubtotal) : 1
+
+      let currentBatchRefund = 0
+      for (const returnItem of items) {
+        const existingItem = sale.items?.find((i: any) => i.id === returnItem.saleItemId)!
+        const qtyToReturn = parseInt(returnItem.returnQuantity)
+        currentBatchRefund += qtyToReturn * (Number(existingItem.unitPrice) || 0) * discountFactor
+      }
+      currentBatchRefund = Math.round(currentBatchRefund * 100) / 100
+
+      // Update paymentType JSON with refund deductions
+      let currentPay: any = {}
+      try {
+        currentPay = typeof sale.paymentType === 'string' ? JSON.parse(sale.paymentType) : (sale.paymentType || {})
+      } catch (e) {
+        currentPay = { cash: totalAmountNum, card: 0 }
+      }
+
+      const origCash = Number(currentPay.cash) || 0
+      const origCard = Number(currentPay.card) || 0
+      let prevRefundCash = Number(currentPay.refundCash) || 0
+      let prevRefundCard = Number(currentPay.refundCard) || 0
+
+      let addCash = 0
+      let addCard = 0
+
+      if (req.body.refundMethod === 'CASH') {
+        addCash = currentBatchRefund
+      } else if (req.body.refundMethod === 'CARD') {
+        addCard = currentBatchRefund
+      } else {
+        // 'ORIGINAL' or undefined: follow original payment proportions
+        if (origCash > 0 && origCard === 0) {
+          addCash = currentBatchRefund
+        } else if (origCard > 0 && origCash === 0) {
+          addCard = currentBatchRefund
+        } else if (origCash + origCard > 0) {
+          const cashRatio = origCash / (origCash + origCard)
+          addCash = Math.round(currentBatchRefund * cashRatio * 100) / 100
+          addCard = Math.round((currentBatchRefund - addCash) * 100) / 100
+        } else {
+          addCash = currentBatchRefund
+        }
+      }
+
+      const newRefundCash = Math.min(origCash, Math.round((prevRefundCash + addCash) * 100) / 100)
+      const newRefundCard = Math.min(origCard, Math.round((prevRefundCard + addCard) * 100) / 100)
+      const newRefundTotal = allFullyReturned
+        ? totalAmountNum
+        : Math.min(totalAmountNum, Math.round((newRefundCash + newRefundCard) * 100) / 100)
+
+      currentPay.refundCash = newRefundCash
+      currentPay.refundCard = newRefundCard
+      currentPay.refundTotal = newRefundTotal
+
       const finalSale = await (tx.sale as any).update({
         where: { id },
-        data: { status: newStatus },
+        data: {
+          status: newStatus,
+          paymentType: JSON.stringify(currentPay)
+        },
         include: {
           customer: true,
           items: {
