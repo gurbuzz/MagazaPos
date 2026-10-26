@@ -139,9 +139,19 @@ export const MusicModal: React.FC = () => {
 
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault()
+    setErrorMessage(null)
+    const cleanedClientId = (formClientId || '').trim()
+    const cleanedClientSecret = (formClientSecret || '').trim()
+
+    if (cleanedClientId && !/^[0-9a-fA-F]{32}$/.test(cleanedClientId)) {
+      setErrorMessage(
+        'Dikkat: Spotify Client ID kullanıcı adı veya e-postanız DEĞİLDİR. developer.spotify.com adresinde oluşturulan uygulamanın 32 karakterli Client ID kodudur.'
+      )
+    }
+
     const success = await saveConfig({
-      spotifyClientId: formClientId,
-      spotifyClientSecret: formClientSecret,
+      spotifyClientId: cleanedClientId,
+      spotifyClientSecret: cleanedClientSecret,
       startTime: formStartTime,
       endTime: formEndTime,
       scheduleEnabled: formScheduleEnabled,
@@ -1018,6 +1028,32 @@ export const MusicModal: React.FC = () => {
                       <span>Geliştirici Paneli</span>
                       <ExternalLink className="w-3 h-3" />
                     </button>
+                  </div>
+
+                  {/* 3-Step Setup Guide */}
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl space-y-1.5 text-xs text-emerald-950">
+                    <div className="font-bold flex items-center space-x-1.5 text-emerald-800">
+                      <Sparkles className="w-4 h-4 text-emerald-600" />
+                      <span>Spotify Client ID Nasıl Alınır? (3 Kolay Adım)</span>
+                    </div>
+                    <p className="text-[11px] text-emerald-900 leading-normal">
+                      <strong>Önemli:</strong> Client ID, Spotify kullanıcı adınız veya e-posta adresiniz <u>değildir</u>. Spotify Developer portalından alacağınız 32 karakterli özel uygulama kodudur:
+                    </p>
+                    <ol className="list-decimal list-inside space-y-1 text-[11px] text-emerald-950">
+                      <li>
+                        <span className="font-bold underline cursor-pointer" onClick={() => {
+                          const url = 'https://developer.spotify.com/dashboard'
+                          if ((window as any).electron?.openExternal) (window as any).electron.openExternal(url)
+                          else window.open(url, '_blank')
+                        }}>developer.spotify.com/dashboard</span> adresine Spotify hesabınızla girip <strong>"Create App"</strong> butonuna basın.
+                      </li>
+                      <li>
+                        Aşağıdaki <strong>Redirect URI</strong> adresini kopyalayıp uygulamanızın Redirect URI kutusuna ekleyin ve kaydedin.
+                      </li>
+                      <li>
+                        Uygulamanızın <strong>Settings</strong> sayfasındaki 32 haneli <strong>Client ID</strong> ve <strong>Client Secret</strong> kodunu kopyalayıp aşağıdaki kutulara yapıştırıp kaydedin.
+                      </li>
+                    </ol>
                   </div>
 
                   {/* Redirect URI Box */}

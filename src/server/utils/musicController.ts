@@ -322,8 +322,17 @@ class MusicController {
   // ==========================================
 
   public getSpotifyAuthUrl(redirectUri: string): string {
-    if (!this.config.spotifyClientId) {
-      throw new Error('Spotify Client ID henüz tanımlanmamış. Lütfen önce Client ID girip kaydedin.')
+    const clientId = (this.config.spotifyClientId || '').trim()
+    if (!clientId) {
+      throw new Error(
+        'Spotify Client ID henüz tanımlanmamış. Lütfen önce "Spotify API & Giriş" sekmesinden 32 haneli Client ID bilginizi girip kaydedin.'
+      )
+    }
+
+    if (!/^[0-9a-fA-F]{32}$/.test(clientId)) {
+      throw new Error(
+        `Girdiğiniz Spotify Client ID geçersiz formatta ("${clientId}"). Spotify Client ID kullanıcı adınız veya e-postanız değildir; developer.spotify.com adresinden alınan 32 karakterli özel uygulama kodudur (Örn: 4a9f8b2c1d3e5f6a7b8c9d0e1f2a3b4c).`
+      )
     }
 
     const scopes = [
@@ -338,7 +347,7 @@ class MusicController {
 
     const params = new URLSearchParams({
       response_type: 'code',
-      client_id: this.config.spotifyClientId,
+      client_id: clientId,
       scope: scopes,
       redirect_uri: redirectUri,
       show_dialog: 'true',
@@ -922,7 +931,38 @@ class MusicController {
       console.warn('[MusicController] Spotify search error:', err.message)
     }
 
-    // 2. If Spotify wasn't configured or returned nothing, match with preset catalog
+    // 2. Universal Global Catalog Search (iTunes Search API - over 100M Turkish & Global songs, works with 0 API keys)
+    if (results.length === 0) {
+      try {
+        const itunesRes = await fetch(
+          `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&entity=song&limit=25`,
+          { headers: { 'User-Agent': 'MagazaPOS/1.0' } }
+        )
+        if (itunesRes.ok) {
+          const itunesData: any = await itunesRes.json()
+          if (itunesData?.results && Array.isArray(itunesData.results)) {
+            for (const item of itunesData.results) {
+              results.push({
+                id: `itunes_${item.trackId}`,
+                title: item.trackName || 'Bilinmeyen Şarkı',
+                artist: item.artistName || 'Bilinmeyen Sanatçı',
+                album: item.collectionName,
+                durationSec: Math.round((item.trackTimeMillis || 180000) / 1000),
+                albumArt:
+                  (item.artworkUrl100 || item.artworkUrl60 || '').replace('100x100bb', '600x600bb') ||
+                  '/customerbackground.jpg',
+                previewUrl: item.previewUrl,
+                externalUrl: item.trackViewUrl,
+              })
+            }
+          }
+        }
+      } catch (itunesErr: any) {
+        console.warn('[MusicController] iTunes search notice:', itunesErr.message)
+      }
+    }
+
+    // 3. Match with preset catalog if still empty
     if (results.length === 0) {
       const qLower = q.toLowerCase()
       for (const pl of PRESET_PLAYLISTS) {

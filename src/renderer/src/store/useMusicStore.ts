@@ -400,11 +400,13 @@ export const useMusicStore = create<MusicState>((set, get) => ({
 
   connectSpotify: async () => {
     const state = get()
-    // 1. Önce Client ID ve Client Secret kontrolü yap
-    const hasKeys = state.spotify.hasKeys || (state.config?.spotifyClientId && state.config?.hasClientSecret)
-    if (!hasKeys) {
+    const clientId = (state.config?.spotifyClientId || '').trim()
+    const is32Hex = /^[0-9a-fA-F]{32}$/.test(clientId)
+
+    if (!is32Hex) {
       set({
-        errorMessage: 'Spotify bağlantısı için önce "Spotify API & Giriş" sekmesinden Client ID ve Client Secret bilgilerinizi girip kaydetmelisiniz.',
+        errorMessage:
+          'Spotify bağlantısı için geçerli bir 32 haneli Client ID gereklidir. Spotify kullanıcı adınız veya e-postanız DEĞİLDİR. Lütfen "Spotify API & Giriş" sekmesindeki rehberi takip ederek developer.spotify.com üzerinden aldığınız 32 haneli Client ID kodunu kaydediniz.',
         activeTab: 'spotify',
       })
       return

@@ -8,7 +8,7 @@ import { useMusicStore } from '../../store/useMusicStore'
 export const MusicPlayerAudio: React.FC = () => {
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const isPlayingRef = useRef(false)
-  const { isPlaying, liveVolume, sourceMode, activePlaylist, fetchStatus } = useMusicStore()
+  const { isPlaying, liveVolume, sourceMode, activePlaylist, currentTrack, fetchStatus } = useMusicStore()
 
   isPlayingRef.current = isPlaying
 
@@ -31,19 +31,25 @@ export const MusicPlayerAudio: React.FC = () => {
     const handleStall = () => {
       if (isPlayingRef.current && audio.src) {
         console.warn('[MusicPlayerAudio] Stream stalled, refreshing source...')
-        const currentSrc = audio.src
         audio.load()
         audio.play().catch(() => {})
       }
     }
 
+    const handleEnded = () => {
+      // When preview ends, proceed to next track
+      useMusicStore.getState().next()
+    }
+
     audio.addEventListener('stalled', handleStall)
     audio.addEventListener('error', handleStall)
+    audio.addEventListener('ended', handleEnded)
 
     return () => {
       clearInterval(syncInterval)
       audio.removeEventListener('stalled', handleStall)
       audio.removeEventListener('error', handleStall)
+      audio.removeEventListener('ended', handleEnded)
       audio.pause()
       audio.src = ''
     }
@@ -54,9 +60,11 @@ export const MusicPlayerAudio: React.FC = () => {
     const audio = audioRef.current
     if (!audio) return
 
-    if (sourceMode === 'store_radio' && activePlaylist?.streamUrl) {
-      const targetUrl = activePlaylist.streamUrl
+    // Priority 1: Current track has preview audio URL (e.g. from song search)
+    // Priority 2: Store radio live stream
+    const targetUrl = currentTrack?.previewUrl || (sourceMode === 'store_radio' ? activePlaylist?.streamUrl : null)
 
+    if (targetUrl) {
       // Update source if changed
       if (audio.src !== targetUrl) {
         audio.src = targetUrl
@@ -77,7 +85,7 @@ export const MusicPlayerAudio: React.FC = () => {
       // In Spotify mode or if no stream url, pause HTML5 audio (Spotify handles its own playback)
       audio.pause()
     }
-  }, [isPlaying, sourceMode, activePlaylist?.streamUrl])
+  }, [isPlaying, sourceMode, activePlaylist?.streamUrl, currentTrack?.previewUrl])
 
   // Sync Live Volume (handles real-time smooth fade-in and fade-out smoothly)
   useEffect(() => {
