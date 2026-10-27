@@ -95,12 +95,30 @@ function broadcastCustomerDisplayStatus() {
   }
 }
 
+function enforceCustomerWindowBounds() {
+  if (!customerWindow || customerWindow.isDestroyed()) return
+  try {
+    const displays = screen.getAllDisplays()
+    const primaryDisplay = screen.getPrimaryDisplay()
+    const secondaryDisplay = displays.find((d) => d.id !== primaryDisplay.id)
+    if (secondaryDisplay) {
+      const { x, y, width, height } = secondaryDisplay.bounds
+      const cur = customerWindow.getBounds()
+      if (cur.x !== x || cur.y !== y || cur.width !== width || cur.height !== height) {
+        customerWindow.setBounds({ x, y, width, height })
+      }
+    }
+  } catch (err) {
+    console.warn('[CustomerDisplay] enforceBounds error:', err)
+  }
+}
+
 function openCustomerDisplayWindow() {
   // 1. Zaten açık geçerli bir pencere varsa sadece öne getir, asla 2. pencere oluşturma
   if (customerWindow && !customerWindow.isDestroyed()) {
     try {
+      enforceCustomerWindowBounds()
       customerWindow.show()
-      customerWindow.focus()
       broadcastCustomerDisplayStatus()
       return getCustomerDisplayStatus()
     } catch {}
@@ -126,7 +144,7 @@ function openCustomerDisplayWindow() {
   const iconPath = path.resolve(__dirname, '../../public/icon.ico')
 
   if (secondaryDisplay) {
-    // Çift ekranlı POS donanımı: 2. ekran koordinatlarına çerçevesiz tam ekran (kiosk) oturt
+    // Çift ekranlı POS donanımı: 2. ekran koordinatlarına çerçevesiz tam ekran oturt
     const { x, y, width, height } = secondaryDisplay.bounds
 
     customerWindow = new BrowserWindow({
@@ -137,6 +155,9 @@ function openCustomerDisplayWindow() {
       frame: false,
       resizable: false,
       movable: false,
+      thickFrame: false, // Windows WS_THICKFRAME resize border ve blur anında kaymayı önler
+      hasShadow: false,
+      enableLargerThanScreen: true,
       alwaysOnTop: true,
       skipTaskbar: true,
       autoHideMenuBar: true,
@@ -147,18 +168,30 @@ function openCustomerDisplayWindow() {
         preload: path.join(__dirname, '../preload/index.js'),
         nodeIntegration: false,
         contextIsolation: true,
+        backgroundThrottling: false, // Ana pencereye odaklanıldığında arka plandaki müşteri ekranının donmasını/yavaşlamasını engeller
       },
     })
 
-    // Windows çoklu monitör DPI & taskbar sızıntısını önlemek için koordinat ve kiosk kilitlemesi
-    customerWindow.setPosition(x, y)
+    // Windows çoklu monitör DPI & focus kaybında kaymayı önlemek için bounds kilidi
     customerWindow.setBounds({ x, y, width, height })
-    customerWindow.setKiosk(true)
     try {
       customerWindow.setAlwaysOnTop(true, 'screen-saver')
     } catch {
       customerWindow.setAlwaysOnTop(true)
     }
+
+    // Windows OS focus/blur (kasa tıklandığında) pencerenin yukarı kaymasını kesin önleyen dinleyiciler
+    let boundsDebounce: NodeJS.Timeout | null = null
+    const handleShiftPrevent = () => {
+      if (boundsDebounce) clearTimeout(boundsDebounce)
+      boundsDebounce = setTimeout(() => {
+        enforceCustomerWindowBounds()
+      }, 30)
+    }
+
+    customerWindow.on('blur', handleShiftPrevent)
+    customerWindow.on('move', handleShiftPrevent)
+    customerWindow.on('resize', handleShiftPrevent)
   } else {
     // Tek ekran (geliştirme veya tek monitörlü test modu): Ayrı önizleme penceresi
     customerWindow = new BrowserWindow({
@@ -517,6 +550,7 @@ ipcMain.handle('update-customer-display', async (_, data: any) => {
   cachedCustomerData = data
   try {
     if (customerWindow && !customerWindow.isDestroyed()) {
+      enforceCustomerWindowBounds()
       customerWindow.webContents.send('customer-display-data', data)
     }
   } catch (err) {

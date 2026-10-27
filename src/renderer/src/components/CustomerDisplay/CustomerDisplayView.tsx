@@ -188,11 +188,11 @@ export const CustomerDisplayView: React.FC = () => {
 
   return (
     <div
-      className={`h-screen w-screen max-h-screen max-w-screen ${
+      className={`fixed inset-0 w-full h-full ${
         isLight
           ? 'bg-gradient-to-br from-slate-100 via-slate-50 to-blue-50/60 text-slate-800'
           : 'bg-gradient-to-br from-[#0c1322] via-[#101b33] to-[#0c1424] text-white'
-      } flex flex-col font-sans select-none overflow-hidden relative`}
+      } flex flex-col font-sans select-none overflow-hidden`}
     >
       {/* Ambient Fullscreen Background for Idle State */}
       {!hasCart && !isCheckout && !isCompleted && (
@@ -309,11 +309,11 @@ export const CustomerDisplayView: React.FC = () => {
 
       {/* TOP HEADER: Centered Brand Logos & Clock */}
       <header
-        className={`h-[64px] ${
+        className={`h-14 min-h-[56px] max-h-[56px] ${
           isLight
             ? 'bg-white/90 border-slate-200/90 shadow-sm text-slate-800'
             : 'bg-slate-900/70 border-white/10 text-white shadow-lg'
-        } backdrop-blur-2xl border-b px-5 md:px-7 flex items-center justify-between z-20 shrink-0 relative`}
+        } backdrop-blur-2xl border-b px-4 md:px-6 flex items-center justify-between z-20 shrink-0 relative`}
       >
         {/* Left: Customer Recognition Badge or Active Status */}
         <div className="flex items-center shrink-0 min-w-[180px] max-w-[320px]">
@@ -419,7 +419,7 @@ export const CustomerDisplayView: React.FC = () => {
       </header>
 
       {/* MAIN VIEW CONTAINER */}
-      <main className="flex-1 min-h-0 flex overflow-hidden p-2.5 md:p-3.5 lg:p-4 z-10">
+      <main className="flex-1 min-h-0 flex overflow-hidden p-2 md:p-2.5 lg:p-3 z-10">
         {/* CASE 1: COMPLETED SALE CELEBRATION */}
         {isCompleted ? (
           <div
@@ -1210,7 +1210,7 @@ export const CustomerDisplayView: React.FC = () => {
             </div>
 
             {/* Right 42%: Financial Summary & Total Box */}
-            <div className="flex-[2] flex flex-col justify-between space-y-2.5 min-h-0 overflow-y-auto animate-panel-right">
+            <div className="flex-[2] flex flex-col justify-between space-y-2 min-h-0 overflow-hidden animate-panel-right">
               {data.hidePrices ? (
                 /* Stock Only Mode */
                 <div
@@ -1370,17 +1370,17 @@ export const CustomerDisplayView: React.FC = () => {
                     </div>
 
                     {/* GIANT TOTAL CARD */}
-                    <div className="bg-gradient-to-br from-[#00268A]/95 via-[#0a359e]/90 to-[#1e3a8a]/85 border-2 border-blue-400/60 rounded-2xl p-3.5 md:p-4 text-center shadow-xl relative overflow-hidden backdrop-blur-xl text-white shrink-0">
-                      <span className="text-xs font-black text-blue-200 uppercase tracking-widest block mb-0.5">
+                    <div className="bg-gradient-to-br from-[#00268A]/95 via-[#0a359e]/90 to-[#1e3a8a]/85 border-2 border-blue-400/60 rounded-2xl p-3 text-center shadow-xl relative overflow-hidden backdrop-blur-xl text-white shrink-0">
+                      <span className="text-[11px] font-black text-blue-200 uppercase tracking-widest block mb-0.5">
                         ÖDENECEK TOPLAM TUTAR
                       </span>
-                      <div className="text-4xl md:text-5xl font-black text-white tracking-tight drop-shadow-md">
+                      <div className="text-3xl md:text-4xl font-black text-white tracking-tight drop-shadow-md">
                         {data.total.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}{' '}
-                        <span className="text-2xl md:text-3xl text-blue-200 font-bold">₺</span>
+                        <span className="text-2xl text-blue-200 font-bold">₺</span>
                       </div>
                       {/* Total savings under the price */}
                       {data.discountAmount > 0 && (
-                        <div className="text-xs text-emerald-300 font-black mt-1">
+                        <div className="text-[11px] text-emerald-300 font-black mt-0.5">
                           Toplam Tasarrufunuz: -{data.discountAmount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
                         </div>
                       )}
