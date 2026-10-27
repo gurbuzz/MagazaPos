@@ -785,8 +785,32 @@ class MusicController {
   }
 
   public async switchTrack(track: MusicTrack) {
+    let trackUri = track.uri
+
+    // If Spotify is connected and we don't have a spotify URI, try resolving it via Spotify search
+    if ((!trackUri || !trackUri.startsWith('spotify:')) && this.config.spotifyRefreshToken) {
+      try {
+        const query = `${track.title} ${track.artist}`
+        const searchRes = await this.spotifyApiCall(
+          `/v1/search?q=${encodeURIComponent(query)}&type=track&limit=1`,
+          'GET'
+        )
+        const matched = searchRes?.tracks?.items?.[0]
+        if (matched?.uri) {
+          trackUri = matched.uri
+          track.uri = matched.uri
+          track.durationSec = Math.round(matched.duration_ms / 1000)
+          if (matched.album?.images?.[0]?.url) {
+            track.albumArt = matched.album.images[0].url
+          }
+        }
+      } catch (e: any) {
+        console.warn('[MusicController] resolve Spotify URI notice:', e.message)
+      }
+    }
+
     const isSpotifyTrack = Boolean(
-      (track.uri && track.uri.startsWith('spotify:')) ||
+      (trackUri && trackUri.startsWith('spotify:')) ||
       (this.config.sourceMode === 'spotify' && this.config.spotifyRefreshToken)
     )
 
@@ -798,9 +822,9 @@ class MusicController {
     this.currentTrack = track
     this.trackProgressSec = 0
 
-    if (isSpotifyTrack && track.uri) {
+    if (isSpotifyTrack && trackUri) {
       try {
-        await this.executeSpotifyPlay({ uris: [track.uri] })
+        await this.executeSpotifyPlay({ uris: [trackUri] })
         this.isPlaying = true
         setTimeout(() => this.syncSpotifyPlayerState(), 500)
         return
@@ -995,7 +1019,10 @@ class MusicController {
         const maxSec = this.currentTrack?.durationSec || 200
         if (this.trackProgressSec >= maxSec) {
           this.trackProgressSec = 0
-          this.next()
+          // In radio stream mode, rotate display metadata smoothly without ducking audio or triggering next()
+          const activePlaylist = PRESET_PLAYLISTS.find((p) => p.id === this.config.activePlaylistId) || PRESET_PLAYLISTS[0]
+          this.currentTrackIndex = (this.currentTrackIndex + 1) % activePlaylist.tracks.length
+          this.currentTrack = activePlaylist.tracks[this.currentTrackIndex]
         }
       }
     }, 1000)

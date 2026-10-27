@@ -235,6 +235,9 @@ export const useMusicStore = create<MusicState>((set, get) => ({
           isPlaying: data.status.isPlaying,
           isFading: data.status.isFading,
           liveVolume: data.status.liveVolume,
+          sourceMode: data.status.sourceMode,
+          currentTrack: data.status.currentTrack,
+          activePlaylist: data.status.activePlaylist,
         })
       }
     } catch (e: any) {
@@ -253,6 +256,7 @@ export const useMusicStore = create<MusicState>((set, get) => ({
             isPlaying: data.status.isPlaying,
             isFading: data.status.isFading,
             liveVolume: data.status.liveVolume,
+            sourceMode: data.status.sourceMode,
           })
         }
       }
@@ -270,7 +274,9 @@ export const useMusicStore = create<MusicState>((set, get) => ({
             currentTrack: data.status.currentTrack,
             isPlaying: data.status.isPlaying,
             isFading: data.status.isFading,
-            trackProgressSec: 0,
+            sourceMode: data.status.sourceMode,
+            activePlaylist: data.status.activePlaylist,
+            trackProgressSec: data.status.trackProgressSec ?? 0,
           })
         }
       }
@@ -288,7 +294,9 @@ export const useMusicStore = create<MusicState>((set, get) => ({
             currentTrack: data.status.currentTrack,
             isPlaying: data.status.isPlaying,
             isFading: data.status.isFading,
-            trackProgressSec: 0,
+            sourceMode: data.status.sourceMode,
+            activePlaylist: data.status.activePlaylist,
+            trackProgressSec: data.status.trackProgressSec ?? 0,
           })
         }
       }
@@ -328,7 +336,19 @@ export const useMusicStore = create<MusicState>((set, get) => ({
 
   selectTrack: async (track: MusicTrack) => {
     try {
-      set({ currentTrack: track, isPlaying: true, isFading: true, trackProgressSec: 0, errorMessage: null })
+      const isSpotify = Boolean(
+        (track.uri && track.uri.startsWith('spotify:')) ||
+        get().spotify.isConnected ||
+        get().sourceMode === 'spotify'
+      )
+      set({
+        currentTrack: track,
+        isPlaying: true,
+        isFading: true,
+        trackProgressSec: 0,
+        sourceMode: isSpotify ? 'spotify' : get().sourceMode,
+        errorMessage: null,
+      })
       const res = await fetch('/api/music/select-track', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -344,6 +364,9 @@ export const useMusicStore = create<MusicState>((set, get) => ({
           currentTrack: data.status.currentTrack,
           isPlaying: data.status.isPlaying,
           isFading: data.status.isFading,
+          sourceMode: data.status.sourceMode,
+          activePlaylist: data.status.activePlaylist,
+          trackProgressSec: data.status.trackProgressSec ?? 0,
         })
       }
     } catch (e: any) {
@@ -353,7 +376,7 @@ export const useMusicStore = create<MusicState>((set, get) => ({
 
   selectPlaylist: async (playlistId: string) => {
     try {
-      set({ isFading: true, errorMessage: null })
+      set({ isFading: true, sourceMode: 'store_radio', errorMessage: null })
       const res = await fetch('/api/music/select-playlist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -367,6 +390,8 @@ export const useMusicStore = create<MusicState>((set, get) => ({
             activePlaylist: data.status.activePlaylist,
             isPlaying: data.status.isPlaying,
             isFading: data.status.isFading,
+            sourceMode: data.status.sourceMode,
+            trackProgressSec: 0,
           })
         }
       }
@@ -375,7 +400,7 @@ export const useMusicStore = create<MusicState>((set, get) => ({
 
   playSpotifyPlaylist: async (uri: string) => {
     try {
-      set({ isFading: true, errorMessage: null })
+      set({ isFading: true, sourceMode: 'spotify', errorMessage: null })
       const res = await fetch('/api/music/spotify/play-playlist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -391,6 +416,9 @@ export const useMusicStore = create<MusicState>((set, get) => ({
           currentTrack: data.status.currentTrack,
           isPlaying: data.status.isPlaying,
           isFading: data.status.isFading,
+          sourceMode: data.status.sourceMode,
+          activePlaylist: data.status.activePlaylist,
+          trackProgressSec: data.status.trackProgressSec ?? 0,
         })
       }
     } catch (e: any) {
