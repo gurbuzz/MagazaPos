@@ -28,32 +28,36 @@ const PROMO_SLIDES = [
     title: 'Yeni Sezon Denim & Ceket Koleksiyonu',
     subtitle: 'En trend kesimler ve üstün Jack & Jones kumaş kalitesi sizleri bekliyor.',
     badge: 'YENİ SEZON',
-    badgeColor: 'bg-blue-500/20 text-blue-300 border-blue-400/30',
-    iconBg: 'bg-blue-600/80 text-white',
+    badgeColorDark: 'bg-blue-500/20 text-blue-300 border-blue-400/30',
+    badgeColorLight: 'bg-blue-50 text-blue-700 border-blue-200',
+    iconBg: 'bg-blue-600 text-white',
   },
   {
     icon: Percent,
     title: 'Avantajlı Kampanyalar & İndirimler',
     subtitle: 'Kasa görevlimizden güncel mağaza indirimleri ve çoklu alım fırsatlarını öğrenin.',
     badge: 'KAMPANYA',
-    badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-400/30',
-    iconBg: 'bg-amber-500/80 text-white',
+    badgeColorDark: 'bg-amber-500/20 text-amber-300 border-amber-400/30',
+    badgeColorLight: 'bg-amber-50 text-amber-800 border-amber-300',
+    iconBg: 'bg-amber-500 text-white',
   },
   {
     icon: Gift,
     title: 'Sadakat & VIP Müşteri Ayrıcalığı',
     subtitle: 'Telefon numaranızı ileterek size özel indirim ve kampanyalardan anında yararlanın.',
     badge: 'VIP CLUB',
-    badgeColor: 'bg-purple-500/20 text-purple-300 border-purple-400/30',
-    iconBg: 'bg-purple-600/80 text-white',
+    badgeColorDark: 'bg-purple-500/20 text-purple-300 border-purple-400/30',
+    badgeColorLight: 'bg-purple-50 text-purple-700 border-purple-200',
+    iconBg: 'bg-purple-600 text-white',
   },
   {
     icon: ShieldCheck,
     title: 'Hızlı & Güvenli Temassız Ödeme',
     subtitle: 'Tüm banka ve kredi kartları, Troy ve temassız mobil ödemeler geçerlidir.',
     badge: 'GÜVENLİ ÖDEME',
-    badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30',
-    iconBg: 'bg-emerald-600/80 text-white',
+    badgeColorDark: 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30',
+    badgeColorLight: 'bg-emerald-50 text-emerald-800 border-emerald-300',
+    iconBg: 'bg-emerald-600 text-white',
   },
 ]
 
@@ -194,19 +198,13 @@ export const CustomerDisplayView: React.FC = () => {
           : 'bg-gradient-to-br from-[#0c1322] via-[#101b33] to-[#0c1424] text-white'
       } flex flex-col font-sans select-none overflow-hidden`}
     >
-      {/* Ambient Fullscreen Background for Idle State */}
-      {!hasCart && !isCheckout && !isCompleted && (
-        <div
-          className={`absolute inset-0 z-0 pointer-events-none transition-opacity duration-1000 ease-in-out ${
-            isLight ? 'opacity-25' : 'opacity-45'
-          }`}
-        >
+      {/* Ambient Fullscreen Background for Idle State (only in dark mode to prevent halo ghosting and foggy borders in light mode) */}
+      {!isLight && !hasCart && !isCheckout && !isCompleted && (
+        <div className="absolute inset-0 z-0 pointer-events-none transition-opacity duration-1000 ease-in-out opacity-45">
           <img
             src={customerBgImage}
             alt="Ambient Background"
-            className={`w-full h-full object-cover object-center filter ${
-              isLight ? 'brightness-[1.08] contrast-[0.95]' : 'brightness-[0.88] contrast-[1.05]'
-            } scale-105`}
+            className="w-full h-full object-cover object-center filter brightness-[0.88] contrast-[1.05] scale-105"
             onError={(e) => {
               const target = e.target as HTMLImageElement
               if (!target.dataset.triedFallback) {
@@ -215,32 +213,18 @@ export const CustomerDisplayView: React.FC = () => {
               }
             }}
           />
-          <div
-            className={`absolute inset-0 ${
-              isLight
-                ? 'bg-gradient-to-b from-white/80 via-white/30 to-white/80'
-                : 'bg-gradient-to-b from-[#060c1c]/40 via-transparent to-[#060c1c]/50'
-            }`}
-          />
+          <div className="absolute inset-0 bg-gradient-to-b from-[#060c1c]/40 via-transparent to-[#060c1c]/50" />
         </div>
       )}
 
-      {/* Balanced translucent ambient glows */}
-      <div
-        className={`absolute -top-32 -left-32 w-[420px] h-[420px] ${
-          isLight ? 'bg-blue-300/15' : 'bg-blue-600/20'
-        } rounded-full blur-[110px] pointer-events-none`}
-      />
-      <div
-        className={`absolute -bottom-32 -right-32 w-[420px] h-[420px] ${
-          isLight ? 'bg-indigo-300/10' : 'bg-indigo-600/15'
-        } rounded-full blur-[110px] pointer-events-none`}
-      />
-      <div
-        className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[380px] h-[380px] ${
-          isLight ? 'bg-sky-300/15' : 'bg-sky-500/10'
-        } rounded-full blur-[120px] pointer-events-none`}
-      />
+      {/* Balanced translucent ambient glows (only in dark mode) */}
+      {!isLight && (
+        <>
+          <div className="absolute -top-32 -left-32 w-[420px] h-[420px] bg-blue-600/20 rounded-full blur-[110px] pointer-events-none" />
+          <div className="absolute -bottom-32 -right-32 w-[420px] h-[420px] bg-indigo-600/15 rounded-full blur-[110px] pointer-events-none" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[380px] h-[380px] bg-sky-500/10 rounded-full blur-[120px] pointer-events-none" />
+        </>
+      )}
 
       {/* Slower Radiant Light Sweep Beam during transition (1.85s) */}
       {isTransitionActive && (
@@ -1408,8 +1392,8 @@ export const CustomerDisplayView: React.FC = () => {
           /* CASE 4: STANDBY / IDLE STATE */
           <div
             className={`flex-1 w-full min-h-0 flex flex-col items-center justify-center p-3.5 md:p-5 lg:p-6 ${
-              isLight ? 'border-slate-200/80 bg-white/40' : 'border-white/20'
-            } border rounded-3xl shadow-2xl relative overflow-hidden animate-slowmotion-fade gap-3 md:gap-4`}
+              isLight ? 'border-slate-300/80 shadow-2xl ring-1 ring-slate-900/5' : 'border-white/20 shadow-2xl'
+            } border rounded-3xl relative overflow-hidden animate-slowmotion-fade gap-3 md:gap-4`}
           >
             {/* Cinematic Store Atmosphere Background Image */}
             <div className="absolute inset-0 z-0">
@@ -1417,7 +1401,7 @@ export const CustomerDisplayView: React.FC = () => {
                 src={customerBgImage}
                 alt="Karşılama Arka Planı"
                 className={`w-full h-full object-cover object-center scale-100 filter ${
-                  isLight ? 'brightness-[1.05] contrast-[0.95]' : 'brightness-[0.92] contrast-[1.05]'
+                  isLight ? 'brightness-100 contrast-[1.05] saturate-[1.05]' : 'brightness-[0.92] contrast-[1.05]'
                 }`}
                 onError={(e) => {
                   const target = e.target as HTMLImageElement
@@ -1430,7 +1414,7 @@ export const CustomerDisplayView: React.FC = () => {
               <div
                 className={`absolute inset-0 ${
                   isLight
-                    ? 'bg-gradient-to-t from-white/90 via-white/40 to-white/70'
+                    ? 'bg-gradient-to-t from-slate-950/60 via-transparent to-slate-950/35'
                     : 'bg-gradient-to-t from-[#060c1c]/70 via-[#0c1a38]/25 to-[#060c1c]/45'
                 }`}
               />
@@ -1440,28 +1424,20 @@ export const CustomerDisplayView: React.FC = () => {
             <div className="text-center space-y-1 md:space-y-1.5 z-10 max-w-2xl shrink-0">
               <div>
                 <span
-                  className={`px-3.5 py-1 rounded-full ${
-                    isLight
-                      ? 'bg-blue-600 text-white border-blue-500 shadow-sm'
-                      : 'bg-blue-500/30 text-blue-100 border-blue-400/50 shadow-lg'
-                  } border text-[11px] md:text-xs font-black tracking-widest uppercase inline-block backdrop-blur-md shrink-0`}
+                  className="px-3.5 py-1 rounded-full bg-blue-600/90 text-white border border-blue-400/50 shadow-lg text-[11px] md:text-xs font-black tracking-widest uppercase inline-block backdrop-blur-md shrink-0"
                 >
                   PREMIUM RETAIL EXPERIENCE
                 </span>
               </div>
 
               <h2
-                className={`text-2xl md:text-3xl lg:text-4xl font-black ${
-                  isLight ? 'text-slate-900 drop-shadow-sm' : 'text-white drop-shadow-2xl'
-                } tracking-tight leading-tight`}
+                className="text-2xl md:text-3xl lg:text-4xl font-black text-white drop-shadow-2xl tracking-tight leading-tight"
               >
                 Hoş Geldiniz
               </h2>
 
               <p
-                className={`text-xs md:text-sm ${
-                  isLight ? 'text-slate-700' : 'text-blue-100'
-                } font-bold ${isLight ? 'drop-shadow-none' : 'drop-shadow-lg'} max-w-xl mx-auto line-clamp-2`}
+                className="text-xs md:text-sm text-blue-100 font-bold drop-shadow-lg max-w-xl mx-auto line-clamp-2"
               >
                 {data.storeAddress || 'Yeni sezon koleksiyonumuz ve ayrıcalıklı alışveriş deneyimi için buradayız.'}
               </p>
@@ -1472,8 +1448,8 @@ export const CustomerDisplayView: React.FC = () => {
               <div
                 className={`${
                   isLight
-                    ? 'bg-white/90 border-slate-200/90 shadow-xl'
-                    : 'bg-slate-900/50 border-white/25 shadow-2xl'
+                    ? 'bg-white/95 border-slate-200/90 shadow-2xl text-slate-900 ring-1 ring-black/5'
+                    : 'bg-slate-900/50 border-white/25 shadow-2xl text-white'
                 } border rounded-2xl md:rounded-3xl p-3 md:p-3.5 backdrop-blur-xl transition-all duration-500 h-[115px] md:h-[125px] max-h-[125px] flex flex-col justify-between`}
               >
                 <div className="flex items-center space-x-3 md:space-x-4 min-w-0">
@@ -1485,7 +1461,11 @@ export const CustomerDisplayView: React.FC = () => {
 
                   <div className="flex-1 min-w-0">
                     <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] md:text-[11px] font-black uppercase tracking-wider border inline-block mb-0.5 ${PROMO_SLIDES[currentSlide].badgeColor}`}
+                      className={`px-2 py-0.5 rounded-full text-[10px] md:text-[11px] font-black uppercase tracking-wider border inline-block mb-0.5 ${
+                        isLight
+                          ? PROMO_SLIDES[currentSlide].badgeColorLight
+                          : PROMO_SLIDES[currentSlide].badgeColorDark
+                      }`}
                     >
                       {PROMO_SLIDES[currentSlide].badge}
                     </span>
@@ -1518,7 +1498,7 @@ export const CustomerDisplayView: React.FC = () => {
                       onClick={() => setCurrentSlide(idx)}
                       className={`h-1.5 rounded-full transition-all ${
                         idx === currentSlide
-                          ? 'w-6 md:w-7 bg-blue-500 shadow-xs'
+                          ? 'w-6 md:w-7 bg-blue-600 shadow-xs'
                           : isLight
                           ? 'w-1.5 md:w-2 bg-slate-300 hover:bg-slate-400'
                           : 'w-1.5 md:w-2 bg-white/30 hover:bg-white/50'
@@ -1532,13 +1512,13 @@ export const CustomerDisplayView: React.FC = () => {
             {/* Bottom Standby Badge Pills */}
             <div
               className={`z-10 flex flex-wrap items-center justify-center gap-2 md:gap-3 text-xs font-bold ${
-                isLight ? 'text-slate-700' : 'text-blue-100/90'
+                isLight ? 'text-slate-800' : 'text-blue-100/90'
               } shrink-0`}
             >
               <span
                 className={`px-3 py-1 md:px-3.5 md:py-1 rounded-full ${
                   isLight
-                    ? 'bg-white/95 border-slate-200 text-slate-800 shadow-sm'
+                    ? 'bg-white/95 border-slate-200/90 text-slate-800 shadow-xl ring-1 ring-black/5'
                     : 'bg-slate-900/60 border-white/20 text-blue-100/90'
                 } border backdrop-blur-md flex items-center gap-1.5 whitespace-nowrap`}
               >
@@ -1547,7 +1527,7 @@ export const CustomerDisplayView: React.FC = () => {
               <span
                 className={`px-3 py-1 md:px-3.5 md:py-1 rounded-full ${
                   isLight
-                    ? 'bg-white/95 border-slate-200 text-slate-800 shadow-sm'
+                    ? 'bg-white/95 border-slate-200/90 text-slate-800 shadow-xl ring-1 ring-black/5'
                     : 'bg-slate-900/60 border-white/20 text-blue-100/90'
                 } border backdrop-blur-md flex items-center gap-1.5 whitespace-nowrap`}
               >

@@ -352,32 +352,36 @@
     const PROMOS = [
       {
         badge: 'YENİ SEZON',
-        badgeColor: 'bg-blue-500/20 text-blue-300 border-blue-400/30',
-        iconBg: 'bg-blue-600/80 text-white',
+        badgeColorDark: 'bg-blue-500/20 text-blue-300 border-blue-400/30',
+        badgeColorLight: 'bg-blue-50 text-blue-700 border-blue-200',
+        iconBg: 'bg-blue-600 text-white',
         icon: '🔥',
         title: 'Yeni Sezon Denim & Ceket Koleksiyonu',
         subtitle: 'En trend kesimler ve üstün Jack & Jones kumaş kalitesi sizleri bekliyor.'
       },
       {
         badge: 'KAMPANYA',
-        badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-400/30',
-        iconBg: 'bg-amber-500/80 text-white',
+        badgeColorDark: 'bg-amber-500/20 text-amber-300 border-amber-400/30',
+        badgeColorLight: 'bg-amber-50 text-amber-800 border-amber-300',
+        iconBg: 'bg-amber-500 text-white',
         icon: '%',
         title: 'Avantajlı Kampanyalar & İndirimler',
         subtitle: 'Kasa görevlimizden güncel mağaza indirimleri ve çoklu alım fırsatlarını öğrenin.'
       },
       {
         badge: 'VIP CLUB',
-        badgeColor: 'bg-purple-500/20 text-purple-300 border-purple-400/30',
-        iconBg: 'bg-purple-600/80 text-white',
+        badgeColorDark: 'bg-purple-500/20 text-purple-300 border-purple-400/30',
+        badgeColorLight: 'bg-purple-50 text-purple-700 border-purple-200',
+        iconBg: 'bg-purple-600 text-white',
         icon: '🎁',
         title: 'Sadakat & VIP Müşteri Ayrıcalığı',
         subtitle: 'Telefon numaranızı ileterek size özel indirim ve kampanyalardan anında yararlanın.'
       },
       {
         badge: 'GÜVENLİ ÖDEME',
-        badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30',
-        iconBg: 'bg-emerald-600/80 text-white',
+        badgeColorDark: 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30',
+        badgeColorLight: 'bg-emerald-50 text-emerald-800 border-emerald-300',
+        iconBg: 'bg-emerald-600 text-white',
         icon: '🛡️',
         title: 'Hızlı & Güvenli Temassız Ödeme',
         subtitle: 'Tüm banka ve kredi kartları, Troy ve temassız mobil ödemeler geçerlidir.'
@@ -852,23 +856,23 @@
       // 4. STANDBY / IDLE STATE (WELCOME SCREEN - PROPORTIONATE 13.3" & ALL DISPLAYS)
       const p = PROMOS[promoIdx];
       main.innerHTML = `
-        <div class="flex-1 w-full min-h-0 flex flex-col items-center justify-center p-3.5 md:p-5 lg:p-6 border border-white/20 rounded-3xl shadow-2xl relative overflow-hidden animate-slowmotion-fade gap-3 md:gap-4">
+        <div class="flex-1 w-full min-h-0 flex flex-col items-center justify-center p-3.5 md:p-5 lg:p-6 ${isLight ? 'border-slate-300/80 shadow-2xl ring-1 ring-slate-900/5' : 'border-white/20 shadow-2xl'} border rounded-3xl relative overflow-hidden animate-slowmotion-fade gap-3 md:gap-4">
           <!-- Cinematic Store Atmosphere Background Image -->
           <div class="absolute inset-0 z-0">
             <img
               src="./customerbackground.jpg"
               onerror="if(!this.dataset.tried){this.dataset.tried='1';this.src='/customerbackground.jpg';}"
               alt="Karşılama Arka Planı"
-              class="w-full h-full object-cover object-center scale-100 filter brightness-[0.92] contrast-[1.05]"
+              class="w-full h-full object-cover object-center scale-100 filter ${isLight ? 'brightness-100 contrast-[1.05] saturate-[1.05]' : 'brightness-[0.92] contrast-[1.05]'}"
             />
-            <!-- High-transparency subtle gradient overlay so the background image is clearly visible -->
-            <div class="absolute inset-0 bg-gradient-to-t from-[#060c1c]/70 via-[#0c1a38]/25 to-[#060c1c]/45"></div>
+            <!-- High-contrast crisp gradient overlay -->
+            <div class="absolute inset-0 ${isLight ? 'bg-gradient-to-t from-slate-950/60 via-transparent to-slate-950/35' : 'bg-gradient-to-t from-[#060c1c]/70 via-[#0c1a38]/25 to-[#060c1c]/45'}"></div>
           </div>
 
           <!-- Welcome Message -->
           <div class="text-center space-y-1 md:space-y-1.5 z-10 max-w-2xl shrink-0">
             <div>
-              <span class="px-3.5 py-1 rounded-full bg-blue-500/30 text-blue-100 border border-blue-400/50 text-[11px] md:text-xs font-black tracking-widest uppercase inline-block shadow-lg backdrop-blur-md shrink-0">
+              <span class="px-3.5 py-1 rounded-full bg-blue-600/90 text-white border border-blue-400/50 text-[11px] md:text-xs font-black tracking-widest uppercase inline-block shadow-lg backdrop-blur-md shrink-0">
                 PREMIUM RETAIL EXPERIENCE
               </span>
             </div>
@@ -882,19 +886,19 @@
 
           <!-- Auto-Rotating Campaign Banner (Fixed Locked Height) -->
           <div class="w-full max-w-2xl z-10 shrink-0">
-            <div class="bg-slate-900/50 border border-white/25 rounded-2xl md:rounded-3xl p-3 md:p-3.5 backdrop-blur-xl shadow-2xl transition-all duration-500 h-[115px] md:h-[125px] max-h-[125px] flex flex-col justify-between">
+            <div class="${isLight ? 'bg-white/95 border-slate-200/90 shadow-2xl text-slate-900 ring-1 ring-black/5' : 'bg-slate-900/50 border-white/25 shadow-2xl text-white'} border rounded-2xl md:rounded-3xl p-3 md:p-3.5 backdrop-blur-xl transition-all duration-500 h-[115px] md:h-[125px] max-h-[125px] flex flex-col justify-between">
               <div class="flex items-center space-x-3 md:space-x-4 min-w-0">
                 <div class="p-2 md:p-2.5 rounded-2xl ${p.iconBg} shadow-lg text-xl md:text-2xl shrink-0 border border-white/20 flex items-center justify-center">
                   ${p.icon}
                 </div>
                 <div class="flex-1 min-w-0">
-                  <span class="px-2 py-0.5 rounded-full text-[10px] md:text-[11px] font-black uppercase tracking-wider border inline-block mb-0.5 ${p.badgeColor}">
+                  <span class="px-2 py-0.5 rounded-full text-[10px] md:text-[11px] font-black uppercase tracking-wider border inline-block mb-0.5 ${isLight ? p.badgeColorLight : p.badgeColorDark}">
                     ${p.badge}
                   </span>
-                  <h3 class="text-base md:text-lg font-black text-white tracking-tight drop-shadow-md truncate">
+                  <h3 class="text-base md:text-lg font-black ${isLight ? 'text-slate-900' : 'text-white'} tracking-tight drop-shadow-md truncate">
                     ${p.title}
                   </h3>
-                  <p class="text-xs text-blue-100/90 font-medium leading-relaxed drop-shadow-sm line-clamp-1 mt-0.5">
+                  <p class="text-xs ${isLight ? 'text-slate-600' : 'text-blue-100/90'} font-medium leading-relaxed drop-shadow-sm line-clamp-1 mt-0.5">
                     ${p.subtitle}
                   </p>
                 </div>
@@ -903,11 +907,11 @@
           </div>
 
           <!-- Sleek Compact Single-Line Bottom Badge Row -->
-          <div class="z-10 flex flex-wrap items-center justify-center gap-2 md:gap-3 text-xs font-bold text-blue-100/90 shrink-0">
-            <span class="px-3 py-1 md:px-3.5 md:py-1 rounded-full bg-slate-900/60 border border-white/20 backdrop-blur-md flex items-center gap-1.5 shadow-md whitespace-nowrap">
+          <div class="z-10 flex flex-wrap items-center justify-center gap-2 md:gap-3 text-xs font-bold ${isLight ? 'text-slate-800' : 'text-blue-100/90'} shrink-0">
+            <span class="px-3 py-1 md:px-3.5 md:py-1 rounded-full ${isLight ? 'bg-white/95 border-slate-200/90 text-slate-800 shadow-xl ring-1 ring-black/5' : 'bg-slate-900/60 border-white/20 text-blue-100/90'} border backdrop-blur-md flex items-center gap-1.5 whitespace-nowrap">
               <span>💳</span> Nakit & Tüm Banka Kartları
             </span>
-            <span class="px-3 py-1 md:px-3.5 md:py-1 rounded-full bg-slate-900/60 border border-white/20 backdrop-blur-md flex items-center gap-1.5 shadow-md whitespace-nowrap">
+            <span class="px-3 py-1 md:px-3.5 md:py-1 rounded-full ${isLight ? 'bg-white/95 border-slate-200/90 text-slate-800 shadow-xl ring-1 ring-black/5' : 'bg-slate-900/60 border-white/20 text-blue-100/90'} border backdrop-blur-md flex items-center gap-1.5 whitespace-nowrap">
               <span>🔄</span> 14 Gün İçinde Fiş ile Değişim
             </span>
           </div>
