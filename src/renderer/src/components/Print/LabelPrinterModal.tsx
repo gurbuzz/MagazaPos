@@ -78,7 +78,7 @@ export const LabelPrinterModal: React.FC = () => {
   const [message, setMessage] = useState<string>('')
 
   const [printers, setPrinters] = useState<any[]>([])
-  const [selectedPrinter, setSelectedPrinter] = useState<string>('')
+  const [selectedPrinter, setSelectedPrinter] = useState<string>(() => localStorage.getItem('pos_label_printer') || '')
 
   // Search & Filter state
   const [searchTerm, setSearchTerm] = useState<string>('')
@@ -242,8 +242,13 @@ export const LabelPrinterModal: React.FC = () => {
     if (window.electron?.getPrinters) {
       window.electron.getPrinters().then((printerList) => {
         setPrinters(printerList || [])
-        const defaultPrinter = printerList.find((p: any) => p.isDefault)?.name || printerList[0]?.name || ''
-        setSelectedPrinter(defaultPrinter)
+        const saved = localStorage.getItem('pos_label_printer')
+        if (saved && printerList.some((p: any) => p.name === saved)) {
+          setSelectedPrinter(saved)
+        } else {
+          const defaultPrinter = printerList.find((p: any) => p.isDefault)?.name || printerList[0]?.name || ''
+          setSelectedPrinter(defaultPrinter)
+        }
       })
     }
 
@@ -1408,7 +1413,10 @@ export const LabelPrinterModal: React.FC = () => {
                   <label className="block text-xs font-semibold text-slate-700 mb-1">Hedef Termal Yazıcı</label>
                   <select
                     value={selectedPrinter}
-                    onChange={(e) => setSelectedPrinter(e.target.value)}
+                    onChange={(e) => {
+                      setSelectedPrinter(e.target.value)
+                      localStorage.setItem('pos_label_printer', e.target.value)
+                    }}
                     className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-blue-600"
                   >
                     <option value="">-- Windows Varsayılan Yazıcısı (Otomatik) --</option>

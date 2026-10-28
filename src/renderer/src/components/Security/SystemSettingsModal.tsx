@@ -28,11 +28,13 @@ import {
   QrCode,
   Sun,
   Moon,
+  Printer,
 } from 'lucide-react'
 import QRCode from 'qrcode'
 import { usePosStore } from '../../store/usePosStore'
 import { useKeyboardStore } from '../../store/useKeyboardStore'
 import { syncCustomerDisplay } from '../../utils/customerDisplaySync'
+import { printReceipt } from '../../utils/printReceipt'
 import lufianLogo from '../../assets/lufian-og.png'
 import jackJonesLogo from '../../assets/org_logo.svg'
 
@@ -56,6 +58,7 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
     vatRate,
     lowStockThreshold,
     autoPrintReceipt,
+    receiptPrinter,
     customIp,
     localIp,
     autoOpenCustomerDisplay,
@@ -77,6 +80,10 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
   const [formVatRate, setFormVatRate] = useState(vatRate)
   const [formLowStock, setFormLowStock] = useState(lowStockThreshold)
   const [formAutoPrint, setFormAutoPrint] = useState(autoPrintReceipt)
+  const [formReceiptPrinter, setFormReceiptPrinter] = useState(receiptPrinter)
+  const [availablePrinters, setAvailablePrinters] = useState<any[]>([])
+  const [isTestingPrinter, setIsTestingPrinter] = useState(false)
+  const [testPrinterResult, setTestPrinterResult] = useState<string | null>(null)
   const [formCustomIp, setFormCustomIp] = useState(customIp)
   const [formAutoOpenCustomerDisplay, setFormAutoOpenCustomerDisplay] = useState(autoOpenCustomerDisplay)
   const [formCustomerDisplayMessage, setFormCustomerDisplayMessage] = useState(customerDisplayMessage)
@@ -187,11 +194,20 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
     setFormVatRate(vatRate)
     setFormLowStock(lowStockThreshold)
     setFormAutoPrint(autoPrintReceipt)
+    setFormReceiptPrinter(receiptPrinter)
+    setTestPrinterResult(null)
     setFormCustomIp(customIp)
     setFormAutoOpenCustomerDisplay(autoOpenCustomerDisplay)
     setFormCustomerDisplayMessage(customerDisplayMessage)
     setFormCustomerDisplayTheme(customerDisplayTheme || 'dark')
     setFormAutoOpenKeyboard(autoOpenKeyboard)
+
+    // Load system printers for receipt printer selection
+    if (window.electron?.getPrinters) {
+      window.electron.getPrinters().then((list) => {
+        setAvailablePrinters(list || [])
+      }).catch(() => {})
+    }
 
     // Check display hardware
     if (window.electron?.getCustomerDisplayStatus) {
@@ -220,6 +236,7 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
     vatRate,
     lowStockThreshold,
     autoPrintReceipt,
+    receiptPrinter,
     customIp,
     autoOpenCustomerDisplay,
     customerDisplayMessage,
@@ -261,6 +278,7 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
       vatRate: Number(formVatRate) || 10,
       lowStockThreshold: Number(formLowStock) || 5,
       autoPrintReceipt: formAutoPrint,
+      receiptPrinter: formReceiptPrinter,
       customIp: (formCustomIp || '').trim(),
       autoOpenCustomerDisplay: formAutoOpenCustomerDisplay,
       customerDisplayMessage: (formCustomerDisplayMessage || '').trim(),
@@ -288,6 +306,52 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
     }, 1000)
   }
 
+  // ─── Test Print Receipt ─────────────────────────────────────────
+  const handleTestPrintReceipt = async () => {
+    setIsTestingPrinter(true)
+    setTestPrinterResult(null)
+    try {
+      const result = await printReceipt({
+        receiptNo: `${formReceiptPrefix || 'FIS-'}TEST`,
+        createdAt: new Date(),
+        cashierName: formCashierName || 'Kasiyer 1',
+        totalAmount: 149.90,
+        subtotal: 149.90,
+        paymentMode: 'CASH',
+        givenCash: 200,
+        changeDue: 50.10,
+        items: [
+          {
+            productName: 'TEST ÜRÜNÜ (DENEME)',
+            color: 'Siyah',
+            size: 'M',
+            quantity: 1,
+            unitPrice: 149.90,
+            totalPrice: 149.90,
+          },
+        ],
+        storeInfo: {
+          storeName: formStoreName || 'JACK & JONES',
+          storeAddress: formStoreAddress,
+          storePhone: formStorePhone,
+          receiptFooterNote: formReceiptFooter || 'Test fişi başarıyla yazdırıldı.',
+          vatRate: Number(formVatRate) || 10,
+          receiptPrinter: formReceiptPrinter,
+        },
+      })
+
+      if (result.success) {
+        setTestPrinterResult('Test fişi başarıyla yazıcıya gönderildi!')
+        setTimeout(() => setTestPrinterResult(null), 4000)
+      } else {
+        setTestPrinterResult(`Test hatası: ${result.error || 'Yazıcıya ulaşılamadı'}`)
+      }
+    } catch (err: any) {
+      setTestPrinterResult(`Test hatası: ${err.message || 'Bilinmeyen hata'}`)
+    } finally {
+      setIsTestingPrinter(false)
+    }
+  }
 
   // ─── Backup Download (fetch + Blob) ────────────────────────────
   const handleBackupDb = async () => {
@@ -906,12 +970,83 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
                     id="autoPrint"
                     checked={formAutoPrint}
                     onChange={(e) => setFormAutoPrint(e.target.checked)}
-                    className="w-4 h-4 text-blue-700 rounded focus:ring-blue-600 border-slate-300"
+                    className="w-4 h-4 text-blue-700 rounded focus:ring-blue-600 border-slate-300 cursor-pointer"
                   />
                   <label htmlFor="autoPrint" className="text-xs font-semibold text-slate-700 cursor-pointer">
                     Tahsilat Sonrası Otomatik Fiş Yazdır
                   </label>
                 </div>
+              </div>
+
+              {/* Receipt / Thermal Printer Hardware Selection */}
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-slate-800 flex items-center space-x-1.5">
+                    <Printer className="w-4 h-4 text-blue-700" />
+                    <span>Fiş / Termal Yazıcı Donanımı (80mm)</span>
+                  </label>
+                  {availablePrinters.length > 0 && (
+                    <span className="text-[10px] text-slate-500 font-medium">
+                      {availablePrinters.length} yazıcı algılandı
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <select
+                    value={formReceiptPrinter}
+                    onChange={(e) => setFormReceiptPrinter(e.target.value)}
+                    className="flex-1 px-3 py-1.5 bg-white border border-slate-300 rounded text-slate-900 text-xs font-semibold focus:ring-1 focus:ring-blue-600 focus:outline-none"
+                  >
+                    <option value="">Varsayılan Termal Yazıcı (İşletim Sistemi Varsayılanı)</option>
+                    {availablePrinters.map((p: any) => (
+                      <option key={p.name} value={p.name}>
+                        {p.name} {p.isDefault ? ' (Sistem Varsayılanı)' : ''}
+                      </option>
+                    ))}
+                  </select>
+
+                  <button
+                    type="button"
+                    disabled={isTestingPrinter}
+                    onClick={handleTestPrintReceipt}
+                    className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-[#00268A] border border-blue-200 rounded text-xs font-bold transition flex items-center space-x-1.5 shrink-0 disabled:opacity-50 cursor-pointer shadow-2xs"
+                  >
+                    {isTestingPrinter ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-700" />
+                        <span>Basılıyor...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Printer className="w-3.5 h-3.5 text-blue-700" />
+                        <span>Test Fişi Bas</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {testPrinterResult && (
+                  <div
+                    className={`p-2 rounded text-xs font-medium flex items-center justify-between ${
+                      testPrinterResult.includes('başarıyla')
+                        ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
+                        : 'bg-amber-50 text-amber-800 border border-amber-300'
+                    }`}
+                  >
+                    <span>{testPrinterResult}</span>
+                    <button
+                      type="button"
+                      onClick={() => setTestPrinterResult(null)}
+                      className="ml-2 font-bold text-slate-400 hover:text-slate-700"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+                <p className="text-[10.5px] text-slate-500">
+                  Tahsilat sonrası fişlerin otomatik veya tek tıkla kesilmesi için mağazanıza bağlı 80mm termal fiş yazıcınızı seçin.
+                </p>
               </div>
             </div>
           )}

@@ -20,14 +20,17 @@ import {
   Sparkles,
   RotateCcw,
   ShieldCheck,
-  Info
+  Info,
+  Check,
+  Loader2,
 } from 'lucide-react'
 import { usePosStore, Customer } from '../../store/usePosStore'
 import { ReturnModal } from './ReturnModal'
 import { notifyDataChanged } from '../../utils/events'
+import { printReceipt, normalizeSaleToReceiptData } from '../../utils/printReceipt'
 
 export const CustomerView: React.FC = () => {
-  const { setSelectedCustomer, setActiveTab, storeName, storeAddress, storePhone, receiptFooterNote } = usePosStore()
+  const { setSelectedCustomer, setActiveTab, storeName, storeAddress, storePhone, receiptFooterNote, vatRate, receiptPrinter } = usePosStore()
 
   const [customers, setCustomers] = useState<Customer[]>([])
   const [searchTerm, setSearchTerm] = useState('')
@@ -35,6 +38,9 @@ export const CustomerView: React.FC = () => {
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null)
   const [customerDetails, setCustomerDetails] = useState<any | null>(null)
   const [isLoadingDetails, setIsLoadingDetails] = useState(false)
+  const [printingSaleId, setPrintingSaleId] = useState<string | null>(null)
+  const [printedSaleId, setPrintedSaleId] = useState<string | null>(null)
+  const [printFeedback, setPrintFeedback] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
 
   // Add / Edit Modal State
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -231,69 +237,48 @@ export const CustomerView: React.FC = () => {
     setActiveTab('pos')
   }
 
-  const handlePrintReceipt = (sale: any) => {
-    const receiptHtml = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <style>
-            @page { margin: 0; }
-            * { box-sizing: border-box; }
-            body {
-              font-family: monospace;
-              width: 280px;
-              padding: 10px;
-              font-size: 12px;
-              color: #000000 !important;
-              background-color: #ffffff !important;
-              -webkit-print-color-adjust: exact;
-              print-color-adjust: exact;
-            }
-            .header { text-align: center; border-bottom: 1px dashed #000; padding-bottom: 5px; }
-            .item { display: flex; justify-content: space-between; margin: 4px 0; }
-            .total { border-top: 1px dashed #000; margin-top: 8px; padding-top: 5px; font-weight: bold; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h3>${storeName || 'JACK & JONES'}</h3>
-            ${storeAddress ? `<p>${storeAddress}</p>` : ''}
-            ${storePhone ? `<p>Tel: ${storePhone}</p>` : ''}
-            <p>Fiş No: ${sale.receiptNo}</p>
-            <p>Müşteri: ${customerDetails?.firstName || ''} ${customerDetails?.lastName || ''}</p>
-            <p>Tarih: ${new Date(sale.createdAt).toLocaleString('tr-TR')}</p>
-          </div>
-          <div style="margin-top: 10px;">
-            ${(sale.items || [])
-              .map(
-                (item: any) => `
-              <div class="item">
-                <span>${item.variant?.product?.name || 'Ürün'} (${item.variant?.attributes?.color || ''} ${item.variant?.attributes?.size || ''}) x${item.quantity}</span>
-                <span>${(Number(item.totalPrice) || 0).toFixed(2)} TL</span>
-              </div>
-            `
-              )
-              .join('')}
-          </div>
-          <div class="total">
-            <div class="item"><span>İndirim:</span><span>-${(Number(sale.discountAmount) || 0).toFixed(2)} TL</span></div>
-            <div class="item" style="font-size: 14px;"><span>GENEL TOPLAM:</span><span>${(Number(sale.totalAmount) || 0).toFixed(2)} TL</span></div>
-          </div>
-          <div class="header" style="border-bottom: none; border-top: 1px dashed #000; margin-top: 10px;">
-            <p>${receiptFooterNote || 'Bizi Tercih Ettiğiniz İçin Teşekkür Ederiz!'}</p>
-          </div>
-        </body>
-      </html>
-    `
+  const handlePrintReceipt = async (sale: any) => {
+    if (!sale) return
+    setPrintingSaleId(sale.id)
+    setPrintFeedback(null)
 
-    if (window.electron?.printSilent) {
-      window.electron.printSilent(receiptHtml)
-    } else {
-      const printWin = window.open('', '_blank')
-      printWin?.document.write(receiptHtml)
-      printWin?.print()
-      printWin?.close()
+    try {
+      const receiptData = normalizeSaleToReceiptData(sale, {
+        storeName,
+        storeAddress,
+        storePhone,
+        receiptFooterNote,
+        vatRate,
+        receiptPrinter,
+        cashierName: sale.cashierName,
+        selectedCustomer: customerDetails,
+      })
+
+      const res = await printReceipt(receiptData)
+      if (res.success) {
+        setPrintedSaleId(sale.id)
+        setPrintFeedback({
+          text: `Fiş (${sale.receiptNo}) başarıyla yazıcıya gönderildi.`,
+          type: 'success',
+        })
+        setTimeout(() => {
+          setPrintedSaleId(null)
+          setPrintFeedback(null)
+        }, 4000)
+      } else {
+        setPrintFeedback({
+          text: `Yazdırma uyarısı (${sale.receiptNo}): ${res.error || 'Yazıcıya ulaşılamadı'}`,
+          type: 'error',
+        })
+      }
+    } catch (err: any) {
+      console.error('Customer receipt print error:', err)
+      setPrintFeedback({
+        text: `Yazdırma hatası: ${err.message || 'Bilinmeyen hata'}`,
+        type: 'error',
+      })
+    } finally {
+      setPrintingSaleId(null)
     }
   }
 
@@ -555,6 +540,28 @@ export const CustomerView: React.FC = () => {
                 </h3>
               </div>
 
+              {printFeedback && (
+                <div
+                  className={`p-2.5 rounded-xl text-xs font-semibold flex items-center justify-between shadow-2xs animate-panel-left ${
+                    printFeedback.type === 'success'
+                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
+                      : 'bg-amber-50 text-amber-800 border border-amber-300'
+                  }`}
+                >
+                  <span className="flex items-center space-x-1.5">
+                    <span>{printFeedback.type === 'success' ? '🧾' : '⚠️'}</span>
+                    <span>{printFeedback.text}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setPrintFeedback(null)}
+                    className="ml-2 font-bold text-slate-500 hover:text-slate-800 cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+
               {totalSalesCount === 0 ? (
                 <div className="bg-white border border-slate-200 rounded-lg p-8 text-center text-slate-400 text-xs">
                   <ShoppingBag className="w-10 h-10 mx-auto mb-2 text-slate-300 stroke-[1.5]" />
@@ -649,11 +656,32 @@ export const CustomerView: React.FC = () => {
                             )}
 
                             <button
+                              type="button"
+                              disabled={printingSaleId === sale.id}
                               onClick={() => handlePrintReceipt(sale)}
-                              className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded border border-slate-300 transition"
-                              title="Fişi Yazdır"
+                              className={`px-2.5 py-1 rounded text-xs font-semibold transition flex items-center space-x-1.5 border shadow-2xs cursor-pointer ${
+                                printedSaleId === sale.id
+                                  ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                                  : 'bg-slate-100 hover:bg-blue-50 hover:border-blue-300 text-slate-700 hover:text-blue-700 border-slate-300'
+                              } disabled:opacity-60`}
+                              title="Bu satış için müşteriye fiş kes ve yazdır"
                             >
-                              <Printer className="w-4 h-4 text-blue-600" />
+                              {printingSaleId === sale.id ? (
+                                <>
+                                  <Loader2 className="w-3.5 h-3.5 text-blue-600 animate-spin" />
+                                  <span>Basılıyor...</span>
+                                </>
+                              ) : printedSaleId === sale.id ? (
+                                <>
+                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                  <span>Fiş Kesildi</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Printer className="w-3.5 h-3.5 text-blue-600" />
+                                  <span>Fiş Kes</span>
+                                </>
+                              )}
                             </button>
                           </div>
                         </div>

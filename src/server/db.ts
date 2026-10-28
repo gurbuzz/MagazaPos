@@ -626,7 +626,7 @@ export async function initDbPragmas(): Promise<void> {
       // Helper function to safely execute individual PRAGMA with isolated try/catch and executeRawUnsafe
       const safePragma = async (sql: string, name: string) => {
         try {
-          await prisma.$executeRawUnsafe(sql)
+          await prisma.$queryRawUnsafe(sql)
           logDebug('PRISMA_TEST', `PRAGMA [${name}] applied successfully.`)
         } catch (err: any) {
           logDebug('PRISMA_TEST', `Notice on PRAGMA [${name}]: ${err.message}`)

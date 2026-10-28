@@ -14,17 +14,23 @@ import {
   Eye,
   ShoppingBag,
   RotateCcw,
+  Check,
+  Loader2,
 } from 'lucide-react'
 import { usePosStore } from '../../store/usePosStore'
 import { ReturnModal } from '../Customer/ReturnModal'
+import { printReceipt, normalizeSaleToReceiptData } from '../../utils/printReceipt'
 
 export const SalesHistoryView: React.FC = () => {
-  const { receiptFooterNote, storeName, storeAddress, storePhone } = usePosStore()
+  const { receiptFooterNote, storeName, storeAddress, storePhone, vatRate, receiptPrinter } = usePosStore()
   const [sales, setSales] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [selectedSale, setSelectedSale] = useState<any | null>(null)
   const [returnSale, setReturnSale] = useState<any | null>(null)
   const [isReturnModalOpen, setIsReturnModalOpen] = useState(false)
+  const [printingSaleId, setPrintingSaleId] = useState<string | null>(null)
+  const [printedSaleId, setPrintedSaleId] = useState<string | null>(null)
+  const [printFeedback, setPrintFeedback] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
 
   // Filter States
   const [searchTerm, setSearchTerm] = useState('')
@@ -188,70 +194,46 @@ export const SalesHistoryView: React.FC = () => {
   const activeSalesCount = filteredSales.filter((s) => s.status !== 'RETURNED').length
   const avgReceiptAmount = activeSalesCount > 0 ? filteredNetRevenue / activeSalesCount : 0
 
-  const handlePrintReceipt = (sale: any) => {
+  const handlePrintReceipt = async (sale: any) => {
     if (!sale) return
-    const receiptHtml = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <style>
-            @page { margin: 0; }
-            * { box-sizing: border-box; }
-            body {
-              font-family: monospace;
-              width: 280px;
-              padding: 10px;
-              font-size: 12px;
-              color: #000000 !important;
-              background-color: #ffffff !important;
-              -webkit-print-color-adjust: exact;
-              print-color-adjust: exact;
-            }
-            .header { text-align: center; border-bottom: 1px dashed #000; padding-bottom: 5px; }
-            .item { display: flex; justify-content: space-between; margin: 4px 0; }
-            .total { border-top: 1px dashed #000; margin-top: 8px; padding-top: 5px; font-weight: bold; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h3>${storeName || 'JACK & JONES'}</h3>
-            <p>${storeAddress || ''}</p>
-            <p>Tel: ${storePhone || ''}</p>
-            <p>Fiş No: ${sale.receiptNo}</p>
-            <p>Tarih: ${new Date(sale.createdAt).toLocaleString('tr-TR')}</p>
-            <p>Kasiyer: ${sale.cashierName || 'Kasiyer'}</p>
-          </div>
-          <div style="margin-top: 10px;">
-            ${sale.items
-              ?.map(
-                (item: any) => `
-              <div class="item">
-                <span>${item.variant?.product?.name || 'Ürün'} (${item.variant?.attributes?.color || ''} ${item.variant?.attributes?.size || ''}) x${item.quantity}</span>
-                <span>${item.totalPrice?.toFixed(2)} TL</span>
-              </div>
-            `
-              )
-              .join('')}
-          </div>
-          <div class="total">
-            <div class="item"><span>İndirim:</span><span>-${(sale.discountAmount || 0).toFixed(2)} TL</span></div>
-            <div class="item" style="font-size: 14px;"><span>GENEL TOPLAM:</span><span>${sale.totalAmount?.toFixed(2)} TL</span></div>
-          </div>
-          <div class="header" style="border-bottom: none; border-top: 1px dashed #000; margin-top: 10px;">
-            <p>${receiptFooterNote || 'Teşekkür Ederiz!'}</p>
-          </div>
-        </body>
-      </html>
-    `
+    setPrintingSaleId(sale.id)
+    setPrintFeedback(null)
 
-    if (window.electron?.printSilent) {
-      window.electron.printSilent(receiptHtml)
-    } else {
-      const printWin = window.open('', '_blank')
-      printWin?.document.write(receiptHtml)
-      printWin?.print()
-      printWin?.close()
+    try {
+      const receiptData = normalizeSaleToReceiptData(sale, {
+        storeName,
+        storeAddress,
+        storePhone,
+        receiptFooterNote,
+        vatRate,
+        receiptPrinter,
+        cashierName: sale.cashierName,
+      })
+      const res = await printReceipt(receiptData)
+      if (res.success) {
+        setPrintedSaleId(sale.id)
+        setPrintFeedback({
+          text: `Fiş (${sale.receiptNo}) başarıyla yazıcıya gönderildi.`,
+          type: 'success',
+        })
+        setTimeout(() => {
+          setPrintedSaleId(null)
+          setPrintFeedback(null)
+        }, 4000)
+      } else {
+        setPrintFeedback({
+          text: `Yazdırma uyarısı (${sale.receiptNo}): ${res.error || 'Yazıcıya ulaşılamadı'}`,
+          type: 'error',
+        })
+      }
+    } catch (err: any) {
+      console.error('Print receipt error:', err)
+      setPrintFeedback({
+        text: `Yazdırma hatası: ${err.message || 'Bilinmeyen hata'}`,
+        type: 'error',
+      })
+    } finally {
+      setPrintingSaleId(null)
     }
   }
 
@@ -502,13 +484,35 @@ export const SalesHistoryView: React.FC = () => {
 
             <button
               onClick={fetchSales}
-              className="p-1.5 bg-white hover:bg-slate-100 text-slate-700 rounded border border-slate-300 transition shadow-2xs flex items-center space-x-1 text-xs font-semibold"
+              className="p-1.5 bg-white hover:bg-slate-100 text-slate-700 rounded border border-slate-300 transition shadow-2xs flex items-center space-x-1 text-xs font-semibold cursor-pointer"
               title="Listeyi Yenile"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
               <span>Yenile</span>
             </button>
           </div>
+
+          {printFeedback && (
+            <div
+              className={`p-2.5 mx-3.5 mt-3 rounded-xl text-xs font-semibold flex items-center justify-between shadow-2xs ${
+                printFeedback.type === 'success'
+                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
+                  : 'bg-amber-50 text-amber-800 border border-amber-300'
+              }`}
+            >
+              <span className="flex items-center space-x-1.5">
+                <span>{printFeedback.type === 'success' ? '🧾' : '⚠️'}</span>
+                <span>{printFeedback.text}</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setPrintFeedback(null)}
+                className="ml-2 font-bold text-slate-500 hover:text-slate-800 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+          )}
 
           {/* Table */}
           <div className="overflow-x-auto">
@@ -585,12 +589,32 @@ export const SalesHistoryView: React.FC = () => {
                       </td>
                       <td className="px-4 py-2.5 text-right space-x-1.5">
                         <button
+                          type="button"
+                          disabled={printingSaleId === sale.id}
                           onClick={() => handlePrintReceipt(sale)}
-                          className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded transition font-semibold text-xs inline-flex items-center space-x-1"
-                          title="Fiş Yazdır"
+                          className={`px-2.5 py-1 rounded transition font-semibold text-xs inline-flex items-center space-x-1 border cursor-pointer ${
+                            printedSaleId === sale.id
+                              ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                              : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
+                          } disabled:opacity-60`}
+                          title="Fiş Kes / Yazdır"
                         >
-                          <Printer className="w-3.5 h-3.5 text-blue-600" />
-                          <span>Yazdır</span>
+                          {printingSaleId === sale.id ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 text-blue-600 animate-spin" />
+                              <span>Basılıyor...</span>
+                            </>
+                          ) : printedSaleId === sale.id ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>Fiş Kesildi</span>
+                            </>
+                          ) : (
+                            <>
+                              <Printer className="w-3.5 h-3.5 text-blue-600" />
+                              <span>Fiş Kes</span>
+                            </>
+                          )}
                         </button>
                         <button
                           onClick={() => {
@@ -717,11 +741,32 @@ export const SalesHistoryView: React.FC = () => {
 
               <div className="flex justify-end space-x-2 pt-1">
                 <button
+                  type="button"
+                  disabled={printingSaleId === selectedSale.id}
                   onClick={() => handlePrintReceipt(selectedSale)}
-                  className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 font-semibold rounded text-xs flex items-center space-x-1 transition"
+                  className={`px-3.5 py-1.5 font-semibold rounded text-xs flex items-center space-x-1.5 transition border cursor-pointer ${
+                    printedSaleId === selectedSale.id
+                      ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
+                  } disabled:opacity-60`}
+                  title="Fiş Kes / Yazdır"
                 >
-                  <Printer className="w-3.5 h-3.5 text-blue-600" />
-                  <span>Fiş Yazdır</span>
+                  {printingSaleId === selectedSale.id ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 text-blue-600 animate-spin" />
+                      <span>Basılıyor...</span>
+                    </>
+                  ) : printedSaleId === selectedSale.id ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Fiş Kesildi</span>
+                    </>
+                  ) : (
+                    <>
+                      <Printer className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Fiş Kes / Yazdır</span>
+                    </>
+                  )}
                 </button>
                 <button
                   onClick={() => {

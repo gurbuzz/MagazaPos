@@ -58,7 +58,7 @@ export async function createAutoSafetyBackup(prefix: string): Promise<string | n
 
   try {
     // Checkpoint WAL first to flush unwritten data
-    await prisma.$executeRawUnsafe('PRAGMA wal_checkpoint(TRUNCATE);').catch(() => {})
+    await prisma.$queryRawUnsafe('PRAGMA wal_checkpoint(TRUNCATE);').catch(() => {})
 
     // Try VACUUM INTO for consistent snapshot
     try {
@@ -88,7 +88,7 @@ export async function createDatabaseBackup(): Promise<string> {
 
   // Ensure WAL transactions are flushed to main DB
   try {
-    await prisma.$executeRawUnsafe('PRAGMA wal_checkpoint(TRUNCATE);')
+    await prisma.$queryRawUnsafe('PRAGMA wal_checkpoint(TRUNCATE);')
   } catch (cpErr: any) {
     console.warn('[Backup] wal_checkpoint uyarısı:', cpErr?.message)
   }
@@ -281,7 +281,7 @@ export async function restoreDatabase(uploadedBuffer: Buffer): Promise<RestoreRe
 
     // 3. Flush live DB WAL checkpoint
     try {
-      await prisma.$executeRawUnsafe('PRAGMA wal_checkpoint(TRUNCATE);')
+      await prisma.$queryRawUnsafe('PRAGMA wal_checkpoint(TRUNCATE);')
     } catch (cpErr: any) {
       console.warn('[Restore] wal_checkpoint uyarısı:', cpErr?.message)
     }

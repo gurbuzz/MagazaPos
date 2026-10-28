@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react'
-import { X, CreditCard, Banknote, CheckCircle, Printer } from 'lucide-react'
+import { X, CreditCard, Banknote, CheckCircle, Printer, Loader2 } from 'lucide-react'
 import { usePosStore } from '../../store/usePosStore'
 import { notifyDataChanged } from '../../utils/events'
 import { syncCustomerDisplay } from '../../utils/customerDisplaySync'
+import { printReceipt, normalizeSaleToReceiptData } from '../../utils/printReceipt'
 
 interface CheckoutModalProps {
   isOpen: boolean
@@ -19,7 +20,24 @@ const parseDecimal = (val: any): number => {
 }
 
 export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, onSuccess }) => {
-  const { cartItems, discountAmount, surchargeAmount, getTotal, getSubtotal, cashierName, clearCart, selectedCustomer, storeName, receiptPrefix } = usePosStore()
+  const {
+    cartItems,
+    discountAmount,
+    surchargeAmount,
+    getTotal,
+    getSubtotal,
+    cashierName,
+    clearCart,
+    selectedCustomer,
+    storeName,
+    storeAddress,
+    storePhone,
+    receiptPrefix,
+    receiptFooterNote,
+    vatRate,
+    autoPrintReceipt,
+    receiptPrinter,
+  } = usePosStore()
 
   const [paymentMode, setPaymentMode] = useState<'CASH' | 'CARD' | 'SPLIT'>('CASH')
   const [cashAmount, setCashAmount] = useState<number>(0)
@@ -28,6 +46,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
   const [isProcessing, setIsProcessing] = useState(false)
   const [completedSale, setCompletedSale] = useState<any>(null)
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
+  const [isPrintingReceipt, setIsPrintingReceipt] = useState(false)
+  const [receiptPrinted, setReceiptPrinted] = useState(false)
+  const [receiptPrintFeedback, setReceiptPrintFeedback] = useState<string | null>(null)
 
   const total = getTotal()
 
@@ -41,6 +62,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
       setCompletedSale(null)
       setIsProcessing(false)
       setCheckoutError(null)
+      setIsPrintingReceipt(false)
+      setReceiptPrinted(false)
+      setReceiptPrintFeedback(null)
     }
   }, [isOpen])
 
@@ -151,6 +175,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
       setCompletedSale(saleData)
       setIsProcessing(false)
       notifyDataChanged()
+
+      // If auto-print is enabled, automatically trigger receipt printing
+      if (autoPrintReceipt) {
+        handlePrintReceipt(saleData)
+      }
     } catch (err: any) {
       setCheckoutError(`Tahsilat sırasında hata oluştu: ${err.message || 'Bağlantı hatası'}`)
       setIsProcessing(false)
@@ -183,68 +212,53 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
     }
   }
 
-  const handlePrintReceipt = () => {
-    if (!completedSale) return
-    const custInfo = completedSale.customer || selectedCustomer
-    const receiptHtml = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <style>
-            @page { margin: 0; }
-            * { box-sizing: border-box; }
-            body {
-              font-family: monospace;
-              width: 280px;
-              padding: 10px;
-              font-size: 12px;
-              color: #000000 !important;
-              background-color: #ffffff !important;
-              -webkit-print-color-adjust: exact;
-              print-color-adjust: exact;
-            }
-            .header { text-align: center; border-bottom: 1px dashed #000; padding-bottom: 5px; }
-            .item { display: flex; justify-content: space-between; margin: 4px 0; }
-            .total { border-top: 1px dashed #000; margin-top: 8px; padding-top: 5px; font-weight: bold; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h3>${storeName || 'JACK & JONES'}</h3>
-            <p>Fiş No: ${completedSale.receiptNo}</p>
-            ${custInfo ? `<p>Müşteri: ${custInfo.firstName} ${custInfo.lastName}</p>` : ''}
-            <p>Tarih: ${new Date().toLocaleString('tr-TR')}</p>
-          </div>
-          <div style="margin-top: 10px;">
-            ${cartItems
-              .map(
-                (item) => `
-              <div class="item">
-                <span>${item.productName} (${item.attributes.color || ''} ${item.attributes.size || ''}) x${item.quantity}</span>
-                <span>${item.totalPrice.toFixed(2)} TL</span>
-              </div>
-            `
-              )
-              .join('')}
-          </div>
-          <div class="total">
-            ${discountAmount > 0 ? `<p>İndirim / Değişim Mahsubu: -${discountAmount.toFixed(2)} TL</p>` : ''}
-            ${surchargeAmount > 0 ? `<p>Taksit / Vade Farkı: +${surchargeAmount.toFixed(2)} TL</p>` : ''}
-            <p>TOPLAM: ${total.toFixed(2)} TL</p>
-            ${total === 0 ? '<p>İşlem Türü: SIFIR FARK DEĞİŞİM</p>' : ''}
-          </div>
-        </body>
-      </html>
-    `
+  const handlePrintReceipt = async (targetSale?: any) => {
+    const saleToPrint = targetSale || completedSale
+    if (!saleToPrint) return
 
-    if (window.electron?.printSilent) {
-      window.electron.printSilent(receiptHtml)
-    } else {
-      const printWin = window.open('', '_blank')
-      printWin?.document.write(receiptHtml)
-      printWin?.print()
-      printWin?.close()
+    setIsPrintingReceipt(true)
+    setReceiptPrintFeedback(null)
+
+    try {
+      const receiptData = normalizeSaleToReceiptData(
+        saleToPrint,
+        {
+          storeName,
+          storeAddress,
+          storePhone,
+          cashierName,
+          receiptFooterNote,
+          vatRate,
+          receiptPrinter,
+          selectedCustomer,
+          cartItems,
+          discountAmount,
+          surchargeAmount,
+          getTotal,
+          getSubtotal,
+        },
+        {
+          cartItems,
+          givenCash: parseDecimal(givenCash),
+          paymentMode,
+          cashAmount,
+          cardAmount,
+        }
+      )
+
+      const result = await printReceipt(receiptData)
+      if (result.success) {
+        setReceiptPrinted(true)
+        setReceiptPrintFeedback('Fiş başarıyla yazıcıya gönderildi.')
+        setTimeout(() => setReceiptPrintFeedback(null), 4000)
+      } else {
+        setReceiptPrintFeedback(`Yazdırma uyarısı: ${result.error || 'Yazıcıya ulaşılamadı'}`)
+      }
+    } catch (err: any) {
+      console.error('Print receipt error:', err)
+      setReceiptPrintFeedback(`Yazdırma hatası: ${err.message || 'Bilinmeyen hata'}`)
+    } finally {
+      setIsPrintingReceipt(false)
     }
   }
 
@@ -454,21 +468,67 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              <button
-                onClick={handlePrintReceipt}
-                className="py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold rounded transition flex items-center justify-center space-x-1.5 text-xs border border-slate-300"
-              >
-                <Printer className="w-3.5 h-3.5 text-blue-600" />
-                <span>Fiş / Fatura Yazdır</span>
-              </button>
+            <div className="space-y-2.5 pt-1">
+              {receiptPrintFeedback && (
+                <div
+                  className={`p-2.5 rounded-xl text-xs font-semibold flex items-center justify-between shadow-2xs ${
+                    receiptPrintFeedback.includes('başarıyla')
+                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
+                      : 'bg-amber-50 text-amber-800 border border-amber-300'
+                  }`}
+                >
+                  <span className="flex items-center space-x-1.5 text-left">
+                    <span>{receiptPrintFeedback.includes('başarıyla') ? '🧾' : '⚠️'}</span>
+                    <span>{receiptPrintFeedback}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setReceiptPrintFeedback(null)}
+                    className="ml-2 font-bold text-slate-500 hover:text-slate-800 text-sm"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
 
-              <button
-                onClick={handleFinish}
-                className="py-2.5 px-3 bg-[#00268A] hover:bg-[#001f70] text-white font-bold rounded-lg transition shadow-sm text-xs"
-              >
-                <span>Yeni Satışa Geç</span>
-              </button>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  disabled={isPrintingReceipt}
+                  onClick={() => handlePrintReceipt(completedSale)}
+                  className={`py-2.5 px-3 rounded-lg font-semibold transition flex items-center justify-center space-x-1.5 text-xs border ${
+                    receiptPrinted
+                      ? 'bg-emerald-50 border-emerald-300 text-emerald-800 hover:bg-emerald-100 shadow-2xs'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300 shadow-2xs'
+                  } disabled:opacity-60 cursor-pointer`}
+                  title="Satış fişini yazdır"
+                >
+                  {isPrintingReceipt ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 text-blue-600 animate-spin" />
+                      <span>Fiş Basılıyor...</span>
+                    </>
+                  ) : receiptPrinted ? (
+                    <>
+                      <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Tekrar Fiş Kes</span>
+                    </>
+                  ) : (
+                    <>
+                      <Printer className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Fiş Kes / Yazdır</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleFinish}
+                  className="py-2.5 px-3 bg-[#00268A] hover:bg-[#001f70] text-white font-bold rounded-lg transition shadow-sm text-xs cursor-pointer"
+                >
+                  <span>Yeni Satışa Geç</span>
+                </button>
+              </div>
             </div>
           </div>
         )}
