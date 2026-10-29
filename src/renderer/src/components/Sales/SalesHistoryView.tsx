@@ -38,6 +38,18 @@ export const SalesHistoryView: React.FC = () => {
   const [paymentFilter, setPaymentFilter] = useState<'ALL' | 'CASH' | 'CARD'>('ALL')
   const [startDate, setStartDate] = useState<string>('')
   const [endDate, setEndDate] = useState<string>('')
+  const [displayLimit, setDisplayLimit] = useState<number>(20)
+  const [serverStats, setServerStats] = useState<{
+    totalCount: number
+    activeSalesCount: number
+    refundedCount: number
+    grossRevenue: number
+    totalRefund: number
+    netRevenue: number
+    netCash: number
+    netCard: number
+    avgReceiptAmount: number
+  } | null>(null)
 
   // Barkod okuyucu ve arama normalizasyonu:
   // Türkçe Q klavye haritasında '-' tuşunun karşılığı '*' olarak basılır veya Code 39 baş/son yıldız koyar.
@@ -47,22 +59,45 @@ export const SalesHistoryView: React.FC = () => {
     return val.replace(/^\*+|\*+$/g, '').replace(/\*+/g, '-')
   }
 
-  const fetchSales = async (overrideSearch?: string) => {
+  const fetchSales = async (overrideSearch?: string, customLimit?: number) => {
     setIsLoading(true)
     try {
-      let url = '/api/sales?limit=300'
-      if (startDate) url += `&startDate=${encodeURIComponent(startDate)}`
-      if (endDate) url += `&endDate=${encodeURIComponent(endDate)}`
+      const takeLimit = customLimit !== undefined ? customLimit : displayLimit
+      let salesQuery = `/api/sales?limit=${takeLimit}`
+      let statsQuery = '/api/sales/stats?'
+
+      const queryParts: string[] = []
+      if (startDate) queryParts.push(`startDate=${encodeURIComponent(startDate)}`)
+      if (endDate) queryParts.push(`endDate=${encodeURIComponent(endDate)}`)
 
       const term = overrideSearch !== undefined ? overrideSearch : searchTerm
       if (term && term.trim()) {
         const cleanQuery = cleanBarcodeSearch(term.trim())
-        url += `&search=${encodeURIComponent(cleanQuery)}`
+        queryParts.push(`search=${encodeURIComponent(cleanQuery)}`)
       }
 
-      const res = await fetch(url)
-      const data = await res.json()
-      setSales(Array.isArray(data) ? data : [])
+      if (queryParts.length > 0) {
+        const queryString = queryParts.join('&')
+        salesQuery += `&${queryString}`
+        statsQuery += queryString
+      } else {
+        statsQuery = '/api/sales/stats'
+      }
+
+      const [salesRes, statsRes] = await Promise.all([
+        fetch(salesQuery),
+        fetch(statsQuery)
+      ])
+
+      const [salesData, statsData] = await Promise.all([
+        salesRes.json(),
+        statsRes.json()
+      ])
+
+      setSales(Array.isArray(salesData) ? salesData : [])
+      if (statsData && !statsData.error) {
+        setServerStats(statsData)
+      }
     } catch (err) {
       console.error('Error fetching sales history:', err)
     } finally {
@@ -234,16 +269,34 @@ export const SalesHistoryView: React.FC = () => {
   }
 
   // Calculate Net Revenue KPIs based on filtered set (KASADAN DÜŞÜLMÜŞ GERÇEK RAKAMLAR)
-  const filteredGrossRevenue = filteredSales.reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0)
-  const filteredTotalRefund = filteredSales.reduce((sum, s) => sum + getSaleMetrics(s).refund, 0)
-  const filteredNetRevenue = filteredSales.reduce((sum, s) => sum + getSaleMetrics(s).net, 0)
-  const filteredNetCash = filteredSales.reduce((sum, s) => sum + getSaleMetrics(s).netCash, 0)
-  const filteredNetCard = filteredSales.reduce((sum, s) => sum + getSaleMetrics(s).netCard, 0)
-  const refundedSalesCount = filteredSales.filter(
+  const localGrossRevenue = filteredSales.reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0)
+  const localTotalRefund = filteredSales.reduce((sum, s) => sum + getSaleMetrics(s).refund, 0)
+  const localNetRevenue = filteredSales.reduce((sum, s) => sum + getSaleMetrics(s).net, 0)
+  const localNetCash = filteredSales.reduce((sum, s) => sum + getSaleMetrics(s).netCash, 0)
+  const localNetCard = filteredSales.reduce((sum, s) => sum + getSaleMetrics(s).netCard, 0)
+  const localRefundedSalesCount = filteredSales.filter(
     (s) => s.status === 'RETURNED' || s.status === 'PARTIAL_RETURN' || getSaleMetrics(s).refund > 0
   ).length
-  const activeSalesCount = filteredSales.filter((s) => s.status !== 'RETURNED').length
-  const avgReceiptAmount = activeSalesCount > 0 ? filteredNetRevenue / activeSalesCount : 0
+  const localActiveSalesCount = filteredSales.filter((s) => s.status !== 'RETURNED').length
+  const localAvgReceiptAmount = localActiveSalesCount > 0 ? localNetRevenue / localActiveSalesCount : 0
+
+  // Dönem cirolarını tam ve doğru göstermek için: Sunucudan gelen toplu istatistikleri (serverStats) kullanır.
+  // Bu sayede ekranda son 20 fiş listelense dahi günlük/aylık ciro eksiksiz hesaplanır.
+  const isAllPayment = paymentFilter === 'ALL'
+  const filteredGrossRevenue = isAllPayment && serverStats ? serverStats.grossRevenue : localGrossRevenue
+  const filteredTotalRefund = isAllPayment && serverStats ? serverStats.totalRefund : localTotalRefund
+  const filteredNetRevenue = isAllPayment && serverStats
+    ? serverStats.netRevenue
+    : paymentFilter === 'CASH' && serverStats
+    ? serverStats.netCash
+    : paymentFilter === 'CARD' && serverStats
+    ? serverStats.netCard
+    : localNetRevenue
+  const filteredNetCash = serverStats ? serverStats.netCash : localNetCash
+  const filteredNetCard = serverStats ? serverStats.netCard : localNetCard
+  const refundedSalesCount = isAllPayment && serverStats ? serverStats.refundedCount : localRefundedSalesCount
+  const activeSalesCount = isAllPayment && serverStats ? serverStats.activeSalesCount : localActiveSalesCount
+  const avgReceiptAmount = isAllPayment && serverStats ? serverStats.avgReceiptAmount : localAvgReceiptAmount
 
   const handlePrintReceipt = async (sale: any, isGift = false) => {
     if (!sale) return
@@ -545,20 +598,40 @@ export const SalesHistoryView: React.FC = () => {
                 <h3 className="font-bold text-slate-900 text-xs flex items-center space-x-2">
                   <span>Satış Fişleri Kayıt Listesi</span>
                   <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-[10px] font-semibold rounded border border-blue-100">
-                    {filteredSales.length} Fiş Listelendi
+                    Son {filteredSales.length} Fiş Listelendi {serverStats?.totalCount ? `(Toplam ${serverStats.totalCount} Fiş)` : ''}
                   </span>
                 </h3>
               </div>
             </div>
 
-            <button
-              onClick={() => fetchSales()}
-              className="p-1.5 bg-white hover:bg-slate-100 text-slate-700 rounded border border-slate-300 transition shadow-2xs flex items-center space-x-1 text-xs font-semibold cursor-pointer"
-              title="Listeyi Yenile"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-              <span>Yenile</span>
-            </button>
+            <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-1.5 text-xs text-slate-600">
+                <span className="text-[11px] font-medium text-slate-500">Adet:</span>
+                <select
+                  value={displayLimit}
+                  onChange={(e) => {
+                    const newLimit = Number(e.target.value)
+                    setDisplayLimit(newLimit)
+                    fetchSales(undefined, newLimit)
+                  }}
+                  className="px-2 py-1 bg-white border border-slate-300 rounded text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#00268A]"
+                >
+                  <option value={20}>20 Fiş</option>
+                  <option value={50}>50 Fiş</option>
+                  <option value={100}>100 Fiş</option>
+                  <option value={200}>200 Fiş</option>
+                </select>
+              </div>
+
+              <button
+                onClick={() => fetchSales()}
+                className="p-1.5 bg-white hover:bg-slate-100 text-slate-700 rounded border border-slate-300 transition shadow-2xs flex items-center space-x-1 text-xs font-semibold cursor-pointer"
+                title="Listeyi Yenile"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+                <span>Yenile</span>
+              </button>
+            </div>
           </div>
 
           {printFeedback && (
@@ -715,6 +788,31 @@ export const SalesHistoryView: React.FC = () => {
               </tbody>
             </table>
           </div>
+
+          {/* Load More Button */}
+          {serverStats && serverStats.totalCount > sales.length && (
+            <div className="p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+              <span className="text-xs text-slate-500 font-medium">
+                Toplam <span className="font-bold text-slate-800">{serverStats.totalCount}</span> fişten son <span className="font-bold text-slate-800">{sales.length}</span> tanesi gösteriliyor.
+              </span>
+              <button
+                onClick={() => {
+                  const newLimit = displayLimit + 20
+                  setDisplayLimit(newLimit)
+                  fetchSales(undefined, newLimit)
+                }}
+                disabled={isLoading}
+                className="px-3.5 py-1.5 bg-[#00268A] hover:bg-[#001f70] text-white text-xs font-bold rounded-lg shadow-2xs transition flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {isLoading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-3.5 h-3.5" />
+                )}
+                <span>+20 Daha Fazla Fiş Göster</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* SALE DETAIL MODAL */}

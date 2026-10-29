@@ -99,61 +99,130 @@ export function formatSale(s: any) {
 }
 
 
-// GET /api/sales - Sales history with optional date-time range filters and search
-salesRouter.get('/', async (req, res) => {
-  try {
-    const { startDate, endDate, limit, search } = req.query
-    const where: any = {}
+function buildSalesWhere(query: any): any {
+  const { startDate, endDate, search } = query
+  const where: any = {}
 
-    if (startDate || endDate) {
-      const createdAtFilter: any = {}
-      if (startDate) {
-        const sDate = new Date(startDate as string)
-        if (!isNaN(sDate.getTime())) createdAtFilter.gte = sDate
-      }
-      if (endDate) {
-        const eDate = new Date(endDate as string)
-        if (!isNaN(eDate.getTime())) createdAtFilter.lte = eDate
-      }
-      if (Object.keys(createdAtFilter).length > 0) {
-        where.createdAt = createdAtFilter
-      }
+  if (startDate || endDate) {
+    const createdAtFilter: any = {}
+    if (startDate) {
+      const sDate = new Date(startDate as string)
+      if (!isNaN(sDate.getTime())) createdAtFilter.gte = sDate
     }
+    if (endDate) {
+      const eDate = new Date(endDate as string)
+      if (!isNaN(eDate.getTime())) createdAtFilter.lte = eDate
+    }
+    if (Object.keys(createdAtFilter).length > 0) {
+      where.createdAt = createdAtFilter
+    }
+  }
 
-    if (search && typeof search === 'string' && search.trim() !== '') {
-      const rawQuery = search.trim()
-      const cleanQuery = rawQuery.replace(/^\*+|\*+$/g, '').replace(/\*+/g, '-').trim()
-      const strippedQuery = cleanQuery.replace(/[-_]/g, '').trim()
+  if (search && typeof search === 'string' && search.trim() !== '') {
+    const rawQuery = search.trim()
+    const cleanQuery = rawQuery.replace(/^\*+|\*+$/g, '').replace(/\*+/g, '-').trim()
+    const strippedQuery = cleanQuery.replace(/[-_]/g, '').trim()
 
-      const receiptQueries = Array.from(new Set([rawQuery, cleanQuery, strippedQuery].filter(Boolean)))
+    const receiptQueries = Array.from(new Set([rawQuery, cleanQuery, strippedQuery].filter(Boolean)))
 
-      where.OR = [
-        ...receiptQueries.map((q) => ({ receiptNo: { contains: q } })),
-        { cashierName: { contains: cleanQuery } },
-        {
-          customer: {
-            OR: [
-              { firstName: { contains: cleanQuery } },
-              { lastName: { contains: cleanQuery } },
-              { phone: { contains: cleanQuery } },
-            ]
-          }
-        },
-        {
-          items: {
-            some: {
-              variant: {
-                OR: [
-                  { barcode: { contains: cleanQuery } },
-                  { sku: { contains: cleanQuery } },
-                  { product: { name: { contains: cleanQuery } } }
-                ]
-              }
+    where.OR = [
+      ...receiptQueries.map((q) => ({ receiptNo: { contains: q } })),
+      { cashierName: { contains: cleanQuery } },
+      {
+        customer: {
+          OR: [
+            { firstName: { contains: cleanQuery } },
+            { lastName: { contains: cleanQuery } },
+            { phone: { contains: cleanQuery } },
+          ]
+        }
+      },
+      {
+        items: {
+          some: {
+            variant: {
+              OR: [
+                { barcode: { contains: cleanQuery } },
+                { sku: { contains: cleanQuery } },
+                { product: { name: { contains: cleanQuery } } }
+              ]
             }
           }
         }
-      ]
+      }
+    ]
+  }
+
+  return where
+}
+
+// GET /api/sales/stats - Aggregated turnover metrics for selected date range
+salesRouter.get('/stats', async (req, res) => {
+  try {
+    const where = buildSalesWhere(req.query)
+
+    const sales = await prisma.sale.findMany({
+      where,
+      select: {
+        id: true,
+        totalAmount: true,
+        paymentType: true,
+        status: true,
+        items: {
+          select: {
+            quantity: true,
+            unitPrice: true,
+            returnedQuantity: true,
+          }
+        }
+      }
+    })
+
+    let totalGross = 0
+    let totalRefund = 0
+    let totalNet = 0
+    let netCash = 0
+    let netCard = 0
+    let refundedCount = 0
+    let activeSalesCount = 0
+
+    for (const s of sales) {
+      const formatted = formatSale(s)
+      totalGross += Number(formatted.totalAmount) || 0
+      totalRefund += Number(formatted.refundAmount) || 0
+      totalNet += Number(formatted.netAmount) || 0
+      netCash += Number(formatted.paymentType?.netCash) || 0
+      netCard += Number(formatted.paymentType?.netCard) || 0
+
+      if (formatted.status === 'RETURNED' || (formatted.refundAmount && formatted.refundAmount > 0)) {
+        refundedCount++
+      }
+      if (formatted.status !== 'RETURNED') {
+        activeSalesCount++
+      }
     }
+
+    res.json({
+      totalCount: sales.length,
+      activeSalesCount,
+      refundedCount,
+      grossRevenue: Math.round(totalGross * 100) / 100,
+      totalRefund: Math.round(totalRefund * 100) / 100,
+      netRevenue: Math.round(totalNet * 100) / 100,
+      netCash: Math.round(netCash * 100) / 100,
+      netCard: Math.round(netCard * 100) / 100,
+      avgReceiptAmount: activeSalesCount > 0 ? Math.round((totalNet / activeSalesCount) * 100) / 100 : 0
+    })
+  } catch (error: any) {
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// GET /api/sales - Sales history with optional date-time range filters and search (default limit: 20)
+salesRouter.get('/', async (req, res) => {
+  try {
+    const where = buildSalesWhere(req.query)
+    const limit = req.query.limit ? parseInt(req.query.limit as string) : 20
 
     const sales = await prisma.sale.findMany({
       where,
@@ -168,7 +237,7 @@ salesRouter.get('/', async (req, res) => {
         }
       },
       orderBy: { createdAt: 'desc' },
-      take: limit ? parseInt(limit as string) : 200
+      take: limit > 0 ? limit : 20
     })
     res.json(sales.map(formatSale))
   } catch (error: any) {
