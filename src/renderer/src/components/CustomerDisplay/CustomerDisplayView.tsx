@@ -833,7 +833,7 @@ export const CustomerDisplayView: React.FC = () => {
                       isLight ? 'text-slate-500' : 'text-blue-300/80'
                     }`}
                   >
-                    {data.cartItems.length} Kalem
+                    {data.cartItems.length} Kalem ({data.cartItems.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0)} Adet)
                   </span>
                 </div>
 

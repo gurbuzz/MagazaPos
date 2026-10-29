@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { X, CreditCard, Banknote, CheckCircle, Printer, Loader2 } from 'lucide-react'
+import { X, CreditCard, Banknote, CheckCircle, Printer, Loader2, Gift } from 'lucide-react'
 import { usePosStore } from '../../store/usePosStore'
 import { notifyDataChanged } from '../../utils/events'
 import { syncCustomerDisplay } from '../../utils/customerDisplaySync'
@@ -49,6 +49,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
   const [isPrintingReceipt, setIsPrintingReceipt] = useState(false)
   const [receiptPrinted, setReceiptPrinted] = useState(false)
+  const [isPrintingGiftReceipt, setIsPrintingGiftReceipt] = useState(false)
+  const [giftReceiptPrinted, setGiftReceiptPrinted] = useState(false)
   const [receiptPrintFeedback, setReceiptPrintFeedback] = useState<string | null>(null)
 
   const total = getTotal()
@@ -65,6 +67,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
       setCheckoutError(null)
       setIsPrintingReceipt(false)
       setReceiptPrinted(false)
+      setIsPrintingGiftReceipt(false)
+      setGiftReceiptPrinted(false)
       setReceiptPrintFeedback(null)
     }
   }, [isOpen])
@@ -213,11 +217,15 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
     }
   }
 
-  const handlePrintReceipt = async (targetSale?: any) => {
+  const handlePrintReceipt = async (targetSale?: any, isGift: boolean = false) => {
     const saleToPrint = targetSale || completedSale
     if (!saleToPrint) return
 
-    setIsPrintingReceipt(true)
+    if (isGift) {
+      setIsPrintingGiftReceipt(true)
+    } else {
+      setIsPrintingReceipt(true)
+    }
     setReceiptPrintFeedback(null)
 
     try {
@@ -245,13 +253,19 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
           paymentMode,
           cashAmount,
           cardAmount,
+          isGiftReceipt: isGift,
         }
       )
 
       const result = await printReceipt(receiptData)
       if (result.success) {
-        setReceiptPrinted(true)
-        setReceiptPrintFeedback('Fiş başarıyla yazıcıya gönderildi.')
+        if (isGift) {
+          setGiftReceiptPrinted(true)
+          setReceiptPrintFeedback('Hediye değişim fişi (fiyatsız) başarıyla yazıcıya gönderildi.')
+        } else {
+          setReceiptPrinted(true)
+          setReceiptPrintFeedback('Satış fişi başarıyla yazıcıya gönderildi.')
+        }
         setTimeout(() => setReceiptPrintFeedback(null), 4000)
       } else {
         setReceiptPrintFeedback(`Yazdırma uyarısı: ${result.error || 'Yazıcıya ulaşılamadı'}`)
@@ -260,7 +274,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
       console.error('Print receipt error:', err)
       setReceiptPrintFeedback(`Yazdırma hatası: ${err.message || 'Bilinmeyen hata'}`)
     } finally {
-      setIsPrintingReceipt(false)
+      if (isGift) {
+        setIsPrintingGiftReceipt(false)
+      } else {
+        setIsPrintingReceipt(false)
+      }
     }
   }
 
@@ -496,8 +514,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  disabled={isPrintingReceipt}
-                  onClick={() => handlePrintReceipt(completedSale)}
+                  disabled={isPrintingReceipt || isPrintingGiftReceipt}
+                  onClick={() => handlePrintReceipt(completedSale, false)}
                   className={`py-2.5 px-3 rounded-lg font-semibold transition flex items-center justify-center space-x-1.5 text-xs border ${
                     receiptPrinted
                       ? 'bg-emerald-50 border-emerald-300 text-emerald-800 hover:bg-emerald-100 shadow-2xs'
@@ -525,12 +543,42 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
 
                 <button
                   type="button"
-                  onClick={handleFinish}
-                  className="py-2.5 px-3 bg-[#00268A] hover:bg-[#001f70] text-white font-bold rounded-lg transition shadow-sm text-xs cursor-pointer"
+                  disabled={isPrintingReceipt || isPrintingGiftReceipt}
+                  onClick={() => handlePrintReceipt(completedSale, true)}
+                  className={`py-2.5 px-3 rounded-lg font-semibold transition flex items-center justify-center space-x-1.5 text-xs border ${
+                    giftReceiptPrinted
+                      ? 'bg-purple-50 border-purple-300 text-purple-800 hover:bg-purple-100 shadow-2xs'
+                      : 'bg-purple-50/70 hover:bg-purple-100/90 text-purple-900 border-purple-200 hover:border-purple-300 shadow-2xs'
+                  } disabled:opacity-60 cursor-pointer`}
+                  title="Fiyatsız hediye değişim fişi yazdır"
                 >
-                  <span>Yeni Satışa Geç</span>
+                  {isPrintingGiftReceipt ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 text-purple-600 animate-spin" />
+                      <span>Basılıyor...</span>
+                    </>
+                  ) : giftReceiptPrinted ? (
+                    <>
+                      <CheckCircle className="w-3.5 h-3.5 text-purple-600" />
+                      <span>Hediye Fişi Kesildi</span>
+                    </>
+                  ) : (
+                    <>
+                      <Gift className="w-3.5 h-3.5 text-purple-600" />
+                      <span>Hediye Fişi (Fiyatsız)</span>
+                    </>
+                  )}
                 </button>
               </div>
+
+              <button
+                type="button"
+                onClick={handleFinish}
+                className="w-full py-2.5 px-3 bg-[#00268A] hover:bg-[#001f70] text-white font-bold rounded-lg transition shadow-sm text-xs flex items-center justify-center space-x-1.5 cursor-pointer"
+              >
+                <span>Yeni Satışa Geç</span>
+                <span>→</span>
+              </button>
             </div>
           </div>
         )}

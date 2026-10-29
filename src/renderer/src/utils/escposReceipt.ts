@@ -99,6 +99,14 @@ export function generateEscposReceipt(data: ReceiptData, openDrawer = false): Ui
     pushLine(`Tel: ${store.storePhone}`)
   }
 
+  if (data.isGiftReceipt) {
+    pushLine('')
+    pushBytes(0x1b, 0x45, 0x01) // Bold on
+    pushLine(formatCenterText('*** HEDIYE DEGISIM FISI ***', width))
+    pushLine(formatCenterText('(FIYATSIZ)', width))
+    pushBytes(0x1b, 0x45, 0x00) // Bold off
+  }
+
   pushLine('='.repeat(width))
 
   // --- METADATA (LEFT ALIGNED) ---
@@ -119,7 +127,7 @@ export function generateEscposReceipt(data: ReceiptData, openDrawer = false): Ui
   pushText(formatTwoCols('Tarih   : ' + dateStr, '', width))
   pushText(formatTwoCols('Kasiyer : ' + (data.cashierName || 'Kasiyer 1'), '', width))
 
-  if (data.customer) {
+  if (!data.isGiftReceipt && data.customer) {
     const custName = `${data.customer.firstName || ''} ${data.customer.lastName || ''}`.trim()
     if (custName) {
       pushText(formatTwoCols('Musteri : ' + custName, '', width))
@@ -132,71 +140,104 @@ export function generateEscposReceipt(data: ReceiptData, openDrawer = false): Ui
   pushLine('-'.repeat(width))
 
   // --- ITEMS TABLE ---
-  pushText(formatTwoCols('URUN BILGISI', 'TUTAR', width))
-  pushLine('-'.repeat(width))
+  if (data.isGiftReceipt) {
+    pushText(formatTwoCols('URUN BILGISI', 'ADET', width))
+    pushLine('-'.repeat(width))
 
-  for (const item of data.items) {
-    // Product Name (Bold)
+    for (const item of data.items) {
+      pushBytes(0x1b, 0x45, 0x01) // Bold on
+      pushLine(item.productName)
+      pushBytes(0x1b, 0x45, 0x00) // Bold off
+
+      const attrStr = [item.color, item.size].filter(Boolean).join(' / ')
+      const leftDesc = `  ${attrStr ? `(${attrStr})` : 'Standart'}`
+      const rightQty = `${item.quantity} Adet`
+      pushText(formatTwoCols(leftDesc, rightQty, width))
+      if (item.barcode) {
+        pushLine(`  Barkod: ${item.barcode}`)
+      }
+    }
+  } else {
+    pushText(formatTwoCols('URUN BILGISI', 'TUTAR', width))
+    pushLine('-'.repeat(width))
+
+    for (const item of data.items) {
+      // Product Name (Bold)
+      pushBytes(0x1b, 0x45, 0x01) // Bold on
+      pushLine(item.productName)
+      pushBytes(0x1b, 0x45, 0x00) // Bold off
+
+      const attrStr = [item.color, item.size].filter(Boolean).join(' / ')
+      const leftDesc = `  ${attrStr ? `(${attrStr}) ` : ''}${item.quantity} Ad x ${item.unitPrice.toFixed(2)} TL`
+      const rightPrice = `${item.totalPrice.toFixed(2)} TL`
+      pushText(formatTwoCols(leftDesc, rightPrice, width))
+    }
+  }
+
+  // --- FINANCIAL TOTALS / TERMS ---
+  if (data.isGiftReceipt) {
+    pushLine('='.repeat(width))
+    pushBytes(0x1b, 0x61, 0x01) // Align Center
     pushBytes(0x1b, 0x45, 0x01) // Bold on
-    pushLine(item.productName)
+    pushLine('DEGISIM KOSULLARI')
     pushBytes(0x1b, 0x45, 0x00) // Bold off
+    pushLine('Bu hediye degisim fisi ile')
+    pushLine('urunlerinizi 30 gun icinde')
+    pushLine('magazamizdan degistirebilirsiniz.')
+    pushLine('Urunlerin kullanilmamis ve')
+    pushLine('etiketli olmasi gerekmektedir.')
+    pushLine('-'.repeat(width))
+  } else {
+    pushLine('='.repeat(width))
 
-    const attrStr = [item.color, item.size].filter(Boolean).join(' / ')
-    const leftDesc = `  ${attrStr ? `(${attrStr}) ` : ''}${item.quantity} Ad x ${item.unitPrice.toFixed(2)} TL`
-    const rightPrice = `${item.totalPrice.toFixed(2)} TL`
-    pushText(formatTwoCols(leftDesc, rightPrice, width))
+    if ((data.discountAmount || 0) > 0) {
+      pushText(formatTwoCols('Indirim / Mahsup:', `-${data.discountAmount!.toFixed(2)} TL`, width))
+    }
+    if ((data.surchargeAmount || 0) > 0) {
+      pushText(formatTwoCols('Vade / Taksit Farki:', `+${data.surchargeAmount!.toFixed(2)} TL`, width))
+    }
+
+    // GENEL TOPLAM: Double Height (GS ! 0x01) + Bold
+    pushBytes(0x1d, 0x21, 0x01, 0x1b, 0x45, 0x01)
+    pushText(formatTwoCols('GENEL TOPLAM:', `${data.totalAmount.toFixed(2)} TL`, width))
+    pushBytes(0x1d, 0x21, 0x00, 0x1b, 0x45, 0x00) // Normal
+
+    const vatRate = store.vatRate ?? 10
+    const vatAmount = data.totalAmount > 0
+      ? Math.round((data.totalAmount - data.totalAmount / (1 + vatRate / 100)) * 100) / 100
+      : 0
+    pushText(formatTwoCols(`KDV (%${vatRate}) Dahil:`, `${vatAmount.toFixed(2)} TL`, width))
+
+    pushLine('-'.repeat(width))
+
+    // --- PAYMENT DETAILS ---
+    let paymentText = 'Nakit'
+    if (data.paymentMode === 'CARD') paymentText = 'Kredi Karti'
+    else if (data.paymentMode === 'SPLIT') {
+      paymentText = `Parcali (Nakit: ${(data.cashAmount || 0).toFixed(2)}, Kart: ${(data.cardAmount || 0).toFixed(2)})`
+    } else if (data.totalAmount === 0) {
+      paymentText = 'Sifir Fark Degisim'
+    }
+
+    pushText(formatTwoCols('Odeme Sekli:', paymentText, width))
+
+    if (data.paymentMode === 'CASH' && data.givenCash && data.givenCash > 0) {
+      pushText(formatTwoCols('Alinan Nakit:', `${data.givenCash.toFixed(2)} TL`, width))
+    }
+    if (data.paymentMode === 'CASH' && (data.changeDue ?? 0) > 0) {
+      pushBytes(0x1b, 0x45, 0x01)
+      pushText(formatTwoCols('PARA USTU:', `${data.changeDue!.toFixed(2)} TL`, width))
+      pushBytes(0x1b, 0x45, 0x00)
+    }
+
+    pushLine('-'.repeat(width))
+
+    // --- FOOTER & POLICY ---
+    pushBytes(0x1b, 0x61, 0x01) // Align Center
+    const footerNote = store.receiptFooterNote || 'Urun degisimleri fis ile 14 gun icinde yapilir. Tesekkurler!'
+    pushLine(footerNote)
+    pushLine('')
   }
-
-  pushLine('='.repeat(width))
-
-  // --- FINANCIAL TOTALS ---
-  if ((data.discountAmount || 0) > 0) {
-    pushText(formatTwoCols('Indirim / Mahsup:', `-${data.discountAmount!.toFixed(2)} TL`, width))
-  }
-  if ((data.surchargeAmount || 0) > 0) {
-    pushText(formatTwoCols('Vade / Taksit Farki:', `+${data.surchargeAmount!.toFixed(2)} TL`, width))
-  }
-
-  // GENEL TOPLAM: Double Height (GS ! 0x01) + Bold
-  pushBytes(0x1d, 0x21, 0x01, 0x1b, 0x45, 0x01)
-  pushText(formatTwoCols('GENEL TOPLAM:', `${data.totalAmount.toFixed(2)} TL`, width))
-  pushBytes(0x1d, 0x21, 0x00, 0x1b, 0x45, 0x00) // Normal
-
-  const vatRate = store.vatRate ?? 10
-  const vatAmount = data.totalAmount > 0
-    ? Math.round((data.totalAmount - data.totalAmount / (1 + vatRate / 100)) * 100) / 100
-    : 0
-  pushText(formatTwoCols(`KDV (%${vatRate}) Dahil:`, `${vatAmount.toFixed(2)} TL`, width))
-
-  pushLine('-'.repeat(width))
-
-  // --- PAYMENT DETAILS ---
-  let paymentText = 'Nakit'
-  if (data.paymentMode === 'CARD') paymentText = 'Kredi Karti'
-  else if (data.paymentMode === 'SPLIT') {
-    paymentText = `Parcali (Nakit: ${(data.cashAmount || 0).toFixed(2)}, Kart: ${(data.cardAmount || 0).toFixed(2)})`
-  } else if (data.totalAmount === 0) {
-    paymentText = 'Sifir Fark Degisim'
-  }
-
-  pushText(formatTwoCols('Odeme Sekli:', paymentText, width))
-
-  if (data.paymentMode === 'CASH' && data.givenCash && data.givenCash > 0) {
-    pushText(formatTwoCols('Alinan Nakit:', `${data.givenCash.toFixed(2)} TL`, width))
-  }
-  if (data.paymentMode === 'CASH' && (data.changeDue ?? 0) > 0) {
-    pushBytes(0x1b, 0x45, 0x01)
-    pushText(formatTwoCols('PARA USTU:', `${data.changeDue!.toFixed(2)} TL`, width))
-    pushBytes(0x1b, 0x45, 0x00)
-  }
-
-  pushLine('-'.repeat(width))
-
-  // --- FOOTER & POLICY ---
-  pushBytes(0x1b, 0x61, 0x01) // Align Center
-  const footerNote = store.receiptFooterNote || 'Urun degisimleri fis ile 14 gun icinde yapilir. Tesekkurler!'
-  pushLine(footerNote)
-  pushLine('')
 
   // --- BARCODE (CODE 128) ---
   const rawBarcode = String(data.receiptNo || '').trim()
@@ -220,7 +261,12 @@ export function generateEscposReceipt(data: ReceiptData, openDrawer = false): Ui
     }
   }
 
-  pushLine('- Mali Degeri Yoktur / Bilgi Fisidir -')
+  if (data.isGiftReceipt) {
+    pushLine('- Fiyatsiz Hediye Degisim Fisidir -')
+    pushLine('- Mali Degeri Yoktur -')
+  } else {
+    pushLine('- Mali Degeri Yoktur / Bilgi Fisidir -')
+  }
 
   // --- FEED & PAPER CUT ---
   // Feed 4 lines

@@ -225,15 +225,17 @@ export const PosView: React.FC = () => {
     }
   }, [isLocked])
 
-  // Core Barcode Lookup Function
   const processBarcodeScan = async (rawCode: string) => {
     const code = rawCode.trim()
     if (!code) return
+    setIsEditingTotal(false)
+    setBarcodeInput('')
 
     try {
       const res = await fetch(`/api/products/variants/barcode/${encodeURIComponent(code)}`)
       if (res.ok) {
         const variant = await res.json()
+        setIsEditingTotal(false)
         addToCart(variant)
         playAudioNotification('success')
         showToast(
@@ -392,6 +394,8 @@ export const PosView: React.FC = () => {
     e.preventDefault()
     const code = barcodeInput.trim()
     if (!code) return
+    setBarcodeInput('')
+    setIsEditingTotal(false)
     await processBarcodeScan(code)
   }
 
@@ -415,6 +419,12 @@ export const PosView: React.FC = () => {
   const handleCustomTotalSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault()
     const clean = tempTotalInput.replace(/\s/g, '').replace(',', '.')
+    // If input looks like a scanned barcode (8+ digits without dot), treat it as a barcode scan
+    if (clean.length >= 8 && !clean.includes('.')) {
+      setIsEditingTotal(false)
+      processBarcodeScan(clean)
+      return
+    }
     const parsed = parseFloat(clean)
     if (!isNaN(parsed) && parsed >= 0) {
       setCustomTotal(parsed)
@@ -589,7 +599,10 @@ export const PosView: React.FC = () => {
                   {prod.variants?.map((v: any) => (
                     <button
                       key={v.id}
-                      onClick={() => addToCart({ ...v, product: prod })}
+                      onClick={() => {
+                        setIsEditingTotal(false)
+                        addToCart({ ...v, product: prod })
+                      }}
                       disabled={v.stockQuantity <= 0}
                       className={`px-2.5 py-1 rounded-lg text-xs font-bold border flex items-center space-x-1.5 transition ${
                         v.stockQuantity <= 0
@@ -673,7 +686,7 @@ export const PosView: React.FC = () => {
               )
             )}
             <span className="px-2.5 py-0.5 rounded-full bg-blue-100/70 text-[#00268A] text-[11px] font-bold border border-blue-200/80 shadow-2xs">
-              {cartItems.reduce((acc, i) => acc + i.quantity, 0)} Kalem
+              {cartItems.length} Kalem ({cartItems.reduce((acc, i) => acc + (Number(i.quantity) || 0), 0)} Adet)
             </span>
           </div>
         </div>
@@ -742,7 +755,10 @@ export const PosView: React.FC = () => {
                     </div>
                   </div>
                   <button
-                    onClick={() => removeFromCart(item.variantId)}
+                    onClick={() => {
+                      setIsEditingTotal(false)
+                      removeFromCart(item.variantId)
+                    }}
                     className="text-slate-400 hover:text-rose-600 p-1 transition"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -752,7 +768,10 @@ export const PosView: React.FC = () => {
                 <div className="flex items-center justify-between pt-1.5 border-t border-slate-200/60">
                   <div className="flex items-center space-x-1.5 bg-white/90 border border-slate-300/80 rounded-xl p-1 shadow-2xs backdrop-blur-xs">
                     <button
-                      onClick={() => updateQuantity(item.variantId, item.quantity - 1)}
+                      onClick={() => {
+                        setIsEditingTotal(false)
+                        updateQuantity(item.variantId, item.quantity - 1)
+                      }}
                       className="w-6 h-6 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 flex items-center justify-center font-bold text-sm"
                     >
                       <Minus className="w-3.5 h-3.5" />
@@ -761,7 +780,10 @@ export const PosView: React.FC = () => {
                       {item.quantity}
                     </span>
                     <button
-                      onClick={() => updateQuantity(item.variantId, item.quantity + 1)}
+                      onClick={() => {
+                        setIsEditingTotal(false)
+                        updateQuantity(item.variantId, item.quantity + 1)
+                      }}
                       className="w-6 h-6 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 flex items-center justify-center font-bold text-sm"
                     >
                       <Plus className="w-3.5 h-3.5" />

@@ -55,12 +55,62 @@ const cleanBarcodeFromInput = (currentVal: any, scannedCode: string, fallbackDef
   return clean
 }
 
+const SIZE_ORDER: Record<string, number> = {
+  'XXS': 1, '2XS': 1,
+  'XS': 2,
+  'S': 3,
+  'M': 4,
+  'L': 5,
+  'XL': 6,
+  'XXL': 7, '2XL': 7,
+  '3XL': 8, 'XXXL': 8,
+  '4XL': 9, 'XXXXL': 9,
+  '5XL': 10,
+  'STANDART': 11, 'STD': 11, 'TEK': 11, 'TEK EBAT': 11,
+}
+
+const compareSizes = (a: string = '', b: string = ''): number => {
+  const normA = (a || '').trim().toUpperCase()
+  const normB = (b || '').trim().toUpperCase()
+  const orderA = SIZE_ORDER[normA]
+  const orderB = SIZE_ORDER[normB]
+  if (orderA !== undefined && orderB !== undefined) return orderA - orderB
+  if (orderA !== undefined) return -1
+  if (orderB !== undefined) return 1
+  const numA = parseFloat(normA)
+  const numB = parseFloat(normB)
+  if (!isNaN(numA) && !isNaN(numB)) return numA - numB
+  return normA.localeCompare(normB, 'tr-TR')
+}
+
+// Safely extracts color and size from variant attributes whether object or JSON string
+const getVariantAttrs = (v: any): { color: string; size: string } => {
+  if (!v) return { color: 'Standart', size: '-' }
+  let attrs = v.attributes
+  if (typeof attrs === 'string') {
+    try {
+      attrs = JSON.parse(attrs)
+    } catch {
+      attrs = {}
+    }
+  }
+  const color = (attrs?.color || attrs?.Renk || attrs?.renk || 'Standart').trim()
+  const size = (attrs?.size || attrs?.Beden || attrs?.beden || '-').trim()
+  return { color: color || 'Standart', size: size || '-' }
+}
+
 export const StockView: React.FC = () => {
   const [products, setProducts] = useState<any[]>([])
   const [categories, setCategories] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedProduct, setSelectedProduct] = useState<any | null>(null)
-  
+  const [selectedColorFilter, setSelectedColorFilter] = useState<string>('ALL')
+
+  // Reset color filter when product changes
+  useEffect(() => {
+    setSelectedColorFilter('ALL')
+  }, [selectedProduct?.id])
+
   // Variant Edit states
   const [editingVariant, setEditingVariant] = useState<any | null>(null)
   const [editColor, setEditColor] = useState('')
@@ -89,6 +139,69 @@ export const StockView: React.FC = () => {
   const [highlightedVariantId, setHighlightedVariantId] = useState<string | null>(null)
   const [scanToast, setScanToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null)
   const toastTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Identifies the active scanned variant if any
+  const activeScannedVariant = useMemo(() => {
+    if (!selectedProduct?.variants) return null
+    const term = searchTerm.trim().toLowerCase()
+    return (
+      selectedProduct.variants.find((v: any) => {
+        if (v.id === highlightedVariantId) return true
+        if (!term) return false
+        if (v.barcode && v.barcode.toLowerCase() === term) return true
+        if (v.sku && v.sku.toLowerCase() === term) return true
+        return false
+      }) || null
+    )
+  }, [selectedProduct, highlightedVariantId, searchTerm])
+
+  // Groups variants by Color for the fast visual stock matrix
+  const variantsGroupedByColor = useMemo(() => {
+    if (!selectedProduct?.variants) return []
+    const map: Record<string, any[]> = {}
+    selectedProduct.variants.forEach((v: any) => {
+      const { color } = getVariantAttrs(v)
+      if (!map[color]) map[color] = []
+      map[color].push(v)
+    })
+
+    return Object.keys(map)
+      .sort((a, b) => a.localeCompare(b, 'tr-TR'))
+      .map((color) => {
+        const sortedVars = [...map[color]].sort((a, b) =>
+          compareSizes(getVariantAttrs(a).size, getVariantAttrs(b).size)
+        )
+        const totalStock = sortedVars.reduce((sum, v) => sum + (v.stockQuantity || 0), 0)
+        return {
+          color,
+          variants: sortedVars,
+          totalStock,
+        }
+      })
+  }, [selectedProduct])
+
+  // Sorted and filtered list of variants for the table
+  const sortedAndFilteredVariants = useMemo(() => {
+    if (!selectedProduct?.variants) return []
+    let list = [...selectedProduct.variants]
+
+    if (selectedColorFilter && selectedColorFilter !== 'ALL') {
+      list = list.filter(
+        (v: any) => getVariantAttrs(v).color === selectedColorFilter
+      )
+    }
+
+    list.sort((a: any, b: any) => {
+      const { color: colorA, size: sizeA } = getVariantAttrs(a)
+      const { color: colorB, size: sizeB } = getVariantAttrs(b)
+      const cDiff = colorA.localeCompare(colorB, 'tr-TR')
+      if (cDiff !== 0) return cDiff
+      return compareSizes(sizeA, sizeB)
+    })
+
+    return list
+  }, [selectedProduct, selectedColorFilter])
+
 
   const showToast = (type: 'success' | 'error' | 'info', message: string, duration = 4000) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
@@ -1313,7 +1426,7 @@ export const StockView: React.FC = () => {
   return (
     <div className="h-[calc(100vh-3.5rem)] bg-slate-100 flex overflow-hidden font-sans">
       {/* Left List: Products */}
-      <div className="w-1/3 min-w-[320px] max-w-[420px] shrink-0 border-r border-white/60 flex flex-col glass-panel shadow-lg">
+      <div className="w-[320px] lg:w-[340px] xl:w-[360px] shrink-0 border-r border-white/60 flex flex-col glass-panel shadow-lg">
         <div className="p-2.5 border-b border-white/40 space-y-2 bg-white/40 backdrop-blur-xs">
           <div className="flex items-center justify-between gap-1">
             <h2 className="font-bold text-slate-900 text-xs flex items-center space-x-1 shrink-0">
@@ -1556,7 +1669,7 @@ export const StockView: React.FC = () => {
       {/* Right Column: Variant & Stock Details */}
       <div className="flex-1 min-w-0 flex flex-col glass-panel overflow-y-auto">
         {selectedProduct ? (
-          <div className="p-6 space-y-6">
+          <div className="p-4 space-y-4">
             <div className="border-b border-slate-200 pb-4 flex justify-between items-start">
               <div>
                 <div className="flex items-center space-x-2">
@@ -1638,75 +1751,272 @@ export const StockView: React.FC = () => {
                 </button>
               </div>
 
+              {/* Active Scanned Variant Alert Banner */}
+              {activeScannedVariant && (
+                <div className="p-3 bg-emerald-50/90 border-2 border-emerald-500 rounded-2xl flex items-center justify-between shadow-xs animate-fadeIn">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                      <Barcode className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs font-black text-emerald-950 uppercase tracking-wide">
+                          📍 Okutulan Barkod Eşleşti
+                        </span>
+                        <span className="font-mono text-xs font-bold text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded border border-emerald-300">
+                          {activeScannedVariant.barcode}
+                        </span>
+                      </div>
+                      <div className="text-xs text-emerald-900 mt-0.5 flex flex-wrap items-center gap-x-2.5">
+                        <span>
+                          Renk: <strong className="font-black text-slate-900">{getVariantAttrs(activeScannedVariant).color}</strong>
+                        </span>
+                        <span>•</span>
+                        <span>
+                          Beden: <strong className="font-black text-slate-900">{getVariantAttrs(activeScannedVariant).size}</strong>
+                        </span>
+                        <span>•</span>
+                        <span>
+                          Satış Fiyatı:{' '}
+                          <strong className="font-black text-emerald-800">
+                            {(Number(activeScannedVariant.salePrice) || 0).toFixed(2)} ₺
+                          </strong>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="text-right shrink-0">
+                    <span
+                      className={`inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-black border shadow-2xs ${
+                        activeScannedVariant.stockQuantity > 0
+                          ? 'bg-emerald-600 text-white border-emerald-700'
+                          : 'bg-rose-600 text-white border-rose-700'
+                      }`}
+                    >
+                      {activeScannedVariant.stockQuantity > 0
+                        ? `${activeScannedVariant.stockQuantity} Adet Mevcut`
+                        : '0 Adet (Tükendi)'}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Beden & Renk Hızlı Stok Dağılım Matrisi */}
+              {variantsGroupedByColor.length > 0 && (
+                <div className="bg-white/80 border border-slate-200/90 rounded-2xl p-3.5 space-y-2.5 shadow-2xs">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <Layers className="w-4 h-4 text-blue-700" />
+                      <span className="text-xs font-bold text-slate-800 uppercase tracking-tight">
+                        Beden & Renk Stok Dağılımı ({selectedProduct.variants?.length || 0} Çeşit Varyant)
+                      </span>
+                    </div>
+                    <span className="text-xs text-slate-500 font-medium">
+                      Toplam Stok:{' '}
+                      <strong className="text-slate-900 font-bold">
+                        {selectedProduct.variants?.reduce(
+                          (acc: number, v: any) => acc + (v.stockQuantity || 0),
+                          0
+                        )}{' '}
+                        Adet
+                      </strong>
+                    </span>
+                  </div>
+
+                  {/* Renk Grupları ve Beden Rozetleri */}
+                  <div className="space-y-2">
+                    {variantsGroupedByColor.map(({ color, variants, totalStock }) => (
+                      <div
+                        key={color}
+                        className="flex flex-wrap items-center gap-2 bg-slate-50/90 p-2.5 rounded-xl border border-slate-200/80"
+                      >
+                        <div className="flex items-center space-x-1.5 min-w-[120px] shrink-0">
+                          <span className="w-2.5 h-2.5 rounded-full bg-slate-600"></span>
+                          <span className="font-bold text-xs text-slate-900">{color}</span>
+                          <span className="text-[10px] text-slate-500 font-semibold">
+                            ({totalStock} Adet)
+                          </span>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-1.5 flex-1">
+                          {variants.map((v) => {
+                            const isTarget =
+                              v.id === highlightedVariantId ||
+                              (searchTerm.trim() && v.barcode === searchTerm.trim())
+                            const hasStock = v.stockQuantity > 0
+
+                            return (
+                              <button
+                                key={v.id}
+                                type="button"
+                                onClick={() => {
+                                  setHighlightedVariantId(v.id)
+                                  const el = document.getElementById(`variant-row-${v.id}`)
+                                  el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+                                }}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition flex items-center space-x-1.5 cursor-pointer ${
+                                  isTarget
+                                    ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm ring-2 ring-emerald-400 scale-105'
+                                    : hasStock
+                                    ? 'bg-white hover:bg-blue-50 text-slate-800 border-slate-200/90 shadow-2xs'
+                                    : 'bg-rose-50/70 hover:bg-rose-100 text-rose-700 border-rose-200/80'
+                                }`}
+                                title={`${color} / ${getVariantAttrs(v).size} - Mevcut Stok: ${v.stockQuantity} Adet | Barkod: ${v.barcode || '-'}`}
+                              >
+                                <span className="font-extrabold">{getVariantAttrs(v).size}</span>
+                                <span
+                                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                                    isTarget
+                                      ? 'bg-emerald-800 text-emerald-100'
+                                      : hasStock
+                                      ? 'bg-blue-100 text-blue-900'
+                                      : 'bg-rose-100 text-rose-800'
+                                  }`}
+                                >
+                                  {hasStock ? `${v.stockQuantity} Adet` : '0 - Tükendi'}
+                                </span>
+                                {isTarget && <span className="text-[10px]">📍</span>}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Renk Bazında Hızlı Tablo Filtresi */}
+                  {variantsGroupedByColor.length > 1 && (
+                    <div className="pt-1 flex items-center space-x-1.5 flex-wrap gap-1">
+                      <span className="text-[11px] font-bold text-slate-400 uppercase">Renk Filtresi:</span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedColorFilter('ALL')}
+                        className={`px-2 py-0.5 rounded text-[11px] font-bold transition border ${
+                          selectedColorFilter === 'ALL'
+                            ? 'bg-blue-700 text-white border-blue-800 shadow-2xs'
+                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        Tümü ({selectedProduct.variants?.length || 0})
+                      </button>
+                      {variantsGroupedByColor.map(({ color, variants }) => (
+                        <button
+                          key={color}
+                          type="button"
+                          onClick={() => setSelectedColorFilter(color)}
+                          className={`px-2 py-0.5 rounded text-[11px] font-bold transition border ${
+                            selectedColorFilter === color
+                              ? 'bg-blue-700 text-white border-blue-800 shadow-2xs'
+                              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          {color} ({variants.length})
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Varyantlar Tablosu - Ayrı Renk & Beden Sütunları, Yapışkan ve Tam Görünen İşlem Sütunu */}
               <div className="glass-card rounded-2xl overflow-x-auto shadow-xs border border-white/60">
-                <table className="w-full text-left text-xs text-slate-700 min-w-[700px]">
+                <table className="w-full text-left text-xs text-slate-700">
                   <thead className="bg-slate-50 text-slate-600 font-semibold uppercase tracking-wider border-b border-slate-200 text-[11px]">
                     <tr>
-                      <th className="px-3.5 py-3 whitespace-nowrap">Varyant (Renk / Beden)</th>
-                      <th className="px-3.5 py-3 whitespace-nowrap">SKU</th>
-                      <th className="px-3.5 py-3 whitespace-nowrap">Barkod</th>
+                      <th className="px-3.5 py-3 whitespace-nowrap">Renk</th>
+                      <th className="px-3.5 py-3 whitespace-nowrap text-center">Beden</th>
+                      <th className="px-3.5 py-3 whitespace-nowrap">Barkod & SKU</th>
                       <th className="px-3.5 py-3 whitespace-nowrap">Satış Fiyatı</th>
-                      <th className="px-3.5 py-3 whitespace-nowrap">Mevcut Stok</th>
-                      <th className="px-3.5 py-3 text-right whitespace-nowrap w-[220px] min-w-[220px]">İşlem</th>
+                      <th className="px-3.5 py-3 whitespace-nowrap text-center">Mevcut Stok</th>
+                      <th className="px-3.5 py-3 text-right whitespace-nowrap w-[170px] min-w-[170px] sticky right-0 bg-slate-50 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] z-10">
+                        İşlem
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {selectedProduct.variants?.map((v: any) => {
+                    {sortedAndFilteredVariants.map((v: any) => {
                       const isHighlighted =
                         v.id === highlightedVariantId ||
                         (searchTerm.trim() && v.barcode === searchTerm.trim())
 
                       return (
                         <tr
+                          id={`variant-row-${v.id}`}
                           key={v.id}
-                          className={`transition ${
+                          className={`transition group ${
                             isHighlighted
-                              ? 'bg-emerald-50 border-2 border-emerald-500 shadow-xs'
-                              : 'hover:bg-slate-50'
+                              ? 'bg-emerald-50/90 font-medium'
+                              : 'hover:bg-slate-50/80'
                           }`}
                         >
-                          <td className="px-3.5 py-2.5 font-semibold text-slate-900">
-                            <div className="flex items-center space-x-1.5 max-w-[180px]">
-                              <span className="truncate" title={`${v.attributes?.color || ''} / ${v.attributes?.size || ''}`}>
-                                {v.attributes?.color} / {v.attributes?.size}
+                          {/* Ayrı Renk Sütunu */}
+                          <td className="px-3.5 py-2.5 font-semibold text-slate-900 whitespace-nowrap">
+                            <div className="flex items-center space-x-1.5">
+                              <span className="w-2 h-2 rounded-full bg-slate-400 shrink-0 group-hover:scale-125 transition-transform"></span>
+                              <span className="font-bold text-slate-800">
+                                {getVariantAttrs(v).color}
                               </span>
                               {isHighlighted && (
                                 <span className="px-1.5 py-0.5 bg-emerald-600 text-white text-[9px] font-bold rounded shadow-2xs flex items-center space-x-0.5 animate-pulse shrink-0">
                                   <Barcode className="w-2.5 h-2.5" />
-                                  <span>Barkod Eşleşti</span>
+                                  <span>Okutulan</span>
                                 </span>
                               )}
                             </div>
                           </td>
-                          <td className="px-3.5 py-2.5 font-mono text-slate-500">
-                            <span className="block truncate max-w-[130px] font-medium" title={v.sku || ''}>
-                              {v.sku || '-'}
+
+                          {/* Ayrı Beden Sütunu */}
+                          <td className="px-3.5 py-2.5 text-center whitespace-nowrap">
+                            <span className="inline-flex items-center justify-center min-w-[32px] px-2 py-0.5 rounded-lg bg-blue-50 border border-blue-200/90 text-[#00268A] text-xs font-black shadow-2xs">
+                              {getVariantAttrs(v).size}
                             </span>
                           </td>
-                          <td className="px-3.5 py-2.5 font-mono text-slate-700 font-medium whitespace-nowrap">
-                            <span className={isHighlighted ? 'text-emerald-800 font-bold' : ''} title={v.barcode || ''}>
-                              {v.barcode || '-'}
-                            </span>
+
+                          {/* Barkod ve Altında SKU */}
+                          <td className="px-3.5 py-2 font-mono text-slate-700 whitespace-nowrap">
+                            <div className="flex flex-col">
+                              <span
+                                className={`text-xs ${
+                                  isHighlighted ? 'text-emerald-800 font-extrabold' : 'font-bold'
+                                }`}
+                                title={v.barcode || ''}
+                              >
+                                {v.barcode || '-'}
+                              </span>
+                              {v.sku && (
+                                <span
+                                  className="text-[10px] text-slate-400 font-medium truncate max-w-[130px]"
+                                  title={`SKU: ${v.sku}`}
+                                >
+                                  SKU: {v.sku}
+                                </span>
+                              )}
+                            </div>
                           </td>
+
+                          {/* Satış Fiyatı */}
                           <td className="px-3.5 py-2.5 whitespace-nowrap">
                             {v.discountPrice && v.discountPrice > 0 ? (
                               <div className="flex flex-col">
-                                <span className="line-through text-slate-400 text-xs font-normal">
+                                <span className="line-through text-slate-400 text-[10px]">
                                   {(Number(v.salePrice) || 0).toFixed(2)} ₺
                                 </span>
-                                <span className="font-extrabold text-rose-600 text-sm">
+                                <span className="font-extrabold text-rose-600 text-xs">
                                   {(Number(v.discountPrice) || 0).toFixed(2)} ₺
                                 </span>
                               </div>
                             ) : (
-                              <span className="font-bold text-emerald-700">
+                              <span className="font-bold text-emerald-700 text-xs">
                                 {(Number(v.salePrice) || 0).toFixed(2)} ₺
                               </span>
                             )}
                           </td>
-                          <td className="px-3.5 py-2.5 whitespace-nowrap">
+
+                          {/* Mevcut Stok */}
+                          <td className="px-3.5 py-2.5 text-center whitespace-nowrap">
                             <span
-                              className={`px-2 py-0.5 rounded text-[11px] font-semibold border ${
+                              className={`inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-bold border ${
                                 v.stockQuantity > 10
                                   ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                                   : v.stockQuantity > 0
@@ -1714,30 +2024,38 @@ export const StockView: React.FC = () => {
                                   : 'bg-rose-50 text-rose-700 border-rose-200'
                               }`}
                             >
-                              {v.stockQuantity} Adet
+                              {v.stockQuantity > 0 ? `${v.stockQuantity} Adet` : '0 - Tükendi'}
                             </span>
                           </td>
-                          <td className="px-3.5 py-2.5 text-right w-[220px] min-w-[220px] whitespace-nowrap">
+
+                          {/* İşlem Sütunu - STICKY ve TAM GÖRÜNÜR */}
+                          <td
+                            className={`px-3.5 py-2 text-right w-[170px] min-w-[170px] whitespace-nowrap sticky right-0 z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] ${
+                              isHighlighted
+                                ? 'bg-emerald-50/95 backdrop-blur-xs'
+                                : 'bg-white/95 backdrop-blur-xs group-hover:bg-slate-50/95'
+                            }`}
+                          >
                             <div className="flex items-center justify-end space-x-1.5 shrink-0">
                               <button
                                 onClick={() => {
                                   setAddStockVariant(v)
                                   setAddQtyVal('')
                                 }}
-                                className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 rounded transition text-xs font-semibold flex items-center space-x-1 shrink-0"
+                                className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 rounded-lg transition text-xs font-bold flex items-center space-x-1 shrink-0 cursor-pointer shadow-2xs"
                                 title="Şifresiz Mal Kabul Stok Girişi"
                               >
-                                <Plus className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                                <span>+ Stok Ekle</span>
+                                <Plus className="w-3 h-3 text-emerald-600 shrink-0" />
+                                <span>+ Stok</span>
                               </button>
                               <button
                                 onClick={() => handleStockEditClick(v)}
-                                className="px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 border border-slate-300 hover:border-indigo-300 rounded transition text-xs font-semibold flex items-center space-x-1 shrink-0"
+                                className="px-2 py-1 bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 border border-slate-300 hover:border-indigo-300 rounded-lg transition text-xs font-bold flex items-center space-x-1 shrink-0 cursor-pointer shadow-2xs"
                                 title="Yönetici PIN ile Tüm Varyant ve Stok Bilgilerini Düzelt"
                               >
-                                <Edit3 className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                                <Edit3 className="w-3 h-3 text-indigo-600 shrink-0" />
                                 <span>Düzelt</span>
-                                <ShieldAlert className="w-3 h-3 text-indigo-400 opacity-60 shrink-0" />
+                                <ShieldAlert className="w-2.5 h-2.5 text-indigo-400 opacity-60 shrink-0" />
                               </button>
                             </div>
                           </td>

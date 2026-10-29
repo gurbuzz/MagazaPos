@@ -39,6 +39,7 @@ export interface ReceiptData {
     receiptPrinter?: string
     receiptPrintMode?: 'ESC_POS' | 'HTML'
   }
+  isGiftReceipt?: boolean
 }
 
 /**
@@ -53,6 +54,7 @@ export function normalizeSaleToReceiptData(
     paymentMode?: string
     cashAmount?: number
     cardAmount?: number
+    isGiftReceipt?: boolean
   }
 ): ReceiptData {
   const rawItems = (sale?.items && sale.items.length > 0) ? sale.items : (extra?.cartItems || storeState.cartItems || [])
@@ -164,6 +166,7 @@ export function normalizeSaleToReceiptData(
       receiptPrinter: storeState.receiptPrinter || '',
       receiptPrintMode: storeState.receiptPrintMode || 'ESC_POS',
     },
+    isGiftReceipt: !!extra?.isGiftReceipt,
   }
 }
 
@@ -202,7 +205,7 @@ export function generateReceiptHtml(data: ReceiptData): string {
 <html>
   <head>
     <meta charset="utf-8">
-    <title>Fiş - ${data.receiptNo}</title>
+    <title>${data.isGiftReceipt ? 'Hediye Değişim Fişi' : 'Fiş'} - ${data.receiptNo}</title>
     <style>
       @page {
         margin: 0;
@@ -304,6 +307,16 @@ export function generateReceiptHtml(data: ReceiptData): string {
       <div class="store-name">${store.storeName || 'JACK & JONES'}</div>
       ${store.storeAddress ? `<div class="store-info">${store.storeAddress}</div>` : ''}
       ${store.storePhone ? `<div class="store-info">Tel: ${store.storePhone}</div>` : ''}
+      ${
+        data.isGiftReceipt
+          ? `
+      <div style="display: inline-block; margin-top: 6px; padding: 4px 10px; border: 2px solid #000000; font-size: 13px; font-weight: 900; letter-spacing: 0.8px; text-transform: uppercase;">
+        🎁 HEDİYE DEĞİŞİM FİŞİ
+      </div>
+      <div style="font-size: 10px; font-weight: 900; margin-top: 3px; letter-spacing: 0.5px;">( FİYATSIZDIR )</div>
+      `
+          : ''
+      }
     </div>
 
     <div class="divider"></div>
@@ -322,7 +335,7 @@ export function generateReceiptHtml(data: ReceiptData): string {
       <span>${data.cashierName || 'Kasiyer 1'}</span>
     </div>
     ${
-      data.customer
+      !data.isGiftReceipt && data.customer
         ? `
     <div class="row">
       <span>Müşteri:</span>
@@ -340,6 +353,18 @@ export function generateReceiptHtml(data: ReceiptData): string {
       ${data.items
         .map((item) => {
           const attrStr = [item.color, item.size].filter(Boolean).join(' / ')
+          if (data.isGiftReceipt) {
+            return `
+        <div class="item-row">
+          <div class="item-name">${item.productName}</div>
+          <div class="row item-desc" style="font-size: 11px;">
+            <span>${attrStr ? `Beden/Renk: ${attrStr}` : 'Standart'}</span>
+            <span class="bold" style="font-size: 11px;">${item.quantity} Adet</span>
+          </div>
+          ${item.barcode ? `<div class="item-desc" style="font-family: monospace; font-size: 9px; margin-top: 1px;">Barkod: ${item.barcode}</div>` : ''}
+        </div>
+      `
+          }
           return `
         <div class="item-row">
           <div class="item-name">${item.productName}</div>
@@ -353,6 +378,9 @@ export function generateReceiptHtml(data: ReceiptData): string {
         .join('')}
     </div>
 
+    ${
+      !data.isGiftReceipt
+        ? `
     <div class="double-divider"></div>
 
     <!-- Financial Totals -->
@@ -412,13 +440,34 @@ export function generateReceiptHtml(data: ReceiptData): string {
     `
         : ''
     }
+    `
+        : `
+    <div class="double-divider"></div>
+
+    <!-- Gift Exchange Terms (NO PRICES) -->
+    <div class="center" style="margin: 8px 0 6px 0;">
+      <div style="font-weight: 900; font-size: 11px; margin-bottom: 4px; text-transform: uppercase;">DEĞİŞİM BİLGİLENDİRMESİ</div>
+      <div class="footer-note" style="font-size: 10px; line-height: 1.4; text-align: center;">
+        Bu hediye değişim fişi ile birlikte ürünlerinizi <strong>30 gün</strong> içerisinde mağazamızdan fiyatsız olarak değiştirebilirsiniz.
+        <br/><br/>
+        Değişim yapılacak ürünlerin kullanılmamış, yıkanmamış ve etiketlerinin sökülmemiş olması gerekmektedir.
+      </div>
+    </div>
+    `
+    }
 
     <div class="divider"></div>
 
     <!-- Footer Note / Policy -->
+    ${
+      !data.isGiftReceipt
+        ? `
     <div class="footer-note">
       ${store.receiptFooterNote || 'Ürün değişimleri fiş ile 14 gün içinde yapılır. Teşekkürler!'}
     </div>
+    `
+        : ''
+    }
 
     <!-- Barcode for Quick Return / Exchange Scanner -->
     <div class="barcode-box">
@@ -427,7 +476,7 @@ export function generateReceiptHtml(data: ReceiptData): string {
     </div>
 
     <div class="center" style="font-size: 9px; font-weight: 700; color: #000000 !important; margin-top: 8px;">
-      - Mali Değeri Yoktur / Bilgi Fişidir -
+      ${data.isGiftReceipt ? '- Fiyatsız Hediye Değişim Fişi / Mali Değeri Yoktur -' : '- Mali Değeri Yoktur / Bilgi Fişidir -'}
     </div>
   </body>
 </html>`

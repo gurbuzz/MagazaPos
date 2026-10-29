@@ -124,6 +124,44 @@ const DEFAULT_CAMPAIGNS: Campaign[] = [
   { id: 'c5', name: '%15 VIP Müşteri İndirimi', type: 'PERCENTAGE', action: 'DISCOUNT', value: 15, badgeColor: 'purple' },
 ]
 
+const parsePrice = (val: any): number => {
+  if (typeof val === 'number') return isNaN(val) ? 0 : val
+  if (!val) return 0
+  const clean = String(val).replace(/\s/g, '').replace(',', '.')
+  const num = parseFloat(clean)
+  return isNaN(num) ? 0 : num
+}
+
+function computeCampaignAmounts(
+  subtotal: number,
+  campaign: Campaign | null
+): { discountAmount: number; surchargeAmount: number } {
+  if (!campaign || subtotal <= 0) {
+    return { discountAmount: 0, surchargeAmount: 0 }
+  }
+
+  const isSurcharge = campaign.action === 'SURCHARGE'
+  let calculated = 0
+  if (campaign.type === 'PERCENTAGE') {
+    calculated = (subtotal * campaign.value) / 100
+  } else {
+    calculated = campaign.value
+  }
+  calculated = Math.round(calculated * 100) / 100
+
+  if (isSurcharge) {
+    return {
+      discountAmount: 0,
+      surchargeAmount: Math.max(0, calculated),
+    }
+  } else {
+    return {
+      discountAmount: Math.round(Math.min(subtotal, Math.max(0, calculated)) * 100) / 100,
+      surchargeAmount: 0,
+    }
+  }
+}
+
 export const usePosStore = create<PosState>((set, get) => ({
   activeTab: 'pos',
   setActiveTab: (tab) => set({ activeTab: tab }),
@@ -271,20 +309,22 @@ export const usePosStore = create<PosState>((set, get) => ({
   },
 
   addToCart: (variant) => {
-    const { cartItems } = get()
-    const existingIndex = cartItems.findIndex((item) => item.variantId === variant.id)
+    const targetVariantId = String(variant.id || variant.variantId || '')
+    const { cartItems, activeCampaign, customTotal, discountAmount, surchargeAmount } = get()
+    const existingIndex = cartItems.findIndex((item) => String(item.variantId) === targetVariantId)
     let newItems: CartItem[]
 
     if (existingIndex > -1) {
-      newItems = cartItems.map((item, idx) =>
-        idx === existingIndex
-          ? {
-              ...item,
-              quantity: item.quantity + 1,
-              totalPrice: Math.round((item.quantity + 1) * item.unitPrice * 100) / 100,
-            }
-          : item
-      )
+      newItems = cartItems.map((item, idx) => {
+        if (idx !== existingIndex) return item
+        const q = (Number(item.quantity) || 0) + 1
+        const u = Number(item.unitPrice) || 0
+        return {
+          ...item,
+          quantity: q,
+          totalPrice: Math.round(q * u * 100) / 100,
+        }
+      })
     } else {
       let attrs = variant.attributes || {}
       if (typeof attrs === 'string') {
@@ -295,19 +335,28 @@ export const usePosStore = create<PosState>((set, get) => ({
         }
       }
 
-      const salePriceNum = Math.round((Number(variant.salePrice) || 0) * 100) / 100
-      const rawDisc = variant.discountPrice !== undefined && variant.discountPrice !== null ? Number(variant.discountPrice) : null
-      const discPriceNum = rawDisc !== null && !isNaN(rawDisc) ? Math.round(rawDisc * 100) / 100 : null
-      const hasDiscount = discPriceNum !== null && discPriceNum > 0 && discPriceNum < salePriceNum
-      const unitPrice = hasDiscount && discPriceNum !== null ? discPriceNum : salePriceNum
+      const rawSale =
+        variant.salePrice ??
+        variant.price ??
+        variant.product?.basePrice ??
+        variant.basePrice ??
+        0
+      const salePriceNum = Math.round(parsePrice(rawSale) * 100) / 100
+
+      const rawDisc =
+        variant.discountPrice !== undefined && variant.discountPrice !== null
+          ? parsePrice(variant.discountPrice)
+          : null
+      const hasDiscount = rawDisc !== null && rawDisc > 0 && rawDisc < salePriceNum
+      const unitPrice = hasDiscount && rawDisc !== null ? Math.round(rawDisc * 100) / 100 : salePriceNum
 
       const newItem: CartItem = {
-        variantId: variant.id,
-        productId: variant.productId || variant.product?.id,
-        productName: variant.product?.name || 'Ürün',
-        brand: variant.product?.brand || '',
-        sku: variant.sku,
-        barcode: variant.barcode,
+        variantId: targetVariantId,
+        productId: variant.productId || variant.product?.id || '',
+        productName: variant.product?.name || variant.productName || 'Ürün',
+        brand: variant.product?.brand || variant.brand || '',
+        sku: variant.sku || '',
+        barcode: variant.barcode || '',
         attributes: attrs,
         unitPrice,
         originalPrice: hasDiscount ? salePriceNum : undefined,
@@ -317,47 +366,137 @@ export const usePosStore = create<PosState>((set, get) => ({
       newItems = [...cartItems, newItem]
     }
 
-    set({ cartItems: newItems, customTotal: null })
+    const newSubtotal = Math.round(
+      newItems.reduce(
+        (sum, item) => sum + (Number(item.totalPrice) || (Number(item.unitPrice) * Number(item.quantity)) || 0),
+        0
+      ) * 100
+    ) / 100
 
-    const { activeCampaign } = get()
+    let newDiscount = discountAmount
+    let newSurcharge = surchargeAmount
+
     if (activeCampaign) {
-      get().applyCampaign(activeCampaign)
+      const camp = computeCampaignAmounts(newSubtotal, activeCampaign)
+      newDiscount = camp.discountAmount
+      newSurcharge = camp.surchargeAmount
+    } else if (customTotal !== null) {
+      newDiscount = 0
+      newSurcharge = 0
+    } else {
+      if (newDiscount > newSubtotal) {
+        newDiscount = newSubtotal
+      }
     }
+
+    set({
+      cartItems: newItems,
+      customTotal: null,
+      discountAmount: Math.round(newDiscount * 100) / 100,
+      surchargeAmount: Math.round(newSurcharge * 100) / 100,
+    })
   },
 
   removeFromCart: (variantId) => {
-    const newItems = get().cartItems.filter((item) => item.variantId !== variantId)
-    set({ cartItems: newItems, customTotal: null })
+    const { cartItems, activeCampaign, customTotal, discountAmount, surchargeAmount } = get()
+    const newItems = cartItems.filter((item) => String(item.variantId) !== String(variantId))
 
-    const { activeCampaign } = get()
-    if (activeCampaign) {
-      get().applyCampaign(activeCampaign)
+    if (newItems.length === 0) {
+      set({
+        cartItems: [],
+        customTotal: null,
+        discountAmount: 0,
+        surchargeAmount: 0,
+        activeCampaign: null,
+      })
+      return
     }
+
+    const newSubtotal = Math.round(
+      newItems.reduce(
+        (sum, item) => sum + (Number(item.totalPrice) || (Number(item.unitPrice) * Number(item.quantity)) || 0),
+        0
+      ) * 100
+    ) / 100
+
+    let newDiscount = discountAmount
+    let newSurcharge = surchargeAmount
+
+    if (activeCampaign) {
+      const camp = computeCampaignAmounts(newSubtotal, activeCampaign)
+      newDiscount = camp.discountAmount
+      newSurcharge = camp.surchargeAmount
+    } else if (customTotal !== null) {
+      newDiscount = 0
+      newSurcharge = 0
+    } else {
+      if (newDiscount > newSubtotal) {
+        newDiscount = newSubtotal
+      }
+    }
+
+    set({
+      cartItems: newItems,
+      customTotal: null,
+      discountAmount: Math.round(newDiscount * 100) / 100,
+      surchargeAmount: Math.round(newSurcharge * 100) / 100,
+    })
   },
 
   updateQuantity: (variantId, quantity) => {
-    if (quantity <= 0) {
+    const qty = Math.max(0, parseInt(String(quantity), 10) || 0)
+    if (qty <= 0) {
       get().removeFromCart(variantId)
       return
     }
 
-    const newItems = get().cartItems.map((item) =>
-      item.variantId === variantId
-        ? { ...item, quantity, totalPrice: Math.round(quantity * item.unitPrice * 100) / 100 }
-        : item
-    )
-    set({ cartItems: newItems, customTotal: null })
+    const { cartItems, activeCampaign, customTotal, discountAmount, surchargeAmount } = get()
+    const newItems = cartItems.map((item) => {
+      if (String(item.variantId) !== String(variantId)) return item
+      const u = Number(item.unitPrice) || 0
+      return {
+        ...item,
+        quantity: qty,
+        totalPrice: Math.round(qty * u * 100) / 100,
+      }
+    })
 
-    const { activeCampaign } = get()
+    const newSubtotal = Math.round(
+      newItems.reduce(
+        (sum, item) => sum + (Number(item.totalPrice) || (Number(item.unitPrice) * Number(item.quantity)) || 0),
+        0
+      ) * 100
+    ) / 100
+
+    let newDiscount = discountAmount
+    let newSurcharge = surchargeAmount
+
     if (activeCampaign) {
-      get().applyCampaign(activeCampaign)
+      const camp = computeCampaignAmounts(newSubtotal, activeCampaign)
+      newDiscount = camp.discountAmount
+      newSurcharge = camp.surchargeAmount
+    } else if (customTotal !== null) {
+      newDiscount = 0
+      newSurcharge = 0
+    } else {
+      if (newDiscount > newSubtotal) {
+        newDiscount = newSubtotal
+      }
     }
+
+    set({
+      cartItems: newItems,
+      customTotal: null,
+      discountAmount: Math.round(newDiscount * 100) / 100,
+      surchargeAmount: Math.round(newSurcharge * 100) / 100,
+    })
   },
 
   applyDiscount: (amount) => {
     const subtotal = get().getSubtotal()
+    const parsed = Math.max(0, Math.round(parsePrice(amount) * 100) / 100)
     set({
-      discountAmount: Math.min(subtotal, Math.max(0, Math.round(amount * 100) / 100)),
+      discountAmount: subtotal > 0 ? Math.min(subtotal, parsed) : parsed,
       surchargeAmount: 0,
       activeCampaign: null,
       customTotal: null,
@@ -370,7 +509,7 @@ export const usePosStore = create<PosState>((set, get) => ({
       return
     }
     const subtotal = get().getSubtotal()
-    const val = Math.max(0, Math.round(amount * 100) / 100)
+    const val = Math.max(0, Math.round(parsePrice(amount) * 100) / 100)
     if (val < subtotal) {
       const discount = Math.round((subtotal - val) * 100) / 100
       set({
@@ -397,10 +536,8 @@ export const usePosStore = create<PosState>((set, get) => ({
     }
 
     const subtotal = get().getSubtotal()
-    const isSurcharge = campaign.action === 'SURCHARGE'
 
-    // If cart is currently empty, save the campaign for upcoming items without showing ghost totals
-    if (subtotal === 0) {
+    if (subtotal <= 0) {
       set({
         discountAmount: 0,
         surchargeAmount: 0,
@@ -410,29 +547,13 @@ export const usePosStore = create<PosState>((set, get) => ({
       return
     }
 
-    let calculated = 0
-    if (campaign.type === 'PERCENTAGE') {
-      calculated = (subtotal * campaign.value) / 100
-    } else {
-      calculated = campaign.value
-    }
-    calculated = Math.round(calculated * 100) / 100
-
-    if (isSurcharge) {
-      set({
-        discountAmount: 0,
-        surchargeAmount: Math.max(0, calculated),
-        activeCampaign: campaign,
-        customTotal: null,
-      })
-    } else {
-      set({
-        discountAmount: Math.round(Math.min(subtotal, Math.max(0, calculated)) * 100) / 100,
-        surchargeAmount: 0,
-        activeCampaign: campaign,
-        customTotal: null,
-      })
-    }
+    const camp = computeCampaignAmounts(subtotal, campaign)
+    set({
+      discountAmount: camp.discountAmount,
+      surchargeAmount: camp.surchargeAmount,
+      activeCampaign: campaign,
+      customTotal: null,
+    })
   },
 
   clearCart: () =>
@@ -446,18 +567,26 @@ export const usePosStore = create<PosState>((set, get) => ({
     }),
 
   getSubtotal: () => {
-    const raw = get().cartItems.reduce((sum, item) => sum + (Number(item.totalPrice) || 0), 0)
+    const raw = get().cartItems.reduce((sum, item) => {
+      const p = Number(item.totalPrice)
+      if (!isNaN(p) && p > 0) return sum + p
+      const unit = Number(item.unitPrice) || 0
+      const qty = Number(item.quantity) || 0
+      return sum + unit * qty
+    }, 0)
     return Math.round(raw * 100) / 100
   },
 
   getTotal: () => {
     const { customTotal, discountAmount, surchargeAmount, cartItems } = get()
-    if (cartItems.length === 0) return 0
-    if (customTotal !== null) {
-      return customTotal
+    if (!cartItems || cartItems.length === 0) return 0
+    if (customTotal !== null && !isNaN(customTotal) && customTotal >= 0) {
+      return Math.round(customTotal * 100) / 100
     }
     const subtotal = get().getSubtotal()
-    const raw = Math.max(0, subtotal - (Number(discountAmount) || 0) + (Number(surchargeAmount) || 0))
+    const disc = Math.min(subtotal, Math.max(0, Number(discountAmount) || 0))
+    const sur = Math.max(0, Number(surchargeAmount) || 0)
+    const raw = Math.max(0, subtotal - disc + sur)
     return Math.round(raw * 100) / 100
   },
 }))

@@ -16,6 +16,7 @@ import {
   RotateCcw,
   Check,
   Loader2,
+  Gift,
 } from 'lucide-react'
 import { usePosStore } from '../../store/usePosStore'
 import { ReturnModal } from '../Customer/ReturnModal'
@@ -244,27 +245,36 @@ export const SalesHistoryView: React.FC = () => {
   const activeSalesCount = filteredSales.filter((s) => s.status !== 'RETURNED').length
   const avgReceiptAmount = activeSalesCount > 0 ? filteredNetRevenue / activeSalesCount : 0
 
-  const handlePrintReceipt = async (sale: any) => {
+  const handlePrintReceipt = async (sale: any, isGift = false) => {
     if (!sale) return
-    setPrintingSaleId(sale.id)
+    const opId = isGift ? `${sale.id}-gift` : sale.id
+    setPrintingSaleId(opId)
     setPrintFeedback(null)
 
     try {
-      const receiptData = normalizeSaleToReceiptData(sale, {
-        storeName,
-        storeAddress,
-        storePhone,
-        receiptFooterNote,
-        vatRate,
-        receiptPrinter,
-        receiptPrintMode,
-        cashierName: sale.cashierName,
-      })
+      const receiptData = normalizeSaleToReceiptData(
+        sale,
+        {
+          storeName,
+          storeAddress,
+          storePhone,
+          receiptFooterNote,
+          vatRate,
+          receiptPrinter,
+          receiptPrintMode,
+          cashierName: sale.cashierName,
+        },
+        {
+          isGiftReceipt: isGift,
+        }
+      )
       const res = await printReceipt(receiptData)
       if (res.success) {
-        setPrintedSaleId(sale.id)
+        setPrintedSaleId(opId)
         setPrintFeedback({
-          text: `Fiş (${sale.receiptNo}) başarıyla yazıcıya gönderildi.`,
+          text: isGift
+            ? `Hediye değişim fişi (fiyatsız - ${sale.receiptNo}) başarıyla yazıcıya gönderildi.`
+            : `Fiş (${sale.receiptNo}) başarıyla yazıcıya gönderildi.`,
           type: 'success',
         })
         setTimeout(() => {
@@ -824,6 +834,34 @@ export const SalesHistoryView: React.FC = () => {
                     <>
                       <Printer className="w-3.5 h-3.5 text-blue-600" />
                       <span>Fiş Kes / Yazdır</span>
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  disabled={printingSaleId === `${selectedSale.id}-gift`}
+                  onClick={() => handlePrintReceipt(selectedSale, true)}
+                  className={`px-3 py-1.5 font-semibold rounded text-xs flex items-center space-x-1.5 transition border cursor-pointer ${
+                    printedSaleId === `${selectedSale.id}-gift`
+                      ? 'bg-purple-50 border-purple-300 text-purple-800'
+                      : 'bg-purple-50/70 hover:bg-purple-100 text-purple-900 border-purple-200'
+                  } disabled:opacity-60`}
+                  title="Fiyatsız hediye değişim fişi yazdır"
+                >
+                  {printingSaleId === `${selectedSale.id}-gift` ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 text-purple-600 animate-spin" />
+                      <span>Basılıyor...</span>
+                    </>
+                  ) : printedSaleId === `${selectedSale.id}-gift` ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-purple-600" />
+                      <span>Hediye Fişi Kesildi</span>
+                    </>
+                  ) : (
+                    <>
+                      <Gift className="w-3.5 h-3.5 text-purple-600" />
+                      <span>Hediye Fişi (Fiyatsız)</span>
                     </>
                   )}
                 </button>
