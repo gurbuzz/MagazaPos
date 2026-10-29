@@ -32,14 +32,21 @@ export const ExchangeModal: React.FC<ExchangeModalProps> = ({ isOpen, onClose })
     setSuccessMsg('')
 
     try {
-      const res = await fetch(`/api/sales?search=${encodeURIComponent(searchReceipt.trim())}`)
+      const cleanSearch = searchReceipt.trim().replace(/^\*+|\*+$/g, '').replace(/\*+/g, '-')
+      const res = await fetch(`/api/sales?search=${encodeURIComponent(cleanSearch)}`)
       if (!res.ok) throw new Error('Fiş arama başarısız.')
       const data = await res.json()
 
+      const normSearch = cleanSearch.toLowerCase().replace(/[*_\s-]/g, '')
       const exact =
-        data.find(
-          (s: any) => s.receiptNo.toLowerCase() === searchReceipt.trim().toLowerCase()
-        ) || (data.length === 1 ? data[0] : null)
+        data.find((s: any) => {
+          const normReceipt = String(s.receiptNo || '').toLowerCase().replace(/[*_\s-]/g, '')
+          return (
+            s.receiptNo.toLowerCase() === cleanSearch.toLowerCase() ||
+            (normSearch.length > 0 && normReceipt === normSearch) ||
+            (normSearch.length > 0 && normReceipt.includes(normSearch))
+          )
+        }) || (data.length === 1 ? data[0] : null)
 
       if (!exact) {
         setErrorMsg(`"${searchReceipt}" numaralı fiş bulunamadı.`)
@@ -141,9 +148,12 @@ export const ExchangeModal: React.FC<ExchangeModalProps> = ({ isOpen, onClose })
             <div className="flex space-x-2">
               <input
                 type="text"
-                placeholder="Örn: FIS-12345678"
+                placeholder="Örn: FIS-12345678 veya barkod okutun"
                 value={searchReceipt}
-                onChange={(e) => setSearchReceipt(e.target.value)}
+                onChange={(e) => {
+                  const cleaned = e.target.value.replace(/^\*+|\*+$/g, '').replace(/\*+/g, '-')
+                  setSearchReceipt(cleaned)
+                }}
                 className="flex-1 px-3 py-2 bg-slate-50 border border-slate-300 rounded text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 autoFocus
               />

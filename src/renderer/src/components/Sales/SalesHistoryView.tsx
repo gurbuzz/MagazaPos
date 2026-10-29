@@ -38,12 +38,26 @@ export const SalesHistoryView: React.FC = () => {
   const [startDate, setStartDate] = useState<string>('')
   const [endDate, setEndDate] = useState<string>('')
 
-  const fetchSales = async () => {
+  // Barkod okuyucu ve arama normalizasyonu:
+  // Türkçe Q klavye haritasında '-' tuşunun karşılığı '*' olarak basılır veya Code 39 baş/son yıldız koyar.
+  // Baş ve sondaki yıldızları siler, aradaki yıldızları tire '-' işaretine dönüştürür.
+  const cleanBarcodeSearch = (val: string) => {
+    if (!val) return ''
+    return val.replace(/^\*+|\*+$/g, '').replace(/\*+/g, '-')
+  }
+
+  const fetchSales = async (overrideSearch?: string) => {
     setIsLoading(true)
     try {
       let url = '/api/sales?limit=300'
       if (startDate) url += `&startDate=${encodeURIComponent(startDate)}`
       if (endDate) url += `&endDate=${encodeURIComponent(endDate)}`
+
+      const term = overrideSearch !== undefined ? overrideSearch : searchTerm
+      if (term && term.trim()) {
+        const cleanQuery = cleanBarcodeSearch(term.trim())
+        url += `&search=${encodeURIComponent(cleanQuery)}`
+      }
 
       const res = await fetch(url)
       const data = await res.json()
@@ -53,6 +67,11 @@ export const SalesHistoryView: React.FC = () => {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const handleSearchSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault()
+    fetchSales(searchTerm)
   }
 
   useEffect(() => {
@@ -118,14 +137,6 @@ export const SalesHistoryView: React.FC = () => {
     if (startDate && saleTime < new Date(startDate).getTime()) return false
     if (endDate && saleTime > new Date(endDate).getTime()) return false
 
-    const searchLower = searchTerm.toLowerCase()
-    const matchesReceipt = sale.receiptNo?.toLowerCase().includes(searchLower)
-    const matchesCashier = sale.cashierName?.toLowerCase().includes(searchLower)
-    const matchesItem = sale.items?.some((i: any) =>
-      i.variant?.product?.name?.toLowerCase().includes(searchLower)
-    )
-    const matchesSearch = matchesReceipt || matchesCashier || matchesItem
-
     let matchesPayment = true
     if (paymentFilter === 'CASH') {
       const isCash = (sale.paymentType?.cash || 0) > 0 && (sale.paymentType?.card || 0) === 0
@@ -136,6 +147,45 @@ export const SalesHistoryView: React.FC = () => {
       const isLegacyCard = typeof sale.paymentType === 'string' && sale.paymentType === 'CARD'
       matchesPayment = isCard || isLegacyCard
     }
+
+    if (!searchTerm.trim()) return matchesPayment
+
+    const searchRaw = searchTerm.trim().toLowerCase()
+    const searchClean = cleanBarcodeSearch(searchRaw).toLowerCase()
+    const searchNormalized = searchRaw.replace(/[*_\s-]/g, '')
+
+    // Fiş No Eşleşmesi (Ham arama, yıldızları tire yapılmış arama, veya tüm ayraçlardan arındırılmış normalizasyon)
+    const receiptLower = String(sale.receiptNo || '').toLowerCase()
+    const receiptNormalized = receiptLower.replace(/[*_\s-]/g, '')
+
+    const matchesReceipt =
+      receiptLower.includes(searchRaw) ||
+      receiptLower.includes(searchClean) ||
+      (searchNormalized.length > 0 && receiptNormalized.includes(searchNormalized))
+
+    // Kasiyer Eşleşmesi
+    const matchesCashier = sale.cashierName?.toLowerCase().includes(searchRaw)
+
+    // Müşteri Adı / Telefonu Eşleşmesi
+    const customerFullName = `${sale.customer?.firstName || ''} ${sale.customer?.lastName || ''}`.toLowerCase()
+    const matchesCustomer =
+      customerFullName.includes(searchRaw) ||
+      (sale.customer?.phone && sale.customer.phone.includes(searchRaw))
+
+    // Ürün Adı, Barkodu ve SKU Eşleşmesi
+    const matchesItem = sale.items?.some((i: any) => {
+      const prodName = i.variant?.product?.name?.toLowerCase() || ''
+      const barcode = i.variant?.barcode?.toLowerCase() || ''
+      const sku = i.variant?.sku?.toLowerCase() || ''
+      return (
+        prodName.includes(searchRaw) ||
+        barcode.includes(searchRaw) ||
+        (searchNormalized.length > 0 && barcode.includes(searchNormalized)) ||
+        sku.includes(searchRaw)
+      )
+    })
+
+    const matchesSearch = matchesReceipt || matchesCashier || matchesCustomer || matchesItem
 
     return matchesSearch && matchesPayment
   })
@@ -307,20 +357,29 @@ export const SalesHistoryView: React.FC = () => {
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Arama (Fiş / Kasiyer / Ürün)</label>
-              <div className="flex items-center space-x-1.5">
+              <form onSubmit={handleSearchSubmit} className="flex items-center space-x-1.5">
                 <div className="relative flex-1">
                   <input
                     type="text"
                     placeholder="Fiş No, Kasiyer veya Ürün ara..."
                     value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onChange={(e) => setSearchTerm(cleanBarcodeSearch(e.target.value))}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        handleSearchSubmit()
+                      }
+                    }}
                     className="w-full pl-8 pr-8 py-2 bg-white/80 border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-[#00268A] focus:outline-none"
                   />
                   <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
                   {searchTerm && (
                     <button
                       type="button"
-                      onClick={() => setSearchTerm('')}
+                      onClick={() => {
+                        setSearchTerm('')
+                        fetchSales('')
+                      }}
                       className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
                     >
                       <X className="w-3.5 h-3.5" />
@@ -328,15 +387,14 @@ export const SalesHistoryView: React.FC = () => {
                   )}
                 </div>
                 <button
-                  type="button"
-                  onClick={() => {}}
+                  type="submit"
                   className="px-3.5 py-2 bg-[#00268A] hover:bg-[#001f70] text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center space-x-1 shrink-0"
                   title="Arama Yap"
                 >
                   <Search className="w-3.5 h-3.5" />
                   <span>Ara</span>
                 </button>
-              </div>
+              </form>
             </div>
 
             <div>
@@ -484,7 +542,7 @@ export const SalesHistoryView: React.FC = () => {
             </div>
 
             <button
-              onClick={fetchSales}
+              onClick={() => fetchSales()}
               className="p-1.5 bg-white hover:bg-slate-100 text-slate-700 rounded border border-slate-300 transition shadow-2xs flex items-center space-x-1 text-xs font-semibold cursor-pointer"
               title="Listeyi Yenile"
             >

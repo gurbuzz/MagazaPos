@@ -121,16 +121,21 @@ salesRouter.get('/', async (req, res) => {
     }
 
     if (search && typeof search === 'string' && search.trim() !== '') {
-      const query = search.trim()
+      const rawQuery = search.trim()
+      const cleanQuery = rawQuery.replace(/^\*+|\*+$/g, '').replace(/\*+/g, '-').trim()
+      const strippedQuery = cleanQuery.replace(/[-_]/g, '').trim()
+
+      const receiptQueries = Array.from(new Set([rawQuery, cleanQuery, strippedQuery].filter(Boolean)))
+
       where.OR = [
-        { receiptNo: { contains: query } },
-        { cashierName: { contains: query } },
+        ...receiptQueries.map((q) => ({ receiptNo: { contains: q } })),
+        { cashierName: { contains: cleanQuery } },
         {
           customer: {
             OR: [
-              { firstName: { contains: query } },
-              { lastName: { contains: query } },
-              { phone: { contains: query } },
+              { firstName: { contains: cleanQuery } },
+              { lastName: { contains: cleanQuery } },
+              { phone: { contains: cleanQuery } },
             ]
           }
         },
@@ -139,9 +144,9 @@ salesRouter.get('/', async (req, res) => {
             some: {
               variant: {
                 OR: [
-                  { barcode: { contains: query } },
-                  { sku: { contains: query } },
-                  { product: { name: { contains: query } } }
+                  { barcode: { contains: cleanQuery } },
+                  { sku: { contains: cleanQuery } },
+                  { product: { name: { contains: cleanQuery } } }
                 ]
               }
             }
