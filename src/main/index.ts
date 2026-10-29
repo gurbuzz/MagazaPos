@@ -364,12 +364,13 @@ ipcMain.handle('print-silent', async (_, htmlContent: string, printerName?: stri
 
     // Calculate pixel size for the window from mm to prevent blank viewport
     const winWidth = customPageSize?.width ? Math.max(300, Math.round(customPageSize.width * 4)) : 400
-    const winHeight = customPageSize?.height ? Math.max(300, Math.round(customPageSize.height * 4)) : 600
+    const winHeight = customPageSize?.height ? Math.max(300, Math.round(customPageSize.height * 4)) : 800
 
     let printWindow: BrowserWindow | null = new BrowserWindow({
       width: winWidth,
       height: winHeight,
       show: false,
+      backgroundColor: '#ffffff',
       webPreferences: {
         nodeIntegration: false,
         backgroundThrottling: false, // CRITICAL: Never pause paint/rasterization in background
@@ -414,7 +415,7 @@ ipcMain.handle('print-silent', async (_, htmlContent: string, printerName?: stri
           const printOptions: any = {
             silent: silent !== false,
             printBackground: true,
-            margins: { marginType: 'none' },
+            margins: { marginType: 'printableArea' },
           }
 
           if (printerName && printerName.trim()) {
@@ -451,6 +452,124 @@ ipcMain.handle('print-silent', async (_, htmlContent: string, printerName?: stri
   } catch (err: any) {
     console.error('print-silent unexpected error:', err)
     return { success: false, failureReason: err.message || 'Yazdırma penceresi başlatılamadı' }
+  }
+})
+
+// IPC Handler: Raw ESC/POS Thermal Printing (Direct to Windows Print Spooler via winspool.drv)
+ipcMain.handle('print-raw', async (_, printerName?: string, rawBase64?: string) => {
+  if (!rawBase64) return { success: false, failureReason: 'Boş veri' }
+  const buffer = Buffer.from(rawBase64, 'base64')
+
+  if (process.platform !== 'win32') {
+    console.log(`[RAW PRINT DEV] Sent ${buffer.length} bytes to printer: "${printerName || 'Default'}"`)
+    return { success: true }
+  }
+
+  try {
+    let targetPrinter = printerName?.trim()
+    if (!targetPrinter && mainWindow && !mainWindow.isDestroyed()) {
+      try {
+        const printers = await mainWindow.webContents.getPrintersAsync()
+        const def = printers.find((p) => p.isDefault) || printers[0]
+        if (def) targetPrinter = def.name
+      } catch {}
+    }
+
+    if (!targetPrinter) {
+      return { success: false, failureReason: 'Varsayılan veya seçili yazıcı bulunamadı.' }
+    }
+
+    const tempBinPath = path.join(app.getPath('temp'), `magazapos_raw_${Date.now()}.bin`)
+    fs.writeFileSync(tempBinPath, buffer)
+
+    const psScriptPath = path.join(app.getPath('userData'), 'rawprint.ps1')
+    const psScriptContent = `param([string]$pName, [string]$fPath)
+$code = @'
+using System;
+using System.IO;
+using System.Runtime.InteropServices;
+
+public class RawPrinterHelper {
+    [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)]
+    public class DOCINFO {
+        [MarshalAs(UnmanagedType.LPWStr)] public string pDocName;
+        [MarshalAs(UnmanagedType.LPWStr)] public string pOutputFile;
+        [MarshalAs(UnmanagedType.LPWStr)] public string pDataType;
+    }
+    [DllImport("winspool.Drv", EntryPoint="OpenPrinterW", SetLastError=true, CharSet=CharSet.Unicode, ExactSpelling=true, CallingConvention=CallingConvention.StdCall)]
+    public static extern bool OpenPrinter(string src, out IntPtr hPrinter, IntPtr pd);
+    [DllImport("winspool.Drv", EntryPoint="ClosePrinter", SetLastError=true, ExactSpelling=true, CallingConvention=CallingConvention.StdCall)]
+    public static extern bool ClosePrinter(IntPtr hPrinter);
+    [DllImport("winspool.Drv", EntryPoint="StartDocPrinterW", SetLastError=true, CharSet=CharSet.Unicode, ExactSpelling=true, CallingConvention=CallingConvention.StdCall)]
+    public static extern bool StartDocPrinter(IntPtr hPrinter, int level, [In] DOCINFO pDocInfo);
+    [DllImport("winspool.Drv", EntryPoint="EndDocPrinter", SetLastError=true, ExactSpelling=true, CallingConvention=CallingConvention.StdCall)]
+    public static extern bool EndDocPrinter(IntPtr hPrinter);
+    [DllImport("winspool.Drv", EntryPoint="StartPagePrinter", SetLastError=true, ExactSpelling=true, CallingConvention=CallingConvention.StdCall)]
+    public static extern bool StartPagePrinter(IntPtr hPrinter);
+    [DllImport("winspool.Drv", EntryPoint="EndPagePrinter", SetLastError=true, ExactSpelling=true, CallingConvention=CallingConvention.StdCall)]
+    public static extern bool EndPagePrinter(IntPtr hPrinter);
+    [DllImport("winspool.Drv", EntryPoint="WritePrinter", SetLastError=true, ExactSpelling=true, CallingConvention=CallingConvention.StdCall)]
+    public static extern bool WritePrinter(IntPtr hPrinter, IntPtr pBytes, int dwCount, out int dwWritten);
+
+    public static bool SendFile(string szPrinterName, string szFileName) {
+        if (!File.Exists(szFileName)) return false;
+        byte[] bytes = File.ReadAllBytes(szFileName);
+        IntPtr hPrinter;
+        DOCINFO di = new DOCINFO();
+        di.pDocName = "MagazaPOS Fis";
+        di.pDataType = "RAW";
+        if (OpenPrinter(szPrinterName, out hPrinter, IntPtr.Zero)) {
+            if (StartDocPrinter(hPrinter, 1, di)) {
+                if (StartPagePrinter(hPrinter)) {
+                    IntPtr pUnmanagedBytes = Marshal.AllocCoTaskMem(bytes.Length);
+                    Marshal.Copy(bytes, 0, pUnmanagedBytes, bytes.Length);
+                    int dwWritten = 0;
+                    WritePrinter(hPrinter, pUnmanagedBytes, bytes.Length, out dwWritten);
+                    Marshal.FreeCoTaskMem(pUnmanagedBytes);
+                    EndPagePrinter(hPrinter);
+                }
+                EndDocPrinter(hPrinter);
+            }
+            ClosePrinter(hPrinter);
+            return true;
+        }
+        return false;
+    }
+}
+'@
+Add-Type -TypeDefinition $code -ErrorAction SilentlyContinue
+$res = [RawPrinterHelper]::SendFile($pName, $fPath)
+if ($res) { exit 0 } else { exit 1 }
+`
+    try {
+      if (!fs.existsSync(psScriptPath) || fs.readFileSync(psScriptPath, 'utf-8') !== psScriptContent) {
+        fs.writeFileSync(psScriptPath, psScriptContent, 'utf-8')
+      }
+    } catch {}
+
+    return new Promise((resolve) => {
+      const { execFile } = require('child_process')
+      execFile(
+        'powershell.exe',
+        ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', psScriptPath, targetPrinter, tempBinPath],
+        { windowsHide: true, timeout: 8000 },
+        (error: any) => {
+          try {
+            if (fs.existsSync(tempBinPath)) fs.unlinkSync(tempBinPath)
+          } catch {}
+
+          if (error) {
+            console.error('print-raw powershell error:', error)
+            resolve({ success: false, failureReason: error.message || 'Yazıcıya RAW komut gönderilemedi' })
+          } else {
+            resolve({ success: true })
+          }
+        }
+      )
+    })
+  } catch (err: any) {
+    console.error('print-raw exception:', err)
+    return { success: false, failureReason: err.message || 'RAW yazdırma başlatılamadı' }
   }
 })
 

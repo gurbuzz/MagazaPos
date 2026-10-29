@@ -16,6 +16,10 @@ declare global {
         customPageSize?: { width: number; height: number },
         silent?: boolean
       ) => Promise<{ success: boolean; failureReason?: string }>
+      printRaw: (
+        printerName?: string,
+        rawBase64?: string
+      ) => Promise<{ success: boolean; failureReason?: string }>
       getPrinters: () => Promise<any[]>
       getLocalIp: () => Promise<string>
       toggleFullscreen: () => Promise<boolean>

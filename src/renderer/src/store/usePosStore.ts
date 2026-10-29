@@ -57,6 +57,7 @@ interface PosState {
   lowStockThreshold: number
   autoPrintReceipt: boolean
   receiptPrinter: string
+  receiptPrintMode: 'ESC_POS' | 'HTML'
   customIp: string
   autoOpenCustomerDisplay: boolean
   customerDisplayMessage: string
@@ -76,6 +77,7 @@ interface PosState {
     lowStockThreshold?: number
     autoPrintReceipt?: boolean
     receiptPrinter?: string
+    receiptPrintMode?: 'ESC_POS' | 'HTML'
     customIp?: string
     autoOpenCustomerDisplay?: boolean
     customerDisplayMessage?: string
@@ -145,6 +147,7 @@ export const usePosStore = create<PosState>((set, get) => ({
   lowStockThreshold: parseInt(localStorage.getItem('pos_low_stock') || '5', 10),
   autoPrintReceipt: localStorage.getItem('pos_auto_print') !== 'false',
   receiptPrinter: localStorage.getItem('pos_receipt_printer') || '',
+  receiptPrintMode: (localStorage.getItem('pos_receipt_print_mode') as 'ESC_POS' | 'HTML') || 'ESC_POS',
   customIp: localStorage.getItem('pos_custom_ip') || '',
   autoOpenCustomerDisplay: localStorage.getItem('pos_auto_customer_display') !== 'false',
   customerDisplayMessage: localStorage.getItem('pos_customer_display_msg') || 'JACK & JONES Kalitesiyle Keyifli Alışverişler Dileriz',
@@ -186,6 +189,7 @@ export const usePosStore = create<PosState>((set, get) => ({
     if (settings.lowStockThreshold !== undefined) localStorage.setItem('pos_low_stock', settings.lowStockThreshold.toString())
     if (settings.autoPrintReceipt !== undefined) localStorage.setItem('pos_auto_print', settings.autoPrintReceipt ? 'true' : 'false')
     if (settings.receiptPrinter !== undefined) localStorage.setItem('pos_receipt_printer', settings.receiptPrinter)
+    if (settings.receiptPrintMode !== undefined) localStorage.setItem('pos_receipt_print_mode', settings.receiptPrintMode)
     if (settings.customIp !== undefined) localStorage.setItem('pos_custom_ip', settings.customIp)
     if (settings.autoOpenCustomerDisplay !== undefined) localStorage.setItem('pos_auto_customer_display', settings.autoOpenCustomerDisplay ? 'true' : 'false')
     if (settings.customerDisplayMessage !== undefined) localStorage.setItem('pos_customer_display_msg', settings.customerDisplayMessage)
@@ -203,6 +207,7 @@ export const usePosStore = create<PosState>((set, get) => ({
       lowStockThreshold: settings.lowStockThreshold ?? state.lowStockThreshold,
       autoPrintReceipt: settings.autoPrintReceipt ?? state.autoPrintReceipt,
       receiptPrinter: settings.receiptPrinter ?? state.receiptPrinter,
+      receiptPrintMode: settings.receiptPrintMode ?? state.receiptPrintMode,
       customIp: settings.customIp ?? state.customIp,
       autoOpenCustomerDisplay: settings.autoOpenCustomerDisplay ?? state.autoOpenCustomerDisplay,
       customerDisplayMessage: settings.customerDisplayMessage ?? state.customerDisplayMessage,

@@ -8,6 +8,10 @@ contextBridge.exposeInMainWorld('electron', {
     customPageSize?: { width: number; height: number },
     silent: boolean = true
   ) => ipcRenderer.invoke('print-silent', htmlContent, printerName, customPageSize, silent),
+  printRaw: (
+    printerName?: string,
+    rawBase64?: string
+  ) => ipcRenderer.invoke('print-raw', printerName, rawBase64),
   getPrinters: () => ipcRenderer.invoke('get-printers'),
   getLocalIp: () => ipcRenderer.invoke('get-local-ip'),
   toggleFullscreen: () => ipcRenderer.invoke('toggle-fullscreen'),

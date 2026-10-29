@@ -1,4 +1,5 @@
 import { generateCode128Svg } from './barcode128'
+import { generateEscposReceipt, uint8ArrayToBase64 } from './escposReceipt'
 
 export interface ReceiptItem {
   productName: string
@@ -36,6 +37,7 @@ export interface ReceiptData {
     receiptFooterNote?: string
     vatRate?: number
     receiptPrinter?: string
+    receiptPrintMode?: 'ESC_POS' | 'HTML'
   }
 }
 
@@ -160,6 +162,7 @@ export function normalizeSaleToReceiptData(
       receiptFooterNote: storeState.receiptFooterNote || 'Ürün değişimleri fiş ile 14 gün içinde yapılır. Teşekkürler!',
       vatRate: storeState.vatRate ?? 10,
       receiptPrinter: storeState.receiptPrinter || '',
+      receiptPrintMode: storeState.receiptPrintMode || 'ESC_POS',
     },
   }
 }
@@ -203,7 +206,6 @@ export function generateReceiptHtml(data: ReceiptData): string {
     <style>
       @page {
         margin: 0;
-        size: 80mm auto;
       }
       * {
         box-sizing: border-box;
@@ -211,12 +213,13 @@ export function generateReceiptHtml(data: ReceiptData): string {
         padding: 0;
       }
       body {
-        font-family: 'Courier New', Courier, monospace;
-        width: 74mm;
-        max-width: 74mm;
+        font-family: Arial, Helvetica, sans-serif;
+        width: 72mm;
+        max-width: 72mm;
         margin: 0 auto;
-        padding: 6mm 2mm 12mm 2mm;
+        padding: 4mm 2mm 8mm 2mm;
         font-size: 11px;
+        font-weight: 600;
         line-height: 1.35;
         color: #000000 !important;
         background-color: #ffffff !important;
@@ -227,25 +230,26 @@ export function generateReceiptHtml(data: ReceiptData): string {
         text-align: center;
       }
       .bold {
-        font-weight: bold;
+        font-weight: 900;
       }
       .store-name {
-        font-size: 15px;
-        font-weight: bold;
+        font-size: 16px;
+        font-weight: 900;
         letter-spacing: 0.5px;
         margin-bottom: 3px;
+        text-transform: uppercase;
       }
       .store-info {
         font-size: 10px;
-        color: #222;
+        color: #000000 !important;
         margin-bottom: 2px;
       }
       .divider {
-        border-top: 1px dashed #000;
+        border-top: 1px dashed #000000;
         margin: 6px 0;
       }
       .double-divider {
-        border-top: 2px dashed #000;
+        border-top: 2px solid #000000;
         margin: 6px 0;
       }
       .row {
@@ -258,16 +262,16 @@ export function generateReceiptHtml(data: ReceiptData): string {
         margin: 4px 0;
       }
       .item-name {
-        font-weight: bold;
+        font-weight: 800;
         word-break: break-word;
       }
       .item-desc {
         font-size: 10px;
-        color: #333;
+        color: #000000 !important;
       }
       .total-row {
         font-size: 14px;
-        font-weight: bold;
+        font-weight: 900;
         margin-top: 4px;
       }
       .barcode-box {
@@ -283,13 +287,14 @@ export function generateReceiptHtml(data: ReceiptData): string {
         font-size: 11px;
         letter-spacing: 2px;
         margin-top: 3px;
-        font-weight: bold;
+        font-weight: 900;
       }
       .footer-note {
         font-size: 10px;
         text-align: center;
         margin-top: 6px;
         line-height: 1.3;
+        font-weight: 600;
       }
     </style>
   </head>
@@ -356,7 +361,7 @@ export function generateReceiptHtml(data: ReceiptData): string {
         ? `
     <div class="row">
       <span>İndirim / Mahsup:</span>
-      <span>-${data.discountAmount!.toFixed(2)} TL</span>
+      <span class="bold">-${data.discountAmount!.toFixed(2)} TL</span>
     </div>`
         : ''
     }
@@ -365,7 +370,7 @@ export function generateReceiptHtml(data: ReceiptData): string {
         ? `
     <div class="row">
       <span>Vade / Taksit Farkı:</span>
-      <span>+${data.surchargeAmount!.toFixed(2)} TL</span>
+      <span class="bold">+${data.surchargeAmount!.toFixed(2)} TL</span>
     </div>`
         : ''
     }
@@ -377,7 +382,7 @@ export function generateReceiptHtml(data: ReceiptData): string {
 
     <div class="row" style="font-size: 10px; margin-top: 3px;">
       <span>KDV (%${vatRate}) Dahil:</span>
-      <span>${vatAmount.toFixed(2)} TL</span>
+      <span class="bold">${vatAmount.toFixed(2)} TL</span>
     </div>
 
     <div class="divider"></div>
@@ -392,7 +397,7 @@ export function generateReceiptHtml(data: ReceiptData): string {
         ? `
     <div class="row">
       <span>Alınan Nakit:</span>
-      <span>${data.givenCash.toFixed(2)} TL</span>
+      <span class="bold">${data.givenCash.toFixed(2)} TL</span>
     </div>
     `
         : ''
@@ -402,7 +407,7 @@ export function generateReceiptHtml(data: ReceiptData): string {
         ? `
     <div class="row" style="font-weight: bold; font-size: 12px; margin-top: 2px;">
       <span>PARA ÜSTÜ:</span>
-      <span>${data.changeDue!.toFixed(2)} TL</span>
+      <span class="bold">${data.changeDue!.toFixed(2)} TL</span>
     </div>
     `
         : ''
@@ -421,7 +426,7 @@ export function generateReceiptHtml(data: ReceiptData): string {
       <div class="barcode-text">*${data.receiptNo}*</div>
     </div>
 
-    <div class="center" style="font-size: 9px; color: #555; margin-top: 8px;">
+    <div class="center" style="font-size: 9px; font-weight: 700; color: #000000 !important; margin-top: 8px;">
       - Mali Değeri Yoktur / Bilgi Fişidir -
     </div>
   </body>
@@ -429,20 +434,43 @@ export function generateReceiptHtml(data: ReceiptData): string {
 }
 
 /**
- * Dispatches receipt printing to Electron thermal printer (silent) or falls back to native browser window.
+ * Dispatches receipt printing to Electron thermal printer via ESC/POS (direct raw)
+ * or falls back to silent HTML rendering or native browser window.
  */
-export async function printReceipt(data: ReceiptData): Promise<{ success: boolean; error?: string }> {
-  const html = generateReceiptHtml(data)
+export async function printReceipt(
+  data: ReceiptData,
+  modeOverride?: 'ESC_POS' | 'HTML'
+): Promise<{ success: boolean; error?: string }> {
   const printer = data.storeInfo.receiptPrinter ? data.storeInfo.receiptPrinter.trim() : undefined
+  const mode = modeOverride || data.storeInfo.receiptPrintMode || 'ESC_POS'
 
-  // 1. Electron environment with IPC printSilent
+  // 1. ESC/POS Direct RAW printing (Bypasses Windows graphics/GDI entirely - 100% compatible with Generic/Text and all thermal receipt printers)
+  if (mode === 'ESC_POS' && typeof window !== 'undefined' && window.electron?.printRaw) {
+    try {
+      const escposBytes = generateEscposReceipt(data)
+      const base64 = uint8ArrayToBase64(escposBytes)
+      const rawRes = await window.electron.printRaw(printer || undefined, base64)
+
+      if (rawRes?.success) {
+        return { success: true }
+      }
+      console.warn('ESC/POS print failed, falling back to HTML print:', rawRes?.failureReason)
+    } catch (err: any) {
+      console.error('ESC/POS exception, falling back to HTML:', err)
+    }
+  }
+
+  // 2. Electron Silent HTML printing
+  const html = generateReceiptHtml(data)
   if (typeof window !== 'undefined' && window.electron?.printSilent) {
     try {
-      const estHeightMm = Math.max(140, 90 + data.items.length * 12)
+      // NOTE: We deliberately do NOT pass customPageSize to receipt printers!
+      // Receipt printers are continuous roll printers; passing custom DEVMODE microns causes
+      // POS-80/thermal drivers to reject the size and feed blank paper without printing.
       const result = await window.electron.printSilent(
         html,
         printer || undefined,
-        { width: 80, height: estHeightMm },
+        undefined, // Continuous roll paper
         true
       )
 
@@ -458,7 +486,7 @@ export async function printReceipt(data: ReceiptData): Promise<{ success: boolea
     }
   }
 
-  // 2. Web browser fallback
+  // 3. Web browser popup fallback
   return openPrintWindow(html)
 }
 

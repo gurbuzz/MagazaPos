@@ -37,6 +37,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
     vatRate,
     autoPrintReceipt,
     receiptPrinter,
+    receiptPrintMode,
   } = usePosStore()
 
   const [paymentMode, setPaymentMode] = useState<'CASH' | 'CARD' | 'SPLIT'>('CASH')
@@ -230,6 +231,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
           receiptFooterNote,
           vatRate,
           receiptPrinter,
+          receiptPrintMode,
           selectedCustomer,
           cartItems,
           discountAmount,

@@ -59,6 +59,7 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
     lowStockThreshold,
     autoPrintReceipt,
     receiptPrinter,
+    receiptPrintMode,
     customIp,
     localIp,
     autoOpenCustomerDisplay,
@@ -81,6 +82,7 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
   const [formLowStock, setFormLowStock] = useState(lowStockThreshold)
   const [formAutoPrint, setFormAutoPrint] = useState(autoPrintReceipt)
   const [formReceiptPrinter, setFormReceiptPrinter] = useState(receiptPrinter)
+  const [formReceiptPrintMode, setFormReceiptPrintMode] = useState<'ESC_POS' | 'HTML'>(receiptPrintMode || 'ESC_POS')
   const [availablePrinters, setAvailablePrinters] = useState<any[]>([])
   const [isTestingPrinter, setIsTestingPrinter] = useState(false)
   const [testPrinterResult, setTestPrinterResult] = useState<string | null>(null)
@@ -195,6 +197,7 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
     setFormLowStock(lowStockThreshold)
     setFormAutoPrint(autoPrintReceipt)
     setFormReceiptPrinter(receiptPrinter)
+    setFormReceiptPrintMode(receiptPrintMode || 'ESC_POS')
     setTestPrinterResult(null)
     setFormCustomIp(customIp)
     setFormAutoOpenCustomerDisplay(autoOpenCustomerDisplay)
@@ -279,6 +282,7 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
       lowStockThreshold: Number(formLowStock) || 5,
       autoPrintReceipt: formAutoPrint,
       receiptPrinter: formReceiptPrinter,
+      receiptPrintMode: formReceiptPrintMode,
       customIp: (formCustomIp || '').trim(),
       autoOpenCustomerDisplay: formAutoOpenCustomerDisplay,
       customerDisplayMessage: (formCustomerDisplayMessage || '').trim(),
@@ -307,42 +311,47 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
   }
 
   // ─── Test Print Receipt ─────────────────────────────────────────
-  const handleTestPrintReceipt = async () => {
+  const handleTestPrintReceipt = async (modeOverride?: 'ESC_POS' | 'HTML') => {
     setIsTestingPrinter(true)
     setTestPrinterResult(null)
+    const activeMode = modeOverride || formReceiptPrintMode
     try {
-      const result = await printReceipt({
-        receiptNo: `${formReceiptPrefix || 'FIS-'}TEST`,
-        createdAt: new Date(),
-        cashierName: formCashierName || 'Kasiyer 1',
-        totalAmount: 149.90,
-        subtotal: 149.90,
-        paymentMode: 'CASH',
-        givenCash: 200,
-        changeDue: 50.10,
-        items: [
-          {
-            productName: 'TEST ÜRÜNÜ (DENEME)',
-            color: 'Siyah',
-            size: 'M',
-            quantity: 1,
-            unitPrice: 149.90,
-            totalPrice: 149.90,
+      const result = await printReceipt(
+        {
+          receiptNo: `${formReceiptPrefix || 'FIS-'}TEST`,
+          createdAt: new Date(),
+          cashierName: formCashierName || 'Kasiyer 1',
+          totalAmount: 149.90,
+          subtotal: 149.90,
+          paymentMode: 'CASH',
+          givenCash: 200,
+          changeDue: 50.10,
+          items: [
+            {
+              productName: 'TEST ÜRÜNÜ (DENEME)',
+              color: 'Siyah',
+              size: 'M',
+              quantity: 1,
+              unitPrice: 149.90,
+              totalPrice: 149.90,
+            },
+          ],
+          storeInfo: {
+            storeName: formStoreName || 'JACK & JONES',
+            storeAddress: formStoreAddress,
+            storePhone: formStorePhone,
+            receiptFooterNote: formReceiptFooter || 'Test fişi başarıyla yazdırıldı.',
+            vatRate: Number(formVatRate) || 10,
+            receiptPrinter: formReceiptPrinter,
+            receiptPrintMode: activeMode,
           },
-        ],
-        storeInfo: {
-          storeName: formStoreName || 'JACK & JONES',
-          storeAddress: formStoreAddress,
-          storePhone: formStorePhone,
-          receiptFooterNote: formReceiptFooter || 'Test fişi başarıyla yazdırıldı.',
-          vatRate: Number(formVatRate) || 10,
-          receiptPrinter: formReceiptPrinter,
         },
-      })
+        activeMode
+      )
 
       if (result.success) {
-        setTestPrinterResult('Test fişi başarıyla yazıcıya gönderildi!')
-        setTimeout(() => setTestPrinterResult(null), 4000)
+        setTestPrinterResult(`Test fişi (${activeMode === 'ESC_POS' ? 'ESC/POS Komut' : 'Grafik Modu'}) başarıyla yazıcıya gönderildi!`)
+        setTimeout(() => setTestPrinterResult(null), 5000)
       } else {
         setTestPrinterResult(`Test hatası: ${result.error || 'Yazıcıya ulaşılamadı'}`)
       }
@@ -979,7 +988,7 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
               </div>
 
               {/* Receipt / Thermal Printer Hardware Selection */}
-              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
                 <div className="flex items-center justify-between">
                   <label className="block text-xs font-bold text-slate-800 flex items-center space-x-1.5">
                     <Printer className="w-4 h-4 text-blue-700" />
@@ -992,11 +1001,14 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
                   )}
                 </div>
 
-                <div className="flex items-center space-x-2">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Hedef Fiş Yazıcısı:
+                  </label>
                   <select
                     value={formReceiptPrinter}
                     onChange={(e) => setFormReceiptPrinter(e.target.value)}
-                    className="flex-1 px-3 py-1.5 bg-white border border-slate-300 rounded text-slate-900 text-xs font-semibold focus:ring-1 focus:ring-blue-600 focus:outline-none"
+                    className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded text-slate-900 text-xs font-semibold focus:ring-1 focus:ring-blue-600 focus:outline-none"
                   >
                     <option value="">Varsayılan Termal Yazıcı (İşletim Sistemi Varsayılanı)</option>
                     {availablePrinters.map((p: any) => (
@@ -1005,24 +1017,83 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
                       </option>
                     ))}
                   </select>
+                </div>
+
+                {/* Print Engine Mode Selection */}
+                <div className="space-y-1.5 pt-1">
+                  <label className="block text-[11px] font-semibold text-slate-700">
+                    Baskı Teknolojisi / Yazdırma Modu:
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setFormReceiptPrintMode('ESC_POS')}
+                      className={`p-2.5 rounded-lg border text-left transition flex flex-col space-y-1 cursor-pointer ${
+                        formReceiptPrintMode === 'ESC_POS'
+                          ? 'bg-blue-50/80 border-blue-600 text-[#00268A] ring-1 ring-blue-600'
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold flex items-center space-x-1">
+                          <span>⚡ ESC/POS Modu</span>
+                        </span>
+                        <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">
+                          Önerilen
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-500 leading-tight">
+                        Doğrudan termal komut. Generic/Salt Metin ve tüm 80mm fiş yazıcılarıyla %100 uyumludur. Boş kağıt sorununu çözer.
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setFormReceiptPrintMode('HTML')}
+                      className={`p-2.5 rounded-lg border text-left transition flex flex-col space-y-1 cursor-pointer ${
+                        formReceiptPrintMode === 'HTML'
+                          ? 'bg-blue-50/80 border-blue-600 text-[#00268A] ring-1 ring-blue-600'
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold">📄 Grafik / HTML Modu</span>
+                      </div>
+                      <p className="text-[10px] text-slate-500 leading-tight">
+                        Windows grafik sürücüsü. Sayfa düzenini HTML motoru üzerinden sürücüye EMF olarak iletir.
+                      </p>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Test Print Buttons */}
+                <div className="flex items-center space-x-2 pt-1">
+                  <button
+                    type="button"
+                    disabled={isTestingPrinter}
+                    onClick={() => handleTestPrintReceipt('ESC_POS')}
+                    className="flex-1 px-3 py-2 bg-[#00268A] hover:bg-[#001f70] text-white rounded text-xs font-bold transition flex items-center justify-center space-x-1.5 disabled:opacity-50 cursor-pointer shadow-sm"
+                  >
+                    {isTestingPrinter ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                        <span>Yazdırılıyor...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Printer className="w-3.5 h-3.5 text-white" />
+                        <span>⚡ ESC/POS Test Fişi Kes</span>
+                      </>
+                    )}
+                  </button>
 
                   <button
                     type="button"
                     disabled={isTestingPrinter}
-                    onClick={handleTestPrintReceipt}
-                    className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-[#00268A] border border-blue-200 rounded text-xs font-bold transition flex items-center space-x-1.5 shrink-0 disabled:opacity-50 cursor-pointer shadow-2xs"
+                    onClick={() => handleTestPrintReceipt('HTML')}
+                    className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded text-xs font-bold transition flex items-center space-x-1.5 disabled:opacity-50 cursor-pointer shadow-2xs"
                   >
-                    {isTestingPrinter ? (
-                      <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-700" />
-                        <span>Basılıyor...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Printer className="w-3.5 h-3.5 text-blue-700" />
-                        <span>Test Fişi Bas</span>
-                      </>
-                    )}
+                    <span>📄 Grafik Testi</span>
                   </button>
                 </div>
 
@@ -1044,9 +1115,19 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
                     </button>
                   </div>
                 )}
-                <p className="text-[10.5px] text-slate-500">
-                  Tahsilat sonrası fişlerin otomatik veya tek tıkla kesilmesi için mağazanıza bağlı 80mm termal fiş yazıcınızı seçin.
-                </p>
+
+                {/* Troubleshooting Note */}
+                <div className="p-2.5 bg-blue-50/60 border border-blue-200 rounded-lg text-[11px] text-blue-900 leading-relaxed space-y-1">
+                  <div className="font-bold flex items-center space-x-1">
+                    <span>💡 Fiş Yazıcıdan Boş Kağıt Çıkıyorsa Çözüm:</span>
+                  </div>
+                  <p>
+                    Windows aygıtlarından sınama sayfası yazdırılabiliyor ama programdan boş kağıt çıkıyorsa; fiş yazıcınız Windows'ta <strong>"Generic / Text Only" (Genel / Salt Metin)</strong> sürücüsüyle yüklenmiş olabilir veya sürücü grafik sayfa boyutunu reddediyordur.
+                  </p>
+                  <p className="font-semibold text-blue-950">
+                    ➡️ Yukarıdaki <strong>"⚡ ESC/POS Modu"</strong> seçeneğini işaretleyip <strong>"Ayarları Kaydet"</strong> butonuna basınız. ESC/POS komutları Windows grafik katmanını atlayıp doğrudan donanıma ulaştığı için yazı eksiksiz ve anında basılacaktır.
+                  </p>
+                </div>
               </div>
             </div>
           )}

@@ -22,7 +22,7 @@ import { ReturnModal } from '../Customer/ReturnModal'
 import { printReceipt, normalizeSaleToReceiptData } from '../../utils/printReceipt'
 
 export const SalesHistoryView: React.FC = () => {
-  const { receiptFooterNote, storeName, storeAddress, storePhone, vatRate, receiptPrinter } = usePosStore()
+  const { receiptFooterNote, storeName, storeAddress, storePhone, vatRate, receiptPrinter, receiptPrintMode } = usePosStore()
   const [sales, setSales] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [selectedSale, setSelectedSale] = useState<any | null>(null)
@@ -207,6 +207,7 @@ export const SalesHistoryView: React.FC = () => {
         receiptFooterNote,
         vatRate,
         receiptPrinter,
+        receiptPrintMode,
         cashierName: sale.cashierName,
       })
       const res = await printReceipt(receiptData)

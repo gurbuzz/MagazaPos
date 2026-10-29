@@ -30,7 +30,7 @@ import { notifyDataChanged } from '../../utils/events'
 import { printReceipt, normalizeSaleToReceiptData } from '../../utils/printReceipt'
 
 export const CustomerView: React.FC = () => {
-  const { setSelectedCustomer, setActiveTab, storeName, storeAddress, storePhone, receiptFooterNote, vatRate, receiptPrinter } = usePosStore()
+  const { setSelectedCustomer, setActiveTab, storeName, storeAddress, storePhone, receiptFooterNote, vatRate, receiptPrinter, receiptPrintMode } = usePosStore()
 
   const [customers, setCustomers] = useState<Customer[]>([])
   const [searchTerm, setSearchTerm] = useState('')
@@ -250,6 +250,7 @@ export const CustomerView: React.FC = () => {
         receiptFooterNote,
         vatRate,
         receiptPrinter,
+        receiptPrintMode,
         cashierName: sale.cashierName,
         selectedCustomer: customerDetails,
       })
