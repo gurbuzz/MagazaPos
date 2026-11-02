@@ -95,9 +95,6 @@ export function generateEscposReceipt(data: ReceiptData, openDrawer = false): Ui
   if (store.storeAddress) {
     pushLine(store.storeAddress)
   }
-  if (store.storePhone) {
-    pushLine(`Tel: ${store.storePhone}`)
-  }
 
   if (data.isGiftReceipt) {
     pushLine('')

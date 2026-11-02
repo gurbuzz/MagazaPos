@@ -122,18 +122,42 @@ function buildSalesWhere(query: any): any {
     const rawQuery = search.trim()
     const cleanQuery = rawQuery.replace(/^\*+|\*+$/g, '').replace(/\*+/g, '-').trim()
     const strippedQuery = cleanQuery.replace(/[-_]/g, '').trim()
+    const pureNoStars = rawQuery.replace(/\*/g, '').trim()
+    const numericOnly = rawQuery.replace(/\D/g, '').trim()
 
-    const receiptQueries = Array.from(new Set([rawQuery, cleanQuery, strippedQuery].filter(Boolean)))
+    const receiptQueries = Array.from(
+      new Set(
+        [
+          rawQuery,
+          cleanQuery,
+          strippedQuery,
+          pureNoStars,
+          numericOnly.length >= 4 ? numericOnly : null,
+        ].filter(Boolean) as string[]
+      )
+    )
+
+    const textFilter = pureNoStars || cleanQuery
+
+    const hasSpecificReceiptQuery =
+      receiptQueries.some(
+        (q) => q.toUpperCase().includes('REC') || (numericOnly.length >= 6 && q === numericOnly)
+      )
+
+    // Direct receipt lookup should not be blocked by date filter if the user scanned a specific receipt
+    if (hasSpecificReceiptQuery && where.createdAt) {
+      delete where.createdAt
+    }
 
     where.OR = [
       ...receiptQueries.map((q) => ({ receiptNo: { contains: q } })),
-      { cashierName: { contains: cleanQuery } },
+      { cashierName: { contains: textFilter } },
       {
         customer: {
           OR: [
-            { firstName: { contains: cleanQuery } },
-            { lastName: { contains: cleanQuery } },
-            { phone: { contains: cleanQuery } },
+            { firstName: { contains: textFilter } },
+            { lastName: { contains: textFilter } },
+            { phone: { contains: textFilter } },
           ]
         }
       },
@@ -142,9 +166,9 @@ function buildSalesWhere(query: any): any {
           some: {
             variant: {
               OR: [
-                { barcode: { contains: cleanQuery } },
-                { sku: { contains: cleanQuery } },
-                { product: { name: { contains: cleanQuery } } }
+                { barcode: { contains: textFilter } },
+                { sku: { contains: textFilter } },
+                { product: { name: { contains: textFilter } } }
               ]
             }
           }
@@ -185,6 +209,8 @@ salesRouter.get('/stats', async (req, res) => {
     let netCard = 0
     let refundedCount = 0
     let activeSalesCount = 0
+    let grossItemsSold = 0
+    let returnedItemsCount = 0
 
     for (const s of sales) {
       const formatted = formatSale(s)
@@ -194,6 +220,14 @@ salesRouter.get('/stats', async (req, res) => {
       netCash += Number(formatted.paymentType?.netCash) || 0
       netCard += Number(formatted.paymentType?.netCard) || 0
 
+      const isFullyReturned = formatted.status === 'RETURNED'
+      for (const it of (formatted.items || [])) {
+        const qty = Number(it.quantity) || 0
+        const retQty = isFullyReturned ? qty : (Number(it.returnedQuantity) || 0)
+        grossItemsSold += qty
+        returnedItemsCount += retQty
+      }
+
       if (formatted.status === 'RETURNED' || (formatted.refundAmount && formatted.refundAmount > 0)) {
         refundedCount++
       }
@@ -201,6 +235,8 @@ salesRouter.get('/stats', async (req, res) => {
         activeSalesCount++
       }
     }
+
+    const netItemsSold = Math.max(0, grossItemsSold - returnedItemsCount)
 
     res.json({
       totalCount: sales.length,
@@ -211,7 +247,10 @@ salesRouter.get('/stats', async (req, res) => {
       netRevenue: Math.round(totalNet * 100) / 100,
       netCash: Math.round(netCash * 100) / 100,
       netCard: Math.round(netCard * 100) / 100,
-      avgReceiptAmount: activeSalesCount > 0 ? Math.round((totalNet / activeSalesCount) * 100) / 100 : 0
+      avgReceiptAmount: activeSalesCount > 0 ? Math.round((totalNet / activeSalesCount) * 100) / 100 : 0,
+      grossItemsSold,
+      returnedItemsCount,
+      netItemsSold,
     })
   } catch (error: any) {
     res.status(500).json({ error: error.message })

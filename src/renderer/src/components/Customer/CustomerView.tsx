@@ -19,7 +19,6 @@ import {
   Clock,
   Sparkles,
   RotateCcw,
-  ShieldCheck,
   Info,
   Check,
   Loader2,
@@ -30,7 +29,7 @@ import { notifyDataChanged } from '../../utils/events'
 import { printReceipt, normalizeSaleToReceiptData } from '../../utils/printReceipt'
 
 export const CustomerView: React.FC = () => {
-  const { setSelectedCustomer, setActiveTab, storeName, storeAddress, storePhone, receiptFooterNote, vatRate, receiptPrinter, receiptPrintMode } = usePosStore()
+  const { setSelectedCustomer, setActiveTab, storeName, storeAddress, receiptFooterNote, vatRate, receiptPrinter, receiptPrintMode } = usePosStore()
 
   const [customers, setCustomers] = useState<Customer[]>([])
   const [searchTerm, setSearchTerm] = useState('')
@@ -246,7 +245,6 @@ export const CustomerView: React.FC = () => {
       const receiptData = normalizeSaleToReceiptData(sale, {
         storeName,
         storeAddress,
-        storePhone,
         receiptFooterNote,
         vatRate,
         receiptPrinter,
@@ -491,18 +489,7 @@ export const CustomerView: React.FC = () => {
               </button>
             </div>
 
-            {/* RETURN POLICY NOTICE BANNER */}
-            <div className="mx-4 mt-3 bg-amber-50/90 border border-amber-200 rounded-lg p-3 flex items-start space-x-3 text-xs shadow-2xs">
-              <ShieldCheck className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
-              <div className="space-y-0.5">
-                <h4 className="font-bold text-amber-900 text-xs flex items-center space-x-1.5">
-                  <span>Müşteri Ürün İade & Stok Politikası</span>
-                </h4>
-                <p className="text-amber-800/90 text-[11px] leading-relaxed">
-                  Ürün iade ve değişim işlemleri yasal takibi sağlamak amacıyla <strong>yalnızca kayıtlı müşterilerimizin</strong> geçmiş fişleri üzerinden yapılabilmektedir. İade alınan ürünler anında ilgili varyant stok miktarlarına <strong>otomatik olarak geri eklenmektedir</strong>.
-                </p>
-              </div>
-            </div>
+
 
             {/* Metrics Overview Cards */}
             <div className="p-4 grid grid-cols-3 gap-3">

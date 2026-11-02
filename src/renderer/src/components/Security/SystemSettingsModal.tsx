@@ -17,7 +17,6 @@ import {
   AlertTriangle,
   FileText,
   MapPin,
-  Phone,
   Wifi,
   Globe,
   RefreshCw,
@@ -50,7 +49,6 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
   const {
     storeName,
     storeAddress,
-    storePhone,
     cashierName,
     pinCode,
     receiptPrefix,
@@ -73,7 +71,6 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
 
   const [formStoreName, setFormStoreName] = useState(storeName)
   const [formStoreAddress, setFormStoreAddress] = useState(storeAddress)
-  const [formStorePhone, setFormStorePhone] = useState(storePhone)
   const [formCashierName, setFormCashierName] = useState(cashierName)
   const [formPinCode, setFormPinCode] = useState(pinCode)
   const [formReceiptPrefix, setFormReceiptPrefix] = useState(receiptPrefix)
@@ -188,7 +185,6 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
   useEffect(() => {
     setFormStoreName(storeName)
     setFormStoreAddress(storeAddress)
-    setFormStorePhone(storePhone)
     setFormCashierName(cashierName)
     setFormPinCode(pinCode)
     setFormReceiptPrefix(receiptPrefix)
@@ -231,7 +227,6 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
     isOpen,
     storeName,
     storeAddress,
-    storePhone,
     cashierName,
     pinCode,
     receiptPrefix,
@@ -273,7 +268,6 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
     updateSystemSettings({
       storeName: (formStoreName || '').trim() || 'JACK & JONES',
       storeAddress: (formStoreAddress || '').trim(),
-      storePhone: (formStorePhone || '').trim(),
       cashierName: (formCashierName || '').trim() || 'Kasiyer 1',
       pinCode: formPinCode,
       receiptPrefix: (formReceiptPrefix || '').trim() || 'FIS-',
@@ -339,7 +333,6 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
           storeInfo: {
             storeName: formStoreName || 'JACK & JONES',
             storeAddress: formStoreAddress,
-            storePhone: formStorePhone,
             receiptFooterNote: formReceiptFooter || 'Test fişi başarıyla yazdırıldı.',
             vatRate: Number(formVatRate) || 10,
             receiptPrinter: formReceiptPrinter,
@@ -785,34 +778,18 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center space-x-1.5">
-                    <MapPin className="w-3.5 h-3.5 text-blue-700" />
-                    <span>Mağaza Adresi</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formStoreAddress}
-                    onChange={(e) => setFormStoreAddress(e.target.value)}
-                    placeholder="Örn: Atatürk Cad. No:14 Kadıköy"
-                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded text-slate-900 text-xs font-semibold focus:ring-1 focus:ring-blue-600 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center space-x-1.5">
-                    <Phone className="w-3.5 h-3.5 text-blue-700" />
-                    <span>Mağaza Telefonu</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formStorePhone}
-                    onChange={(e) => setFormStorePhone(e.target.value)}
-                    placeholder="Örn: 0216 345 67 89"
-                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded text-slate-900 text-xs font-semibold focus:ring-1 focus:ring-blue-600 focus:outline-none"
-                  />
-                </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center space-x-1.5">
+                  <MapPin className="w-3.5 h-3.5 text-blue-700" />
+                  <span>Mağaza Adresi</span>
+                </label>
+                <input
+                  type="text"
+                  value={formStoreAddress}
+                  onChange={(e) => setFormStoreAddress(e.target.value)}
+                  placeholder="Örn: Atatürk Cad. No:14 Kadıköy"
+                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded text-slate-900 text-xs font-semibold focus:ring-1 focus:ring-blue-600 focus:outline-none"
+                />
               </div>
 
               <div className="p-3 bg-blue-50/70 border border-blue-100 rounded space-y-2">

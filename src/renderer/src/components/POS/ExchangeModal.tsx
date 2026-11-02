@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { X, Search, RotateCcw, AlertCircle, CheckCircle2, Sparkles, ArrowRight } from 'lucide-react'
 import { usePosStore } from '../../store/usePosStore'
 import { notifyDataChanged } from '../../utils/events'
@@ -18,13 +18,31 @@ export const ExchangeModal: React.FC<ExchangeModalProps> = ({ isOpen, onClose })
   const [selectedItemId, setSelectedItemId] = useState<string>('')
   const [isProcessing, setIsProcessing] = useState(false)
   const [successMsg, setSuccessMsg] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (isOpen) {
+      setSearchReceipt('')
+      setErrorMsg('')
+      setFoundSale(null)
+      setSelectedItemId('')
+      setSuccessMsg('')
+      setTimeout(() => {
+        inputRef.current?.focus()
+      }, 60)
+    }
+  }, [isOpen])
 
   if (!isOpen) return null
 
   const handleSearchSale = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!searchReceipt.trim()) return
+    const rawVal = inputRef.current?.value ?? searchReceipt
+    // Fiş barkodu okutulduğunda gelen tüm '*' simgelerini otomatik temizle
+    const cleanSearch = (rawVal || '').trim().replace(/\*/g, '')
+    if (!cleanSearch) return
 
+    setSearchReceipt(cleanSearch)
     setIsLoading(true)
     setErrorMsg('')
     setFoundSale(null)
@@ -32,24 +50,73 @@ export const ExchangeModal: React.FC<ExchangeModalProps> = ({ isOpen, onClose })
     setSuccessMsg('')
 
     try {
-      const cleanSearch = searchReceipt.trim().replace(/^\*+|\*+$/g, '').replace(/\*+/g, '-')
-      const res = await fetch(`/api/sales?search=${encodeURIComponent(cleanSearch)}`)
+      // 1. Temizlenen barkod / fiş numarası ile sorgula
+      let res = await fetch(`/api/sales?search=${encodeURIComponent(cleanSearch)}`)
       if (!res.ok) throw new Error('Fiş arama başarısız.')
-      const data = await res.json()
+      let data = await res.json()
 
       const normSearch = cleanSearch.toLowerCase().replace(/[*_\s-]/g, '')
+
+      const hasMatch = (list: any[]) =>
+        Array.isArray(list) &&
+        list.some((s: any) => {
+          const normReceipt = String(s.receiptNo || '').toLowerCase().replace(/[*_\s-]/g, '')
+          return (
+            s.receiptNo?.toLowerCase() === cleanSearch.toLowerCase() ||
+            (normSearch.length > 0 && normReceipt === normSearch) ||
+            (normSearch.length > 0 && normReceipt.includes(normSearch))
+          )
+        })
+
+      // Doğrudan eşleşme yoksa (örneğin veritabanında tire varken barkod sadece sayı geldiyse)
+      if (!hasMatch(data)) {
+        // Alternatif 1: Sadece rakamları alarak sorgula
+        const numericOnly = cleanSearch.replace(/\D/g, '')
+        if (numericOnly && numericOnly !== cleanSearch && numericOnly.length >= 4) {
+          const resNum = await fetch(`/api/sales?search=${encodeURIComponent(numericOnly)}`)
+          if (resNum.ok) {
+            const numData = await resNum.json()
+            if (hasMatch(numData)) {
+              data = numData
+            }
+          }
+        }
+      }
+
+      if (!hasMatch(data)) {
+        // Alternatif 2: Son fişleri çekip istemci tarafında normalize ederek eşleştir
+        const resRecent = await fetch('/api/sales?limit=100')
+        if (resRecent.ok) {
+          const recentData = await resRecent.json()
+          if (Array.isArray(recentData)) {
+            const matchedRecent = recentData.filter((s: any) => {
+              const normReceipt = String(s.receiptNo || '').toLowerCase().replace(/[*_\s-]/g, '')
+              return (
+                normSearch.length > 0 &&
+                (normReceipt === normSearch ||
+                  normReceipt.includes(normSearch) ||
+                  normSearch.includes(normReceipt))
+              )
+            })
+            if (matchedRecent.length > 0) {
+              data = matchedRecent
+            }
+          }
+        }
+      }
+
       const exact =
         data.find((s: any) => {
           const normReceipt = String(s.receiptNo || '').toLowerCase().replace(/[*_\s-]/g, '')
           return (
-            s.receiptNo.toLowerCase() === cleanSearch.toLowerCase() ||
+            s.receiptNo?.toLowerCase() === cleanSearch.toLowerCase() ||
             (normSearch.length > 0 && normReceipt === normSearch) ||
             (normSearch.length > 0 && normReceipt.includes(normSearch))
           )
         }) || (data.length === 1 ? data[0] : null)
 
       if (!exact) {
-        setErrorMsg(`"${searchReceipt}" numaralı fiş bulunamadı.`)
+        setErrorMsg(`"${cleanSearch}" numaralı fiş bulunamadı.`)
       } else {
         setFoundSale(exact)
       }
@@ -147,12 +214,21 @@ export const ExchangeModal: React.FC<ExchangeModalProps> = ({ isOpen, onClose })
             </label>
             <div className="flex space-x-2">
               <input
+                ref={inputRef}
                 type="text"
                 placeholder="Örn: FIS-12345678 veya barkod okutun"
                 value={searchReceipt}
                 onChange={(e) => {
-                  const cleaned = e.target.value.replace(/^\*+|\*+$/g, '').replace(/\*+/g, '-')
+                  const cleaned = e.target.value.replace(/\*/g, '')
                   setSearchReceipt(cleaned)
+                }}
+                onPaste={(e) => {
+                  const pasted = e.clipboardData.getData('text')
+                  if (pasted && pasted.includes('*')) {
+                    e.preventDefault()
+                    const cleaned = pasted.replace(/\*/g, '')
+                    setSearchReceipt(cleaned)
+                  }
                 }}
                 className="flex-1 px-3 py-2 bg-slate-50 border border-slate-300 rounded text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 autoFocus

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import {
   Receipt,
   RefreshCw,
@@ -23,7 +23,7 @@ import { ReturnModal } from '../Customer/ReturnModal'
 import { printReceipt, normalizeSaleToReceiptData } from '../../utils/printReceipt'
 
 export const SalesHistoryView: React.FC = () => {
-  const { receiptFooterNote, storeName, storeAddress, storePhone, vatRate, receiptPrinter, receiptPrintMode } = usePosStore()
+  const { receiptFooterNote, storeName, storeAddress, vatRate, receiptPrinter, receiptPrintMode } = usePosStore()
   const [sales, setSales] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [selectedSale, setSelectedSale] = useState<any | null>(null)
@@ -35,6 +35,7 @@ export const SalesHistoryView: React.FC = () => {
 
   // Filter States
   const [searchTerm, setSearchTerm] = useState('')
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const [paymentFilter, setPaymentFilter] = useState<'ALL' | 'CASH' | 'CARD'>('ALL')
   const [startDate, setStartDate] = useState<string>('')
   const [endDate, setEndDate] = useState<string>('')
@@ -49,20 +50,25 @@ export const SalesHistoryView: React.FC = () => {
     netCash: number
     netCard: number
     avgReceiptAmount: number
+    grossItemsSold?: number
+    returnedItemsCount?: number
+    netItemsSold?: number
   } | null>(null)
 
-  // Barkod okuyucu ve arama normalizasyonu:
-  // Türkçe Q klavye haritasında '-' tuşunun karşılığı '*' olarak basılır veya Code 39 baş/son yıldız koyar.
-  // Baş ve sondaki yıldızları siler, aradaki yıldızları tire '-' işaretine dönüştürür.
+  // Barkod okuyucu ve fiş arama normalizasyonu:
+  // Okunan fiş veya ürün barkodundaki '*' simgelerini ve boşlukları otomatik temizler.
   const cleanBarcodeSearch = (val: string) => {
     if (!val) return ''
-    return val.replace(/^\*+|\*+$/g, '').replace(/\*+/g, '-')
+    return val.replace(/\*/g, '').trim()
   }
 
   const fetchSales = async (overrideSearch?: string, customLimit?: number) => {
     setIsLoading(true)
     try {
-      const takeLimit = customLimit !== undefined ? customLimit : displayLimit
+      const term = overrideSearch !== undefined ? overrideSearch : searchTerm
+      const cleanTerm = cleanBarcodeSearch(term)
+      // Arama yapılıyorsa fişin ilk 20 sınırı arkasında kaybolmaması için 100 kayda kadar tara
+      const takeLimit = customLimit !== undefined ? customLimit : (cleanTerm ? 100 : displayLimit)
       let salesQuery = `/api/sales?limit=${takeLimit}`
       let statsQuery = '/api/sales/stats?'
 
@@ -70,10 +76,8 @@ export const SalesHistoryView: React.FC = () => {
       if (startDate) queryParts.push(`startDate=${encodeURIComponent(startDate)}`)
       if (endDate) queryParts.push(`endDate=${encodeURIComponent(endDate)}`)
 
-      const term = overrideSearch !== undefined ? overrideSearch : searchTerm
-      if (term && term.trim()) {
-        const cleanQuery = cleanBarcodeSearch(term.trim())
-        queryParts.push(`search=${encodeURIComponent(cleanQuery)}`)
+      if (cleanTerm) {
+        queryParts.push(`search=${encodeURIComponent(cleanTerm)}`)
       }
 
       if (queryParts.length > 0) {
@@ -107,8 +111,82 @@ export const SalesHistoryView: React.FC = () => {
 
   const handleSearchSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault()
-    fetchSales(searchTerm)
+    const targetVal = searchInputRef.current?.value ?? searchTerm
+    const cleaned = cleanBarcodeSearch(targetVal)
+    setSearchTerm(cleaned)
+    fetchSales(cleaned)
   }
+
+  // Global barkod okuyucu dinleyicisi: Fiş barkodu okutulduğunda '*' temizleyip direkt arar
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      searchInputRef.current?.focus()
+    }, 150)
+
+    let barcodeBuffer = ''
+    let lastKeyTime = Date.now()
+    let charTimings: number[] = []
+
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (isReturnModalOpen) return
+
+      const now = Date.now()
+      const timeDiff = now - lastKeyTime
+      lastKeyTime = now
+
+      if (timeDiff > 250) {
+        barcodeBuffer = ''
+        charTimings = []
+      }
+
+      const activeEl = document.activeElement
+      const isSearchInputFocused = activeEl === searchInputRef.current
+      const isOtherInputFocused =
+        activeEl?.tagName === 'INPUT' && !isSearchInputFocused
+
+      if (e.key === 'Enter') {
+        const rawCode = barcodeBuffer.trim()
+        if (rawCode.length >= 3) {
+          const avgTiming =
+            charTimings.length > 0
+              ? charTimings.reduce((a, b) => a + b, 0) / charTimings.length
+              : 999
+          const isRapidScanner = avgTiming < 60
+
+          if (!isOtherInputFocused || isRapidScanner) {
+            e.preventDefault()
+            e.stopPropagation()
+            barcodeBuffer = ''
+            charTimings = []
+            const cleaned = cleanBarcodeSearch(rawCode)
+            setSearchTerm(cleaned)
+            if (searchInputRef.current) {
+              searchInputRef.current.value = cleaned
+            }
+            fetchSales(cleaned)
+            return
+          }
+        }
+        barcodeBuffer = ''
+        charTimings = []
+        return
+      }
+
+      if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        if (!isOtherInputFocused || isSearchInputFocused || timeDiff < 60) {
+          barcodeBuffer += e.key
+          charTimings.push(timeDiff)
+          if (charTimings.length > 35) charTimings.shift()
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleGlobalKeyDown)
+    return () => {
+      clearTimeout(timer)
+      window.removeEventListener('keydown', handleGlobalKeyDown)
+    }
+  }, [isReturnModalOpen])
 
   useEffect(() => {
     fetchSales()
@@ -170,8 +248,6 @@ export const SalesHistoryView: React.FC = () => {
   // Filter Sales locally
   const filteredSales = sales.filter((sale) => {
     const saleTime = new Date(sale.createdAt).getTime()
-    if (startDate && saleTime < new Date(startDate).getTime()) return false
-    if (endDate && saleTime > new Date(endDate).getTime()) return false
 
     let matchesPayment = true
     if (paymentFilter === 'CASH') {
@@ -184,40 +260,63 @@ export const SalesHistoryView: React.FC = () => {
       matchesPayment = isCard || isLegacyCard
     }
 
-    if (!searchTerm.trim()) return matchesPayment
+    if (!searchTerm.trim()) {
+      if (startDate && saleTime < new Date(startDate).getTime()) return false
+      if (endDate && saleTime > new Date(endDate).getTime()) return false
+      return matchesPayment
+    }
 
     const searchRaw = searchTerm.trim().toLowerCase()
     const searchClean = cleanBarcodeSearch(searchRaw).toLowerCase()
     const searchNormalized = searchRaw.replace(/[*_\s-]/g, '')
+    const searchDigits = searchRaw.replace(/\D/g, '')
 
-    // Fiş No Eşleşmesi (Ham arama, yıldızları tire yapılmış arama, veya tüm ayraçlardan arındırılmış normalizasyon)
+    // Fiş No Eşleşmesi (Ham arama, yıldızları temizlenmiş arama veya tüm ayraçlardan arındırılmış normalizasyon)
     const receiptLower = String(sale.receiptNo || '').toLowerCase()
     const receiptNormalized = receiptLower.replace(/[*_\s-]/g, '')
 
     const matchesReceipt =
       receiptLower.includes(searchRaw) ||
       receiptLower.includes(searchClean) ||
-      (searchNormalized.length > 0 && receiptNormalized.includes(searchNormalized))
+      (searchNormalized.length > 0 && receiptNormalized.includes(searchNormalized)) ||
+      (searchDigits.length >= 4 && receiptNormalized.includes(searchDigits))
+
+    // Fiş numarası doğrudan aranıyorsa veya barkodu okutulduysa tarih kısıtı yüzünden fişi eleme
+    const isDirectReceiptSearch =
+      searchClean.toUpperCase().includes('REC') ||
+      (searchNormalized.length >= 6 && receiptNormalized.includes(searchNormalized))
+
+    if (!isDirectReceiptSearch) {
+      if (startDate && saleTime < new Date(startDate).getTime()) return false
+      if (endDate && saleTime > new Date(endDate).getTime()) return false
+    }
 
     // Kasiyer Eşleşmesi
-    const matchesCashier = sale.cashierName?.toLowerCase().includes(searchRaw)
+    const matchesCashier =
+      sale.cashierName?.toLowerCase().includes(searchRaw) ||
+      sale.cashierName?.toLowerCase().includes(searchClean)
 
     // Müşteri Adı / Telefonu Eşleşmesi
     const customerFullName = `${sale.customer?.firstName || ''} ${sale.customer?.lastName || ''}`.toLowerCase()
     const matchesCustomer =
       customerFullName.includes(searchRaw) ||
-      (sale.customer?.phone && sale.customer.phone.includes(searchRaw))
+      customerFullName.includes(searchClean) ||
+      (sale.customer?.phone && (sale.customer.phone.includes(searchRaw) || sale.customer.phone.includes(searchClean)))
 
     // Ürün Adı, Barkodu ve SKU Eşleşmesi
     const matchesItem = sale.items?.some((i: any) => {
       const prodName = i.variant?.product?.name?.toLowerCase() || ''
       const barcode = i.variant?.barcode?.toLowerCase() || ''
       const sku = i.variant?.sku?.toLowerCase() || ''
+      const barcodeClean = barcode.replace(/[*_\s-]/g, '')
       return (
         prodName.includes(searchRaw) ||
+        prodName.includes(searchClean) ||
         barcode.includes(searchRaw) ||
-        (searchNormalized.length > 0 && barcode.includes(searchNormalized)) ||
-        sku.includes(searchRaw)
+        barcode.includes(searchClean) ||
+        (searchNormalized.length > 0 && barcodeClean.includes(searchNormalized)) ||
+        sku.includes(searchRaw) ||
+        sku.includes(searchClean)
       )
     })
 
@@ -280,9 +379,35 @@ export const SalesHistoryView: React.FC = () => {
   const localActiveSalesCount = filteredSales.filter((s) => s.status !== 'RETURNED').length
   const localAvgReceiptAmount = localActiveSalesCount > 0 ? localNetRevenue / localActiveSalesCount : 0
 
-  // Dönem cirolarını tam ve doğru göstermek için: Sunucudan gelen toplu istatistikleri (serverStats) kullanır.
-  // Bu sayede ekranda son 20 fiş listelense dahi günlük/aylık ciro eksiksiz hesaplanır.
+  // Ürün Satış Adetleri (Net, Brüt ve İade Düşülmüş)
+  const localGrossItemsSold = filteredSales.reduce((sum, s) => {
+    return sum + (s.items || []).reduce((iSum: number, it: any) => iSum + (Number(it.quantity) || 0), 0)
+  }, 0)
+  const localReturnedItemsCount = filteredSales.reduce((sum, s) => {
+    const isFullyReturned = s.status === 'RETURNED'
+    return sum + (s.items || []).reduce((iSum: number, it: any) => {
+      const qty = Number(it.quantity) || 0
+      const retQty = isFullyReturned ? qty : (Number(it.returnedQuantity) || 0)
+      return iSum + retQty
+    }, 0)
+  }, 0)
+  const localNetItemsSold = Math.max(0, localGrossItemsSold - localReturnedItemsCount)
+
+  // Dönem cirolarını ve satış adetlerini tam ve doğru göstermek için: Sunucudan gelen toplu istatistikleri (serverStats) kullanır.
+  // Bu sayede ekranda son 20 fiş listelense dahi günlük/aylık ciro ve toplam satılan ürün adedi eksiksiz hesaplanır.
   const isAllPayment = paymentFilter === 'ALL'
+  const isFilteredLocally = !isAllPayment || !!searchTerm.trim()
+
+  const netItemsSold = !isFilteredLocally && serverStats?.netItemsSold !== undefined
+    ? serverStats.netItemsSold
+    : localNetItemsSold
+  const grossItemsSold = !isFilteredLocally && serverStats?.grossItemsSold !== undefined
+    ? serverStats.grossItemsSold
+    : localGrossItemsSold
+  const returnedItemsCount = !isFilteredLocally && serverStats?.returnedItemsCount !== undefined
+    ? serverStats.returnedItemsCount
+    : localReturnedItemsCount
+
   const filteredGrossRevenue = isAllPayment && serverStats ? serverStats.grossRevenue : localGrossRevenue
   const filteredTotalRefund = isAllPayment && serverStats ? serverStats.totalRefund : localTotalRefund
   const filteredNetRevenue = isAllPayment && serverStats
@@ -310,7 +435,6 @@ export const SalesHistoryView: React.FC = () => {
         {
           storeName,
           storeAddress,
-          storePhone,
           receiptFooterNote,
           vatRate,
           receiptPrinter,
@@ -423,14 +547,25 @@ export const SalesHistoryView: React.FC = () => {
               <form onSubmit={handleSearchSubmit} className="flex items-center space-x-1.5">
                 <div className="relative flex-1">
                   <input
+                    ref={searchInputRef}
                     type="text"
                     placeholder="Fiş No, Kasiyer veya Ürün ara..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(cleanBarcodeSearch(e.target.value))}
+                    onPaste={(e) => {
+                      e.preventDefault()
+                      const pasted = e.clipboardData.getData('text') || ''
+                      const cleaned = cleanBarcodeSearch(pasted)
+                      setSearchTerm(cleaned)
+                      fetchSales(cleaned)
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault()
-                        handleSearchSubmit()
+                        const targetVal = (e.target as HTMLInputElement).value || ''
+                        const cleaned = cleanBarcodeSearch(targetVal)
+                        setSearchTerm(cleaned)
+                        fetchSales(cleaned)
                       }
                     }}
                     className="w-full pl-8 pr-8 py-2 bg-white/80 border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-[#00268A] focus:outline-none"
@@ -441,6 +576,7 @@ export const SalesHistoryView: React.FC = () => {
                       type="button"
                       onClick={() => {
                         setSearchTerm('')
+                        if (searchInputRef.current) searchInputRef.current.value = ''
                         fetchSales('')
                       }}
                       className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
@@ -500,8 +636,8 @@ export const SalesHistoryView: React.FC = () => {
           </div>
         </div>
 
-        {/* TOP DYNAMIC KPI CARDS (Net Ciro, Net Nakit Kasa, Net Kart, Toplam İadeler) */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3.5">
+        {/* TOP DYNAMIC KPI CARDS (Net Ciro, Satılan Ürün Adedi, Net Nakit Kasa, Net Kart, Toplam İadeler) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
           {/* Net Dönem Cirosu */}
           <div className="glass-card rounded-2xl p-4 shadow-sm hover:shadow-lg transition-all flex items-center justify-between">
             <div className="space-y-0.5">
@@ -523,6 +659,30 @@ export const SalesHistoryView: React.FC = () => {
             </div>
             <div className="w-10 h-10 rounded-xl bg-emerald-50/80 border border-emerald-100 flex items-center justify-center text-emerald-600 shadow-2xs">
               <TrendingUp className="w-5 h-5" />
+            </div>
+          </div>
+
+          {/* Toplam Satılan Ürün Adedi */}
+          <div className="glass-card rounded-2xl p-4 shadow-sm hover:shadow-lg transition-all flex items-center justify-between">
+            <div className="space-y-0.5">
+              <span className="text-[11px] font-semibold text-indigo-700 uppercase tracking-tight flex items-center space-x-1.5">
+                <ShoppingBag className="w-3.5 h-3.5" />
+                <span>Satılan Ürün Adedi</span>
+              </span>
+              <div className="text-xl font-bold text-slate-900">
+                {netItemsSold.toLocaleString('tr-TR')} Adet
+              </div>
+              <span className="text-[11px] text-slate-500 font-medium block">
+                Brüt: {grossItemsSold.toLocaleString('tr-TR')} Adet
+                {returnedItemsCount > 0 && (
+                  <span className="text-rose-600 font-semibold ml-1">
+                    (-{returnedItemsCount} İade)
+                  </span>
+                )}
+              </span>
+            </div>
+            <div className="w-10 h-10 rounded-xl bg-indigo-50/80 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-2xs">
+              <ShoppingBag className="w-5 h-5" />
             </div>
           </div>
 
@@ -599,6 +759,10 @@ export const SalesHistoryView: React.FC = () => {
                   <span>Satış Fişleri Kayıt Listesi</span>
                   <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-[10px] font-semibold rounded border border-blue-100">
                     Son {filteredSales.length} Fiş Listelendi {serverStats?.totalCount ? `(Toplam ${serverStats.totalCount} Fiş)` : ''}
+                  </span>
+                  <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-bold rounded border border-indigo-100 flex items-center space-x-1">
+                    <ShoppingBag className="w-3 h-3 text-indigo-600" />
+                    <span>Toplam {netItemsSold.toLocaleString('tr-TR')} Ürün Satıldı</span>
                   </span>
                 </h3>
               </div>

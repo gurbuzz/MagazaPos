@@ -30,7 +30,14 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({ isOpen, onClose, sale,
       setAnonPhone('')
       setErrorMsg('')
 
-      const pay = sale.paymentType || {}
+      let pay = sale.paymentType || {}
+      if (typeof pay === 'string') {
+        try {
+          pay = JSON.parse(pay)
+        } catch {
+          pay = {}
+        }
+      }
       if (pay.cash > 0 && (!pay.card || pay.card === 0)) {
         setRefundMethod('CASH')
       } else if (pay.card > 0 && (!pay.cash || pay.cash === 0)) {

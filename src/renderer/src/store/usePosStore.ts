@@ -49,7 +49,6 @@ interface PosState {
   pinCode: string
   storeName: string
   storeAddress: string
-  storePhone: string
   cashierName: string
   receiptPrefix: string
   receiptFooterNote: string
@@ -68,7 +67,6 @@ interface PosState {
   updateSystemSettings: (settings: {
     storeName?: string
     storeAddress?: string
-    storePhone?: string
     cashierName?: string
     pinCode?: string
     receiptPrefix?: string
@@ -177,7 +175,6 @@ export const usePosStore = create<PosState>((set, get) => ({
     return saved
   })(),
   storeAddress: localStorage.getItem('pos_store_address') || 'Atatürk Cad. No:14/A Kadıköy / İstanbul',
-  storePhone: localStorage.getItem('pos_store_phone') || '0216 345 67 89',
   cashierName: localStorage.getItem('pos_cashier_name') || 'Kasiyer 1',
   receiptPrefix: localStorage.getItem('pos_receipt_prefix') || 'FIS-',
   receiptFooterNote: localStorage.getItem('pos_receipt_footer') || 'Ürün değişimleri fiş ile 14 gün içinde yapılır. Teşekkürler!',
@@ -218,7 +215,6 @@ export const usePosStore = create<PosState>((set, get) => ({
   updateSystemSettings: (settings) => {
     if (settings.storeName !== undefined) localStorage.setItem('pos_store_name', settings.storeName)
     if (settings.storeAddress !== undefined) localStorage.setItem('pos_store_address', settings.storeAddress)
-    if (settings.storePhone !== undefined) localStorage.setItem('pos_store_phone', settings.storePhone)
     if (settings.cashierName !== undefined) localStorage.setItem('pos_cashier_name', settings.cashierName)
     if (settings.pinCode !== undefined) localStorage.setItem('pos_pin_code', settings.pinCode)
     if (settings.receiptPrefix !== undefined) localStorage.setItem('pos_receipt_prefix', settings.receiptPrefix)
@@ -236,7 +232,6 @@ export const usePosStore = create<PosState>((set, get) => ({
     set((state) => ({
       storeName: settings.storeName ?? state.storeName,
       storeAddress: settings.storeAddress ?? state.storeAddress,
-      storePhone: settings.storePhone ?? state.storePhone,
       cashierName: settings.cashierName ?? state.cashierName,
       pinCode: settings.pinCode ?? state.pinCode,
       receiptPrefix: settings.receiptPrefix ?? state.receiptPrefix,
@@ -613,7 +608,6 @@ usePosStore.subscribe((state) => {
     status: state.cartItems.length > 0 ? 'cart' : 'idle',
     storeName: state.storeName,
     storeAddress: state.storeAddress,
-    storePhone: state.storePhone,
     cashierName: state.cashierName,
     cartItems: state.cartItems,
     subtotal: state.getSubtotal(),

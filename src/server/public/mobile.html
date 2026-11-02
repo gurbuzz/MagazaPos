@@ -34,7 +34,7 @@
   </header>
 
   <!-- Main Search Container -->
-  <main class="max-w-md mx-auto p-3.5 pb-28 space-y-3">
+  <main class="max-w-md mx-auto p-3.5 pb-8 space-y-3">
     <!-- Search Box with Camera Button -->
     <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-1.5">
       <label class="block text-xs font-bold text-slate-700 uppercase tracking-tight">Ürün / Barkod / Beden Ara</label>
@@ -55,11 +55,47 @@
           <span>Tara</span>
         </button>
       </div>
+
+      <!-- Hidden Native Camera File Input for HTTP/Network Compatibility -->
+      <input
+        id="cameraFileInput"
+        type="file"
+        accept="image/*"
+        capture="environment"
+        class="hidden"
+      />
     </div>
 
-    <!-- Camera Scanner Modal -->
+    <!-- Scan Status Indicator -->
+    <div id="scanStatusBox" class="hidden bg-blue-50 border border-blue-200 text-blue-800 rounded-xl p-3 text-xs flex items-center space-x-2.5 shadow-2xs">
+      <div class="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin shrink-0"></div>
+      <span id="scanStatusText" class="font-medium">Etiket taranıyor, lütfen bekleyin...</span>
+    </div>
+
+    <!-- Scan Error Banner -->
+    <div id="scanErrorBox" class="hidden bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-3 text-xs shadow-2xs space-y-2">
+      <div class="flex items-start justify-between">
+        <div class="flex items-start space-x-2">
+          <span class="text-amber-600 font-bold shrink-0 mt-0.5">⚠️</span>
+          <span id="scanErrorText" class="font-medium leading-relaxed">Barkod algılanamadı. Kamerayı barkoda yaklaştırıp daha net çekmeyi deneyin.</span>
+        </div>
+        <button id="btnCloseScanError" class="text-amber-600 hover:text-amber-900 font-bold text-xs p-1">✕</button>
+      </div>
+      <div class="flex justify-end pt-1">
+        <button
+          id="btnRetryScan"
+          type="button"
+          class="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-[11px] flex items-center space-x-1 shadow-2xs"
+        >
+          <span>📷</span>
+          <span>Yeniden Fotoğraf Çek</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Camera Scanner Modal (for Live Video Mode if supported) -->
     <div id="cameraModal" class="hidden fixed inset-0 z-50 bg-slate-900/90 flex flex-col p-4 items-center justify-center">
-      <div class="bg-white rounded-xl p-4 w-full max-w-sm space-y-3 shadow-2xl">
+      <div class="bg-white rounded-2xl p-4 w-full max-w-sm space-y-3 shadow-2xl">
         <div class="flex justify-between items-center pb-2 border-b border-slate-100">
           <h3 class="font-bold text-xs text-slate-800 flex items-center space-x-1.5">
             <span>📷</span>
@@ -67,8 +103,30 @@
           </h3>
           <button id="btnCloseCamera" class="text-slate-400 hover:text-slate-700 font-bold text-base px-2">✕</button>
         </div>
-        <div id="reader" class="overflow-hidden rounded-lg bg-black min-h-[220px]"></div>
-        <p class="text-[11px] text-slate-500 text-center font-medium">Barkodu kameranın kırmızı çerçevesine hizalayın.</p>
+
+        <!-- Live Camera Viewfinder -->
+        <div id="readerWrapper" class="space-y-2">
+          <div id="reader" class="overflow-hidden rounded-lg bg-black min-h-[220px]"></div>
+          <p class="text-[11px] text-slate-500 text-center font-medium">Barkodu kameranın çerçevesine hizalayın.</p>
+        </div>
+
+        <!-- Live Stream Error Notice (shown if browser blocks live stream) -->
+        <div id="liveStreamNotice" class="hidden p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 space-y-1.5">
+          <p class="font-semibold text-amber-900">Tarayıcı Canlı Kamera Kısıtlaması</p>
+          <p class="text-[11px] text-amber-700 leading-relaxed">
+            Mobil tarayıcılar yerel ağda (HTTP) canlı kamera akışını kısıtlayabilir. Doğrudan etiket fotoğrafı çekerek anında stok sorgulayabilirsiniz.
+          </p>
+        </div>
+
+        <!-- Native Camera Button in Modal -->
+        <button
+          id="btnModalPhoto"
+          type="button"
+          class="w-full py-2.5 bg-[#00268A] hover:bg-[#001f70] text-white rounded-xl font-bold text-xs flex items-center justify-center space-x-1.5 shadow-sm active:scale-95 transition"
+        >
+          <span>📷</span>
+          <span>Fotoğraf Çekerek Tara</span>
+        </button>
       </div>
     </div>
 
@@ -84,16 +142,112 @@
     const searchInput = document.getElementById('searchInput');
     const resultsContainer = document.getElementById('resultsContainer');
     const btnCamera = document.getElementById('btnCamera');
+    const cameraFileInput = document.getElementById('cameraFileInput');
     const cameraModal = document.getElementById('cameraModal');
     const btnCloseCamera = document.getElementById('btnCloseCamera');
+    const btnModalPhoto = document.getElementById('btnModalPhoto');
+    const scanStatusBox = document.getElementById('scanStatusBox');
+    const scanStatusText = document.getElementById('scanStatusText');
+    const scanErrorBox = document.getElementById('scanErrorBox');
+    const scanErrorText = document.getElementById('scanErrorText');
+    const btnCloseScanError = document.getElementById('btnCloseScanError');
+    const btnRetryScan = document.getElementById('btnRetryScan');
+    const readerWrapper = document.getElementById('readerWrapper');
+    const liveStreamNotice = document.getElementById('liveStreamNotice');
 
     let html5QrCode = null;
 
+    function playBeep() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        osc.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.12);
+      } catch (e) {}
+    }
+
+    function showStatus(msg) {
+      if (msg) {
+        scanStatusText.textContent = msg;
+        scanStatusBox.classList.remove('hidden');
+      } else {
+        scanStatusBox.classList.add('hidden');
+      }
+    }
+
+    function showError(msg) {
+      if (msg) {
+        scanErrorText.textContent = msg;
+        scanErrorBox.classList.remove('hidden');
+      } else {
+        scanErrorBox.classList.add('hidden');
+      }
+    }
+
+    if (btnCloseScanError) {
+      btnCloseScanError.addEventListener('click', () => showError(''));
+    }
+
+    if (btnRetryScan) {
+      btnRetryScan.addEventListener('click', () => {
+        showError('');
+        triggerNativeCamera();
+      });
+    }
+
+    function onBarcodeFound(code) {
+      const clean = String(code || '').trim().replace(/\*/g, '');
+      if (!clean) return;
+      playBeep();
+      showError('');
+      showStatus('');
+      searchInput.value = clean;
+      fetchStock(clean);
+      stopCamera();
+    }
+
+    function triggerNativeCamera() {
+      showError('');
+      cameraFileInput.value = '';
+      cameraFileInput.click();
+    }
+
+    // Camera button click handler
     btnCamera.addEventListener('click', () => {
+      showError('');
+
+      // Check if browser allows live stream (requires Secure Context / HTTPS or localhost)
+      const canLiveScan = window.isSecureContext &&
+        navigator.mediaDevices &&
+        typeof navigator.mediaDevices.getUserMedia === 'function';
+
+      if (canLiveScan) {
+        startLiveCamera();
+      } else {
+        // Local Wi-Fi HTTP mode: Launch native high-res mobile camera directly
+        triggerNativeCamera();
+      }
+    });
+
+    // Modal photo button
+    btnModalPhoto.addEventListener('click', () => {
+      stopCamera();
+      triggerNativeCamera();
+    });
+
+    // Start Live Camera
+    function startLiveCamera() {
       cameraModal.classList.remove('hidden');
+      readerWrapper.classList.remove('hidden');
+      liveStreamNotice.classList.add('hidden');
+
       if (!html5QrCode) {
         html5QrCode = new Html5Qrcode("reader");
       }
+
       html5QrCode.start(
         { facingMode: "environment" },
         {
@@ -101,26 +255,16 @@
           qrbox: { width: 260, height: 160 }
         },
         (decodedText) => {
-          try {
-            const ctx = new (window.AudioContext || window.webkitAudioContext)();
-            const osc = ctx.createOscillator();
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(880, ctx.currentTime);
-            osc.connect(ctx.destination);
-            osc.start();
-            osc.stop(ctx.currentTime + 0.12);
-          } catch (e) {}
-
-          searchInput.value = decodedText;
-          fetchStock(decodedText);
-          stopCamera();
+          onBarcodeFound(decodedText);
         },
         () => {}
-      ).catch(err => {
-        alert("Kamera başlatılamadı: " + err);
-        stopCamera();
+      ).catch((err) => {
+        console.warn('Live camera start failed:', err);
+        // If live stream was rejected (e.g. permission or insecure origin), show notice & offer photo capture
+        readerWrapper.classList.add('hidden');
+        liveStreamNotice.classList.remove('hidden');
       });
-    });
+    }
 
     function stopCamera() {
       if (html5QrCode && html5QrCode.isScanning) {
@@ -136,9 +280,136 @@
 
     btnCloseCamera.addEventListener('click', stopCamera);
 
+    // Downscale image helper for large camera captures
+    function downscaleImage(file, maxDimension = 1400) {
+      return new Promise((resolve) => {
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        img.onload = () => {
+          URL.revokeObjectURL(url);
+          let width = img.width;
+          let height = img.height;
+
+          if (width <= maxDimension && height <= maxDimension) {
+            resolve(null);
+            return;
+          }
+
+          if (width > height) {
+            if (width > maxDimension) {
+              height = Math.round((height * maxDimension) / width);
+              width = maxDimension;
+            }
+          } else {
+            if (height > maxDimension) {
+              width = Math.round((width * maxDimension) / height);
+              height = maxDimension;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.9);
+        };
+        img.onerror = () => {
+          URL.revokeObjectURL(url);
+          resolve(null);
+        };
+        img.src = url;
+      });
+    }
+
+    // Process photo taken from mobile camera
+    cameraFileInput.addEventListener('change', async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+
+      showStatus('Barkod okunuyor, lütfen bekleyin...');
+      showError('');
+
+      try {
+        // Pass 1: Try Native Hardware BarcodeDetector (Chrome 83+ Android)
+        if ('BarcodeDetector' in window) {
+          try {
+            const formats = await BarcodeDetector.getSupportedFormats();
+            const detector = new BarcodeDetector({
+              formats: formats && formats.length ? formats : [
+                'code_128', 'ean_13', 'ean_8', 'code_39', 'upc_a', 'upc_e', 'qr_code'
+              ]
+            });
+            const bitmap = await createImageBitmap(file);
+            const detected = await detector.detect(bitmap);
+            if (detected && detected.length > 0) {
+              const raw = detected[0].rawValue;
+              if (raw) {
+                onBarcodeFound(raw);
+                return;
+              }
+            }
+          } catch (detErr) {
+            console.warn('BarcodeDetector error:', detErr);
+          }
+        }
+
+        // Pass 2: Use Html5Qrcode.scanFile
+        if (!html5QrCode) {
+          html5QrCode = new Html5Qrcode("reader");
+        }
+
+        try {
+          const decoded = await html5QrCode.scanFile(file, false);
+          if (decoded) {
+            onBarcodeFound(decoded);
+            return;
+          }
+        } catch (scanErr) {
+          console.warn('Direct scanFile failed:', scanErr);
+        }
+
+        // Pass 3: Downscale if large image and retry
+        const resizedBlob = await downscaleImage(file, 1400);
+        if (resizedBlob) {
+          if ('BarcodeDetector' in window) {
+            try {
+              const detector = new BarcodeDetector({
+                formats: ['code_128', 'ean_13', 'ean_8', 'code_39', 'upc_a', 'upc_e', 'qr_code']
+              });
+              const bmp = await createImageBitmap(resizedBlob);
+              const detected = await detector.detect(bmp);
+              if (detected && detected.length > 0) {
+                onBarcodeFound(detected[0].rawValue);
+                return;
+              }
+            } catch (e) {}
+          }
+
+          try {
+            const resizedFile = new File([resizedBlob], "scan.jpg", { type: "image/jpeg" });
+            const decodedResized = await html5QrCode.scanFile(resizedFile, false);
+            if (decodedResized) {
+              onBarcodeFound(decodedResized);
+              return;
+            }
+          } catch (e) {}
+        }
+
+        showError('Fotoğrafta barkod algılanamadı. Kamerayı barkoda yaklaştırıp daha net çekmeyi deneyin veya barkod numarasını yazın.');
+      } catch (generalErr) {
+        console.error('Scan error:', generalErr);
+        showError('Barkod tarama hatası oluştu. Lütfen tekrar deneyin.');
+      } finally {
+        showStatus('');
+      }
+    });
+
+    // Stock Search Function
     async function fetchStock(query = '') {
       try {
-        const res = await fetch(`/api/mobile/search?q=${encodeURIComponent(query)}`);
+        const cleanQuery = String(query || '').trim().replace(/\*/g, '');
+        const res = await fetch(`/api/mobile/search?q=${encodeURIComponent(cleanQuery)}`);
         const variants = await res.json();
 
         if (!variants || variants.length === 0) {
@@ -204,215 +475,6 @@
     });
 
     fetchStock('');
-
-    // --- Mobile Store Music Remote Controller ---
-    const mobileMusicBar = document.getElementById('mobileMusicBar');
-    const musicTrackTitle = document.getElementById('musicTrackTitle');
-    const musicTrackArtist = document.getElementById('musicTrackArtist');
-    const musicFadeBadge = document.getElementById('musicFadeBadge');
-    const musicVolLabel = document.getElementById('musicVolLabel');
-    const btnMobilePlay = document.getElementById('btnMobilePlay');
-    const btnMobileNext = document.getElementById('btnMobileNext');
-    const btnVolDown = document.getElementById('btnVolDown');
-    const btnVolUp = document.getElementById('btnVolUp');
-    const btnOpenMusicSearch = document.getElementById('btnOpenMusicSearch');
-    const musicSearchModal = document.getElementById('musicSearchModal');
-    const btnCloseMusicSearch = document.getElementById('btnCloseMusicSearch');
-    const musicSearchInput = document.getElementById('musicSearchInput');
-    const musicSearchResults = document.getElementById('musicSearchResults');
-
-    let currentMusicVol = 70;
-    let isMusicPlaying = false;
-
-    async function fetchMusicStatus() {
-      try {
-        const res = await fetch('/api/music/status');
-        if (res.ok) {
-          const data = await res.json();
-          isMusicPlaying = data.isPlaying;
-          currentMusicVol = data.volume;
-          musicTrackTitle.textContent = data.currentTrack?.title || 'Mağaza Müziği';
-          musicTrackArtist.textContent = data.currentTrack?.artist || 'Lufian & Jack & Jones';
-          musicVolLabel.textContent = `${data.liveVolume || data.volume}%`;
-          btnMobilePlay.textContent = isMusicPlaying ? '⏸' : '▶';
-
-          if (data.isFading) {
-            musicFadeBadge.classList.remove('hidden');
-          } else {
-            musicFadeBadge.classList.add('hidden');
-          }
-        }
-      } catch (e) {}
-    }
-
-    btnMobilePlay.addEventListener('click', async () => {
-      try {
-        const endpoint = isMusicPlaying ? '/api/music/pause' : '/api/music/play';
-        await fetch(endpoint, { method: 'POST' });
-        fetchMusicStatus();
-      } catch (e) {}
-    });
-
-    btnMobileNext.addEventListener('click', async () => {
-      try {
-        await fetch('/api/music/next', { method: 'POST' });
-        fetchMusicStatus();
-      } catch (e) {}
-    });
-
-    btnVolDown.addEventListener('click', async () => {
-      const newVol = Math.max(0, currentMusicVol - 10);
-      try {
-        await fetch('/api/music/volume', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ volume: newVol })
-        });
-        fetchMusicStatus();
-      } catch (e) {}
-    });
-
-    btnVolUp.addEventListener('click', async () => {
-      const newVol = Math.min(100, currentMusicVol + 10);
-      try {
-        await fetch('/api/music/volume', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ volume: newVol })
-        });
-        fetchMusicStatus();
-      } catch (e) {}
-    });
-
-    btnOpenMusicSearch.addEventListener('click', () => {
-      musicSearchModal.classList.remove('hidden');
-      musicSearchInput.focus();
-    });
-
-    btnCloseMusicSearch.addEventListener('click', () => {
-      musicSearchModal.classList.add('hidden');
-    });
-
-    window.lastMobileTracksMap = {};
-
-    function escapeHtml(str) {
-      if (!str) return '';
-      return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-    }
-
-    let searchMusicTimer;
-    musicSearchInput.addEventListener('input', (e) => {
-      clearTimeout(searchMusicTimer);
-      const q = e.target.value.trim();
-      if (!q) {
-        musicSearchResults.innerHTML = '<div class="text-center py-6 text-slate-400 text-xs font-medium">Aramak için yukarıya yazın.</div>';
-        return;
-      }
-      searchMusicTimer = setTimeout(async () => {
-        try {
-          musicSearchResults.innerHTML = '<div class="text-center py-4 text-slate-400 text-xs">Aranıyor...</div>';
-          const res = await fetch(`/api/music/search?q=${encodeURIComponent(q)}`);
-          const tracks = await res.json();
-          if (!tracks || tracks.length === 0) {
-            musicSearchResults.innerHTML = '<div class="text-center py-4 text-slate-400 text-xs">Sonuç bulunamadı.</div>';
-            return;
-          }
-          window.lastMobileTracksMap = {};
-          musicSearchResults.innerHTML = tracks.map(t => {
-            window.lastMobileTracksMap[t.id] = t;
-            return `
-              <div class="p-2.5 bg-slate-50 hover:bg-blue-50 border border-slate-200 rounded-lg flex items-center justify-between cursor-pointer" onclick="playMobileTrackById('${t.id}')">
-                <div class="truncate mr-2">
-                  <span class="font-bold text-xs text-slate-900 block truncate">${escapeHtml(t.title)}</span>
-                  <span class="text-[10px] text-slate-500 block truncate">${escapeHtml(t.artist)}</span>
-                </div>
-                <button class="px-2.5 py-1 bg-[#00268A] text-white rounded text-[11px] font-bold shrink-0">Çal</button>
-              </div>
-            `;
-          }).join('');
-        } catch (err) {
-          musicSearchResults.innerHTML = '<div class="text-center py-4 text-rose-500 text-xs">Arama hatası.</div>';
-        }
-      }, 350);
-    });
-
-    window.playMobileTrackById = async function(id) {
-      const track = window.lastMobileTracksMap?.[id];
-      if (!track) return;
-      try {
-        await fetch('/api/music/select-track', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ track })
-        });
-        musicSearchModal.classList.add('hidden');
-        fetchMusicStatus();
-      } catch (e) {}
-    };
-
-    fetchMusicStatus();
-    setInterval(fetchMusicStatus, 4000);
   </script>
-
-  <!-- Floating Store Music Remote Bar -->
-  <div id="mobileMusicBar" class="fixed bottom-0 left-0 right-0 max-w-md mx-auto z-40 bg-slate-900/95 backdrop-blur-md text-white border-t border-slate-700/80 px-3.5 py-2.5 shadow-2xl flex items-center justify-between">
-    <div class="flex items-center space-x-2.5 truncate flex-1 mr-2" id="btnOpenMusicSearch" style="cursor: pointer;">
-      <div class="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0 overflow-hidden relative">
-        <span id="musicStatusIcon" class="text-sm">🎵</span>
-      </div>
-      <div class="truncate">
-        <div class="flex items-center space-x-1.5">
-          <span id="musicTrackTitle" class="text-xs font-bold text-white truncate block">Mağaza Müziği</span>
-          <span id="musicFadeBadge" class="hidden text-[9px] px-1 py-0.2 bg-amber-500/20 text-amber-300 rounded font-bold">Geçiş</span>
-        </div>
-        <span id="musicTrackArtist" class="text-[10px] text-slate-400 font-medium truncate block">Lufian & Jack & Jones</span>
-      </div>
-    </div>
-
-    <!-- Quick Action Buttons -->
-    <div class="flex items-center space-x-1.5 shrink-0">
-      <button id="btnVolDown" class="p-1 rounded-lg bg-slate-800 text-slate-300 hover:text-white font-mono text-[11px]">🔉</button>
-      <span id="musicVolLabel" class="text-[10px] font-mono font-bold text-slate-300 min-w-[24px] text-center">70%</span>
-      <button id="btnVolUp" class="p-1 rounded-lg bg-slate-800 text-slate-300 hover:text-white font-mono text-[11px]">🔊</button>
-      <button id="btnMobilePlay" class="w-7 h-7 rounded-lg bg-[#00268A] text-white flex items-center justify-center font-bold text-xs shadow-xs active:scale-95 transition">
-        ▶
-      </button>
-      <button id="btnMobileNext" class="w-7 h-7 rounded-lg bg-slate-800 text-slate-300 hover:text-white flex items-center justify-center text-xs active:scale-95 transition">
-        ⏭
-      </button>
-    </div>
-  </div>
-
-  <!-- Mobile Song Search Modal -->
-  <div id="musicSearchModal" class="hidden fixed inset-0 z-50 bg-slate-900/90 flex flex-col p-4 items-center justify-center">
-    <div class="bg-white rounded-2xl p-4 w-full max-w-sm space-y-3 shadow-2xl flex flex-col max-h-[85vh]">
-      <div class="flex justify-between items-center pb-2 border-b border-slate-100">
-        <h3 class="font-bold text-xs text-slate-800 flex items-center space-x-1.5">
-          <span>🎵</span>
-          <span>Mağazaya Şarkı Seç & Çal</span>
-        </h3>
-        <button id="btnCloseMusicSearch" class="text-slate-400 hover:text-slate-700 font-bold text-base px-2">✕</button>
-      </div>
-
-      <div class="space-y-1">
-        <input
-          id="musicSearchInput"
-          type="text"
-          placeholder="Şarkı veya sanatçı adı yazın..."
-          class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#00268A]"
-        />
-        <p class="text-[10px] text-slate-500 font-medium">Tıkladığınız şarkı yumuşak geçişle amfiden çalmaya başlar.</p>
-      </div>
-
-      <div id="musicSearchResults" class="space-y-1.5 overflow-y-auto flex-1 max-h-[280px]">
-        <div class="text-center py-6 text-slate-400 text-xs font-medium">Aramak için yukarıya yazın.</div>
-      </div>
-    </div>
-  </div>
 </body>
 </html>

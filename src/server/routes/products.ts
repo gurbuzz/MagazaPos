@@ -158,14 +158,28 @@ productRouter.delete('/categories/:id', async (req, res) => {
 productRouter.get('/variants/barcode/:barcode', async (req, res) => {
   try {
     const { barcode } = req.params
-    const variant = await prisma.productVariant.findUnique({
-      where: { barcode },
+    const rawBarcode = (barcode || '').trim()
+    const cleanBarcode = rawBarcode.replace(/\*/g, '')
+
+    let variant = await prisma.productVariant.findUnique({
+      where: { barcode: rawBarcode },
       include: {
         product: {
           include: { category: true }
         }
       }
     })
+
+    if (!variant && cleanBarcode && cleanBarcode !== rawBarcode) {
+      variant = await prisma.productVariant.findUnique({
+        where: { barcode: cleanBarcode },
+        include: {
+          product: {
+            include: { category: true }
+          }
+        }
+      })
+    }
 
     if (!variant) {
       res.status(404).json({ error: 'Barkodlu ürün bulunamadı' })

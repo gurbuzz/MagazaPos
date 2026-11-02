@@ -2,7 +2,6 @@ export interface CustomerDisplayPayload {
   status: 'idle' | 'cart' | 'checkout' | 'completed'
   storeName: string
   storeAddress?: string
-  storePhone?: string
   cashierName?: string
   cartItems: any[]
   subtotal: number
@@ -55,7 +54,6 @@ export function syncCustomerDisplay(payload: Partial<CustomerDisplayPayload & { 
     status: payload.status || (payload.cartItems && payload.cartItems.length > 0 ? 'cart' : 'idle'),
     storeName: payload.storeName || localStorage.getItem('pos_store_name') || 'JACK & JONES',
     storeAddress: payload.storeAddress || localStorage.getItem('pos_store_address') || '',
-    storePhone: payload.storePhone || localStorage.getItem('pos_store_phone') || '',
     cashierName: payload.cashierName || localStorage.getItem('pos_cashier_name') || 'Kasiyer 1',
     cartItems: payload.cartItems || [],
     subtotal: payload.subtotal ?? 0,

@@ -31,7 +31,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
     selectedCustomer,
     storeName,
     storeAddress,
-    storePhone,
     receiptPrefix,
     receiptFooterNote,
     vatRate,
@@ -234,7 +233,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
         {
           storeName,
           storeAddress,
-          storePhone,
           cashierName,
           receiptFooterNote,
           vatRate,

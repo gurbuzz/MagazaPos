@@ -7,7 +7,6 @@ let currentState: any = {
   status: 'idle', // 'idle' | 'cart' | 'checkout' | 'completed'
   storeName: 'JACK & JONES',
   storeAddress: 'Atatürk Cad. No:14/A Kadıköy / İstanbul',
-  storePhone: '0216 345 67 89',
   cashierName: 'Kasiyer 1',
   cartItems: [],
   subtotal: 0,

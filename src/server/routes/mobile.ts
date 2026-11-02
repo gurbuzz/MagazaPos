@@ -14,7 +14,8 @@ function formatVariant(v: any) {
 // GET /api/mobile/search?q=... - Quick stock search for mobile staff
 mobileRouter.get('/search', async (req, res) => {
   try {
-    const query = (req.query.q as string || '').trim()
+    const rawQuery = ((req.query.q as string) || '').trim()
+    const query = rawQuery.replace(/\*/g, '').trim()
 
     if (!query) {
       // Return top 20 items if query is empty

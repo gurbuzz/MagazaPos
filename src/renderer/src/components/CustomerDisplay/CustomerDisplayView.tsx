@@ -66,7 +66,6 @@ export const CustomerDisplayView: React.FC = () => {
     status: 'idle',
     storeName: 'JACK & JONES',
     storeAddress: '',
-    storePhone: '',
     cashierName: '',
     cartItems: [],
     subtotal: 0,

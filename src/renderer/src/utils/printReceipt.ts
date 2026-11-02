@@ -33,7 +33,6 @@ export interface ReceiptData {
   storeInfo: {
     storeName?: string
     storeAddress?: string
-    storePhone?: string
     receiptFooterNote?: string
     vatRate?: number
     receiptPrinter?: string
@@ -160,7 +159,6 @@ export function normalizeSaleToReceiptData(
     storeInfo: {
       storeName: storeState.storeName || 'JACK & JONES',
       storeAddress: storeState.storeAddress || '',
-      storePhone: storeState.storePhone || '',
       receiptFooterNote: storeState.receiptFooterNote || 'Ürün değişimleri fiş ile 14 gün içinde yapılır. Teşekkürler!',
       vatRate: storeState.vatRate ?? 10,
       receiptPrinter: storeState.receiptPrinter || '',
@@ -306,7 +304,6 @@ export function generateReceiptHtml(data: ReceiptData): string {
     <div class="center">
       <div class="store-name">${store.storeName || 'JACK & JONES'}</div>
       ${store.storeAddress ? `<div class="store-info">${store.storeAddress}</div>` : ''}
-      ${store.storePhone ? `<div class="store-info">Tel: ${store.storePhone}</div>` : ''}
       ${
         data.isGiftReceipt
           ? `

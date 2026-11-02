@@ -19,12 +19,14 @@ import {
   CheckCircle2,
   PackageMinus,
   Edit2,
+  Undo2,
 } from 'lucide-react'
 import { usePosStore } from '../../store/usePosStore'
 import { CheckoutModal } from './CheckoutModal'
 import { CampaignModal } from './CampaignModal'
 import { CustomerSelectModal } from '../Customer/CustomerSelectModal'
 import { ExchangeModal } from './ExchangeModal'
+import { PosReturnModal } from './PosReturnModal'
 import { notifyDataChanged } from '../../utils/events'
 import { syncCustomerDisplay } from '../../utils/customerDisplaySync'
 
@@ -62,6 +64,7 @@ export const PosView: React.FC = () => {
   const [isCampaignModalOpen, setIsCampaignModalOpen] = useState<boolean>(false)
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState<boolean>(false)
   const [isExchangeModalOpen, setIsExchangeModalOpen] = useState<boolean>(false)
+  const [isReturnModalOpen, setIsReturnModalOpen] = useState<boolean>(false)
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [isEditingTotal, setIsEditingTotal] = useState<boolean>(false)
   const [tempTotalInput, setTempTotalInput] = useState<string>('')
@@ -226,7 +229,7 @@ export const PosView: React.FC = () => {
   }, [isLocked])
 
   const processBarcodeScan = async (rawCode: string) => {
-    const code = rawCode.trim()
+    const code = rawCode.trim().replace(/\*/g, '')
     if (!code) return
     setIsEditingTotal(false)
     setBarcodeInput('')
@@ -262,6 +265,7 @@ export const PosView: React.FC = () => {
           !isCampaignModalOpen &&
           !isCustomerModalOpen &&
           !isExchangeModalOpen &&
+          !isReturnModalOpen &&
           !isEditingTotal
         ) {
           const active = document.activeElement
@@ -287,6 +291,7 @@ export const PosView: React.FC = () => {
         isCampaignModalOpen ||
         isCustomerModalOpen ||
         isExchangeModalOpen ||
+        isReturnModalOpen ||
         isEditingTotal
       ) {
         return
@@ -353,6 +358,7 @@ export const PosView: React.FC = () => {
     isCampaignModalOpen,
     isCustomerModalOpen,
     isExchangeModalOpen,
+    isReturnModalOpen,
     isEditingTotal,
     addToCart,
   ])
@@ -366,6 +372,7 @@ export const PosView: React.FC = () => {
         !isCampaignModalOpen &&
         !isCustomerModalOpen &&
         !isExchangeModalOpen &&
+        !isReturnModalOpen &&
         !isEditingTotal
       ) {
         const active = document.activeElement
@@ -387,12 +394,13 @@ export const PosView: React.FC = () => {
     isCampaignModalOpen,
     isCustomerModalOpen,
     isExchangeModalOpen,
+    isReturnModalOpen,
     isEditingTotal,
   ])
 
   const handleBarcodeSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const code = barcodeInput.trim()
+    const code = barcodeInput.trim().replace(/\*/g, '')
     if (!code) return
     setBarcodeInput('')
     setIsEditingTotal(false)
@@ -482,7 +490,14 @@ export const PosView: React.FC = () => {
                 type="text"
                 placeholder="Barkod okutun veya manuel yazın..."
                 value={barcodeInput}
-                onChange={(e) => setBarcodeInput(e.target.value)}
+                onChange={(e) => setBarcodeInput(e.target.value.replace(/\*/g, ''))}
+                onPaste={(e) => {
+                  const pasted = e.clipboardData.getData('text')
+                  if (pasted && pasted.includes('*')) {
+                    e.preventDefault()
+                    setBarcodeInput(pasted.replace(/\*/g, ''))
+                  }
+                }}
                 className="w-full pl-9 pr-8 py-2 bg-white/70 backdrop-blur-xs border border-slate-300/80 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#00268A] font-mono text-xs shadow-inner"
               />
               <Barcode className="w-4 h-4 text-[#00268A] absolute left-3 top-2.5" />
@@ -637,12 +652,12 @@ export const PosView: React.FC = () => {
       {/* RIGHT COLUMN: POS Cart & Checkout (Kasa Sepeti) */}
       <div className="w-96 glass-panel flex flex-col h-full shadow-2xl border-l border-white/60">
         {/* Cart Header */}
-        <div className="px-4 py-3 border-b border-white/40 flex items-center justify-between bg-white/40 backdrop-blur-xs">
-          <div className="flex items-center space-x-2">
+        <div className="px-3 py-2 border-b border-white/40 flex items-center justify-between bg-white/40 backdrop-blur-xs">
+          <div className="flex items-center space-x-1.5">
             <ShoppingCart className="w-4 h-4 text-[#00268A]" />
             <h2 className="font-bold text-slate-900 text-xs tracking-tight">Kasa Sepeti</h2>
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-1.5">
             {cartItems.length > 0 && (
               isConfirmingClearCart ? (
                 <div className="flex items-center space-x-1">
@@ -653,7 +668,7 @@ export const PosView: React.FC = () => {
                       setIsConfirmingClearCart(false)
                       if (clearTimerRef.current) clearTimeout(clearTimerRef.current)
                     }}
-                    className="text-[11px] bg-rose-600 text-white hover:bg-rose-700 px-2 py-0.5 rounded transition font-bold shadow-2xs cursor-pointer"
+                    className="text-[10px] bg-rose-600 text-white hover:bg-rose-700 px-1.5 py-0.5 rounded transition font-bold shadow-2xs cursor-pointer"
                   >
                     Evet, Temizle
                   </button>
@@ -663,7 +678,7 @@ export const PosView: React.FC = () => {
                       setIsConfirmingClearCart(false)
                       if (clearTimerRef.current) clearTimeout(clearTimerRef.current)
                     }}
-                    className="text-[11px] text-slate-500 hover:text-slate-800 hover:bg-slate-100 px-1.5 py-0.5 rounded transition cursor-pointer"
+                    className="text-[10px] text-slate-500 hover:text-slate-800 hover:bg-slate-100 px-1 py-0.5 rounded transition cursor-pointer"
                   >
                     Vazgeç
                   </button>
@@ -678,26 +693,26 @@ export const PosView: React.FC = () => {
                       setIsConfirmingClearCart(false)
                     }, 4000)
                   }}
-                  className="text-[11px] text-rose-600 hover:text-rose-800 hover:bg-rose-50 px-2 py-0.5 rounded transition font-semibold cursor-pointer"
+                  className="text-[10px] text-rose-600 hover:text-rose-800 hover:bg-rose-50 px-1.5 py-0.5 rounded transition font-semibold cursor-pointer"
                   title="Sepeti Temizle"
                 >
                   Temizle
                 </button>
               )
             )}
-            <span className="px-2.5 py-0.5 rounded-full bg-blue-100/70 text-[#00268A] text-[11px] font-bold border border-blue-200/80 shadow-2xs">
+            <span className="px-2 py-0.5 rounded-full bg-blue-100/70 text-[#00268A] text-[10px] font-bold border border-blue-200/80 shadow-2xs">
               {cartItems.length} Kalem ({cartItems.reduce((acc, i) => acc + (Number(i.quantity) || 0), 0)} Adet)
             </span>
           </div>
         </div>
 
         {/* Customer Selection Banner */}
-        <div className="px-3.5 py-2 border-b border-white/40 bg-white/30 backdrop-blur-xs flex items-center justify-between text-xs">
+        <div className="px-2.5 py-1.5 border-b border-white/40 bg-white/30 backdrop-blur-xs flex items-center justify-between text-xs">
           {selectedCustomer ? (
-            <div className="flex items-center space-x-2 overflow-hidden mr-2">
-              <UserCheck className="w-4 h-4 text-[#00268A] shrink-0" />
+            <div className="flex items-center space-x-1.5 overflow-hidden mr-1 min-w-0">
+              <UserCheck className="w-3.5 h-3.5 text-[#00268A] shrink-0" />
               <div className="truncate">
-                <span className="font-bold text-slate-900 truncate">
+                <span className="font-bold text-slate-900 text-xs truncate block">
                   {selectedCustomer.firstName} {selectedCustomer.lastName}
                 </span>
                 <span className="text-[10px] text-slate-500 font-mono block truncate">
@@ -706,103 +721,121 @@ export const PosView: React.FC = () => {
               </div>
             </div>
           ) : (
-            <div className="flex items-center space-x-1.5 text-slate-500 font-medium">
+            <div className="flex items-center space-x-1 text-slate-500 font-medium text-xs">
               <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-              <span>Müşteri: Anonim Satış</span>
+              <span className="truncate">Müşteri: Anonim</span>
             </div>
           )}
 
-          <div className="flex items-center space-x-1.5 shrink-0">
+          <div className="flex items-center space-x-1 shrink-0">
+            <button
+              onClick={() => setIsReturnModalOpen(true)}
+              className="px-2 py-0.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded text-[10px] font-semibold transition flex items-center space-x-1 shadow-2xs"
+              title="Eski Fişten Ürün İadesi Yap (Kasadan Düş & Stoğa Al)"
+            >
+              <Undo2 className="w-2.5 h-2.5 text-amber-700" />
+              <span>İade</span>
+            </button>
             <button
               onClick={() => setIsExchangeModalOpen(true)}
-              className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded text-[11px] font-semibold transition flex items-center space-x-1 shadow-2xs"
+              className="px-2 py-0.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded text-[10px] font-semibold transition flex items-center space-x-1 shadow-2xs"
               title="Eski Fişten Beden / Ürün Değişimi Yap (Sıfır Fark)"
             >
-              <RotateCcw className="w-3 h-3" />
+              <RotateCcw className="w-2.5 h-2.5" />
               <span>Değişim</span>
             </button>
             <button
               onClick={() => setIsCustomerModalOpen(true)}
-              className="px-2.5 py-1 bg-white hover:bg-blue-50 text-[#00268A] border border-blue-200 rounded text-[11px] font-semibold transition shadow-2xs"
+              className="px-2 py-0.5 bg-white hover:bg-blue-50 text-[#00268A] border border-blue-200 rounded text-[10px] font-semibold transition shadow-2xs"
             >
-              {selectedCustomer ? 'Değiştir' : 'Müşteri Seç'}
+              {selectedCustomer ? 'Değiştir' : 'Müşteri'}
             </button>
           </div>
         </div>
 
         {/* Cart Items List */}
-        <div className="flex-1 p-3 overflow-y-auto space-y-2">
+        <div className="flex-1 p-2 overflow-y-auto space-y-1.5">
           {cartItems.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-slate-400 text-center p-6">
-              <Barcode className="w-10 h-10 stroke-[1.5] mb-2 text-slate-300" />
+            <div className="h-full flex flex-col items-center justify-center text-slate-400 text-center p-4">
+              <Barcode className="w-8 h-8 stroke-[1.5] mb-1.5 text-slate-300" />
               <p className="text-xs font-semibold text-slate-600">Sepetiniz Boş</p>
-              <p className="text-[11px] text-slate-400 mt-1">Barkod okutarak veya ürün seçerek işlem başlatın.</p>
+              <p className="text-[10px] text-slate-400 mt-0.5">Barkod okutarak veya ürün seçerek işlem başlatın.</p>
             </div>
           ) : (
             cartItems.map((item) => (
               <div
                 key={item.variantId}
-                className="glass-card rounded-xl p-2.5 flex flex-col space-y-1.5 shadow-xs transition-all hover:bg-white"
+                className="bg-white/90 hover:bg-white rounded-lg p-2 flex flex-col space-y-1 border border-slate-200/80 shadow-2xs transition-all"
               >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h4 className="font-bold text-slate-900 text-sm leading-snug">{item.productName}</h4>
-                    <div className="flex items-center space-x-2 mt-0.5">
-                      <span className="px-2 py-0.5 bg-white/95 rounded-md text-xs text-slate-800 font-bold border border-slate-200 shadow-2xs">
-                        {item.attributes?.color || '-'} / {item.attributes?.size || '-'}
-                      </span>
-                      <span className="text-xs text-slate-500 font-mono">{item.barcode}</span>
-                    </div>
+                {/* Item Row 1: Product Title, Barcode & Remove */}
+                <div className="flex items-center justify-between gap-1">
+                  <div className="flex items-center space-x-1.5 min-w-0 flex-1">
+                    <h4 className="font-bold text-slate-900 text-xs truncate" title={item.productName}>
+                      {item.productName}
+                    </h4>
+                    <span className="text-[10px] text-slate-400 font-mono shrink-0 select-all">{item.barcode}</span>
                   </div>
                   <button
                     onClick={() => {
                       setIsEditingTotal(false)
                       removeFromCart(item.variantId)
                     }}
-                    className="text-slate-400 hover:text-rose-600 p-1 transition"
+                    className="text-slate-400 hover:text-rose-600 p-0.5 transition shrink-0 rounded hover:bg-rose-50"
+                    title="Sepetten Çıkar"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
 
-                <div className="flex items-center justify-between pt-1.5 border-t border-slate-200/60">
-                  <div className="flex items-center space-x-1.5 bg-white/90 border border-slate-300/80 rounded-xl p-1 shadow-2xs backdrop-blur-xs">
-                    <button
-                      onClick={() => {
-                        setIsEditingTotal(false)
-                        updateQuantity(item.variantId, item.quantity - 1)
-                      }}
-                      className="w-6 h-6 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 flex items-center justify-center font-bold text-sm"
-                    >
-                      <Minus className="w-3.5 h-3.5" />
-                    </button>
-                    <span className="w-6 text-center font-extrabold text-sm text-slate-900">
-                      {item.quantity}
+                {/* Item Row 2: Variant Badge + Quantity Stepper + Price */}
+                <div className="flex items-center justify-between pt-1 border-t border-slate-100">
+                  <div className="flex items-center space-x-1.5">
+                    {/* Color / Size Badge */}
+                    <span className="px-1.5 py-0.5 bg-slate-100 rounded text-[10px] text-slate-700 font-semibold border border-slate-200/80">
+                      {item.attributes?.color || '-'} / {item.attributes?.size || '-'}
                     </span>
-                    <button
-                      onClick={() => {
-                        setIsEditingTotal(false)
-                        updateQuantity(item.variantId, item.quantity + 1)
-                      }}
-                      className="w-6 h-6 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 flex items-center justify-center font-bold text-sm"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                    </button>
+
+                    {/* Quantity Stepper */}
+                    <div className="flex items-center bg-slate-50 border border-slate-200 rounded-md p-0.5">
+                      <button
+                        onClick={() => {
+                          setIsEditingTotal(false)
+                          updateQuantity(item.variantId, item.quantity - 1)
+                        }}
+                        className="w-5 h-5 rounded bg-white hover:bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-xs transition shadow-2xs"
+                        title="Azalt"
+                      >
+                        <Minus className="w-3 h-3" />
+                      </button>
+                      <span className="w-5 text-center font-bold text-xs text-slate-900">
+                        {item.quantity}
+                      </span>
+                      <button
+                        onClick={() => {
+                          setIsEditingTotal(false)
+                          updateQuantity(item.variantId, item.quantity + 1)
+                        }}
+                        className="w-5 h-5 rounded bg-white hover:bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-xs transition shadow-2xs"
+                        title="Artır"
+                      >
+                        <Plus className="w-3 h-3" />
+                      </button>
+                    </div>
                   </div>
 
                   {!isStockOnlyMode && (
-                    <div className="text-right">
+                    <div className="flex items-baseline space-x-1.5 text-right">
                       {item.originalPrice && item.originalPrice > item.unitPrice ? (
-                        <div className="flex items-center space-x-1 justify-end text-[11px]">
+                        <div className="flex items-center space-x-1 text-[10px]">
                           <span className="text-slate-400 line-through">{(item.originalPrice).toFixed(2)}₺</span>
-                          <span className="text-rose-600 font-bold">{(item.unitPrice).toFixed(2)}₺</span>
+                          <span className="text-rose-600 font-semibold">{(item.unitPrice).toFixed(2)}₺</span>
                         </div>
-                      ) : (
-                        <span className="text-xs text-slate-500 font-medium block">
-                          Birim: {(item.unitPrice || 0).toFixed(2)}₺
+                      ) : item.quantity > 1 ? (
+                        <span className="text-[10px] text-slate-400">
+                          {(item.unitPrice || 0).toFixed(2)}₺ x {item.quantity}
                         </span>
-                      )}
-                      <span className="font-extrabold text-slate-900 text-sm">
+                      ) : null}
+                      <span className="font-extrabold text-slate-900 text-xs">
                         {(item.totalPrice || 0).toFixed(2)} ₺
                       </span>
                     </div>
@@ -814,12 +847,12 @@ export const PosView: React.FC = () => {
         </div>
 
         {/* Cart Summary & Action Area */}
-        <div className="p-3.5 glass-panel border-t border-white/60 space-y-2.5">
+        <div className="p-2.5 glass-panel border-t border-white/60 space-y-2">
           {isStockOnlyMode ? (
             /* Stock Only Mode - No Money / Clean Item Counter */
-            <div className="p-3.5 bg-rose-50/70 border border-rose-200/80 rounded-2xl flex items-center justify-between">
+            <div className="p-2.5 bg-rose-50/70 border border-rose-200/80 rounded-xl flex items-center justify-between">
               <div>
-                <span className="text-[11px] font-bold text-rose-700 uppercase tracking-wider block">
+                <span className="text-[10px] font-bold text-rose-700 uppercase tracking-wider block">
                   Stok Çıkış Özeti
                 </span>
                 <span className="text-xs text-slate-600 font-medium">
@@ -827,7 +860,7 @@ export const PosView: React.FC = () => {
                 </span>
               </div>
               <div className="text-right">
-                <span className="text-lg font-black text-rose-800">
+                <span className="text-base font-black text-rose-800">
                   {cartItems.reduce((acc, i) => acc + i.quantity, 0)} Adet
                 </span>
               </div>
@@ -836,16 +869,16 @@ export const PosView: React.FC = () => {
             <>
               {/* Campaign Header & Settings Trigger */}
               <div className="flex items-center justify-between">
-                <span className="text-slate-700 font-semibold text-xs flex items-center space-x-1">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                <span className="text-slate-700 font-semibold text-[11px] flex items-center space-x-1">
+                  <Sparkles className="w-3 h-3 text-amber-500" />
                   <span>Kampanya & İndirim</span>
                 </span>
 
                 <button
                   onClick={() => setIsCampaignModalOpen(true)}
-                  className="px-2 py-0.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded text-[11px] font-medium transition flex items-center space-x-1"
+                  className="px-1.5 py-0.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded text-[10px] font-medium transition flex items-center space-x-1"
                 >
-                  <Settings2 className="w-3 h-3" />
+                  <Settings2 className="w-2.5 h-2.5" />
                   <span>Ayarla</span>
                 </button>
               </div>
@@ -865,7 +898,7 @@ export const PosView: React.FC = () => {
                           applyCampaign(camp)
                         }
                       }}
-                      className={`px-2 py-0.5 rounded text-[11px] font-semibold border transition ${
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border transition ${
                         isActive
                           ? isSurcharge
                             ? 'bg-amber-600 text-white border-amber-700 shadow-2xs'
@@ -884,17 +917,17 @@ export const PosView: React.FC = () => {
               {/* Active Campaign Badge Notice */}
               {activeCampaign && (
                 <div
-                  className={`border rounded p-1.5 flex items-center justify-between text-xs font-medium ${
+                  className={`border rounded p-1 flex items-center justify-between text-[11px] font-medium ${
                     activeCampaign.action === 'SURCHARGE'
                       ? 'bg-amber-50 border-amber-200 text-amber-900'
                       : 'bg-blue-50 border-blue-200 text-blue-900'
                   }`}
                 >
-                  <div className="flex items-center space-x-1.5">
+                  <div className="flex items-center space-x-1">
                     {activeCampaign.action === 'SURCHARGE' ? (
-                      <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                      <Sparkles className="w-3 h-3 text-amber-600" />
                     ) : (
-                      <Tag className="w-3.5 h-3.5 text-blue-600" />
+                      <Tag className="w-3 h-3 text-blue-600" />
                     )}
                     <span>
                       {activeCampaign.action === 'SURCHARGE' ? 'Taksit Farkı: ' : 'Kampanya: '}
@@ -910,31 +943,31 @@ export const PosView: React.FC = () => {
                     } p-0.5`}
                     title="İptal Et"
                   >
-                    <X className="w-3.5 h-3.5" />
+                    <X className="w-3 h-3" />
                   </button>
                 </div>
               )}
 
               {/* Totals Summary */}
-              <div className="space-y-1 text-xs text-slate-700 pt-1 border-t border-slate-200">
+              <div className="space-y-0.5 text-xs text-slate-700 pt-1 border-t border-slate-200">
                 <div className="flex justify-between">
-                  <span className="text-slate-500 font-medium">Ara Toplam</span>
-                  <span className="font-semibold">{subtotal.toFixed(2)} ₺</span>
+                  <span className="text-slate-500 font-medium text-[11px]">Ara Toplam</span>
+                  <span className="font-semibold text-xs">{subtotal.toFixed(2)} ₺</span>
                 </div>
                 {discountAmount > 0 && (
-                  <div className="flex justify-between text-emerald-700 font-semibold">
-                    <span>İndirim Tutarı</span>
+                  <div className="flex justify-between text-emerald-700 font-semibold text-xs">
+                    <span className="text-[11px]">İndirim Tutarı</span>
                     <span>-{discountAmount.toFixed(2)} ₺</span>
                   </div>
                 )}
                 {surchargeAmount > 0 && (
-                  <div className="flex justify-between text-amber-700 font-semibold">
-                    <span>Taksit / Vade Farkı</span>
+                  <div className="flex justify-between text-amber-700 font-semibold text-xs">
+                    <span className="text-[11px]">Taksit / Vade Farkı</span>
                     <span>+{surchargeAmount.toFixed(2)} ₺</span>
                   </div>
                 )}
-                <div className="flex items-center justify-between text-sm font-bold text-slate-900 pt-1.5 border-t border-slate-200">
-                  <span>GENEL TOPLAM</span>
+                <div className="flex items-center justify-between text-xs font-bold text-slate-900 pt-1 border-t border-slate-200">
+                  <span className="tracking-wide">GENEL TOPLAM</span>
 
                   {isEditingTotal ? (
                     <form onSubmit={handleCustomTotalSubmit} className="flex items-center space-x-1">
@@ -949,21 +982,21 @@ export const PosView: React.FC = () => {
                           if (e.key === 'Escape') setIsEditingTotal(false)
                         }}
                         onBlur={handleCustomTotalSubmit}
-                        className="w-24 px-2 py-0.5 border-2 border-emerald-500 rounded text-right font-bold text-base text-emerald-700 focus:outline-none bg-emerald-50 shadow-inner"
+                        className="w-20 px-1.5 py-0.5 border-2 border-emerald-500 rounded text-right font-bold text-sm text-emerald-700 focus:outline-none bg-emerald-50 shadow-inner"
                         autoFocus
                       />
-                      <span className="text-emerald-700 text-base font-bold">₺</span>
+                      <span className="text-emerald-700 text-sm font-bold">₺</span>
                     </form>
                   ) : (
                     <div
                       onClick={handleStartEditTotal}
                       title="Tutarı elle değiştirmek için tıklayın"
-                      className="cursor-pointer hover:bg-emerald-50 hover:scale-[1.02] px-2 py-0.5 rounded transition-all select-none flex items-center space-x-1.5 group"
+                      className="cursor-pointer hover:bg-emerald-50 hover:scale-[1.02] px-1.5 py-0.5 rounded transition-all select-none flex items-center space-x-1 group"
                     >
-                      <span className="text-emerald-700 text-lg font-bold">
+                      <span className="text-emerald-700 text-base font-extrabold">
                         {total.toFixed(2)} ₺
                       </span>
-                      <Edit2 className="w-3.5 h-3.5 text-emerald-600 opacity-40 group-hover:opacity-100 transition-opacity" />
+                      <Edit2 className="w-3 h-3 text-emerald-600 opacity-40 group-hover:opacity-100 transition-opacity" />
                     </div>
                   )}
                 </div>
@@ -976,18 +1009,18 @@ export const PosView: React.FC = () => {
             <button
               disabled={cartItems.length === 0 || isLoading}
               onClick={handleDirectStockDeduction}
-              className="w-full py-3.5 bg-rose-600 hover:bg-rose-700 text-white font-black rounded-xl shadow-md transition flex items-center justify-center space-x-2.5 text-sm tracking-wide disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
+              className="w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-black rounded-xl shadow-md transition flex items-center justify-center space-x-2 text-xs tracking-wide disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
             >
-              <PackageMinus className="w-5 h-5 stroke-[2.2]" />
+              <PackageMinus className="w-4 h-4 stroke-[2.2]" />
               <span>STOKTAN DÜŞ</span>
             </button>
           ) : (
             <button
               disabled={cartItems.length === 0}
               onClick={() => setIsCheckoutOpen(true)}
-              className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl shadow-md transition flex items-center justify-center space-x-2.5 text-sm tracking-wide disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
+              className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl shadow-md transition flex items-center justify-center space-x-2 text-xs tracking-wide disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
             >
-              <CreditCard className="w-5 h-5 stroke-[2.2]" />
+              <CreditCard className="w-4 h-4 stroke-[2.2]" />
               <span>ÖDEME AL / TAHSİLAT</span>
             </button>
           )}
@@ -1014,6 +1047,11 @@ export const PosView: React.FC = () => {
       <ExchangeModal
         isOpen={isExchangeModalOpen}
         onClose={() => setIsExchangeModalOpen(false)}
+      />
+
+      <PosReturnModal
+        isOpen={isReturnModalOpen}
+        onClose={() => setIsReturnModalOpen(false)}
       />
     </div>
   )
