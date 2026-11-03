@@ -662,6 +662,288 @@ productRouter.put('/:id', requireAdminPinAuth, async (req, res) => {
   }
 })
 
+// POST /api/products/variants/bulk-price-discount - Toplu Varyant Fiyatı ve İskonto Güncelleme (Yönetici PIN Gerekli)
+const handleBulkPriceDiscount = async (req: any, res: any) => {
+  try {
+    const {
+      variantIds,
+      productId,
+      colorFilter,
+      sizeFilter,
+      salePriceAction = 'keep',
+      salePriceValue,
+      discountAction = 'keep',
+      discountValue,
+      costPriceAction = 'keep',
+      costPriceValue,
+      rounding = 'none',
+      updates,
+      syncBasePrice = true
+    } = req.body
+
+    const applyRounding = (val: number): number => {
+      if (isNaN(val) || val < 0) return 0
+      if (rounding === 'round') {
+        return Math.round(val)
+      } else if (rounding === 'ending_90') {
+        if (val < 1) return 0.90
+        const base = Math.floor(val) + 0.90
+        return Math.round((base > val ? base - 1 : base) * 100) / 100
+      } else if (rounding === 'ending_99') {
+        if (val < 1) return 0.99
+        const base = Math.floor(val) + 0.99
+        return Math.round((base > val ? base - 1 : base) * 100) / 100
+      }
+      return Math.round(val * 100) / 100
+    }
+
+    // 1. If explicit updates array is provided:
+    if (Array.isArray(updates) && updates.length > 0) {
+      const results = await prisma.$transaction(async (tx) => {
+        const updatedList: any[] = []
+        const affectedProductIds = new Set<string>()
+
+        for (const u of updates) {
+          if (!u.id) continue
+          const data: any = {}
+          if (u.salePrice !== undefined) data.salePrice = parseDecimal(u.salePrice)
+          if (u.discountPrice !== undefined) {
+            data.discountPrice = (u.discountPrice !== null && u.discountPrice !== '' && parseDecimal(u.discountPrice) > 0)
+              ? parseDecimal(u.discountPrice)
+              : null
+          }
+          if (u.costPrice !== undefined) data.costPrice = parseDecimal(u.costPrice)
+          if (u.stockQuantity !== undefined) data.stockQuantity = Math.max(0, parseInt(u.stockQuantity) || 0)
+
+          const updated = await tx.productVariant.update({
+            where: { id: u.id },
+            data,
+            include: { product: true }
+          })
+          affectedProductIds.add(updated.productId)
+          updatedList.push(updated)
+        }
+
+        if (syncBasePrice) {
+          for (const prodId of affectedProductIds) {
+            const minVar = await tx.productVariant.findFirst({
+              where: { productId: prodId },
+              orderBy: { salePrice: 'asc' }
+            })
+            if (minVar) {
+              await tx.product.update({
+                where: { id: prodId },
+                data: { basePrice: minVar.salePrice }
+              })
+            }
+          }
+        }
+
+        return updatedList
+      })
+
+      res.json({
+        success: true,
+        count: results.length,
+        message: `${results.length} varyant başarıyla güncellendi.`,
+        variants: results.map(formatVariant)
+      })
+      return
+    }
+
+    // 2. Rule-based bulk update:
+    let targetVariants: any[] = []
+    if (Array.isArray(variantIds) && variantIds.length > 0) {
+      targetVariants = await prisma.productVariant.findMany({
+        where: { id: { in: variantIds } },
+        include: { product: true }
+      })
+    } else if (productId) {
+      targetVariants = await prisma.productVariant.findMany({
+        where: { productId },
+        include: { product: true }
+      })
+    } else {
+      res.status(400).json({ error: 'Güncellenecek varyantlar (variantIds veya productId) belirtilmelidir.' })
+      return
+    }
+
+    if (colorFilter && colorFilter !== 'ALL') {
+      targetVariants = targetVariants.filter(v => {
+        let attrs: any = {}
+        try { attrs = typeof v.attributes === 'string' ? JSON.parse(v.attributes) : (v.attributes || {}) } catch (e) {}
+        const clr = (attrs.color || attrs.Renk || attrs.renk || '').trim()
+        return clr.toLowerCase() === colorFilter.trim().toLowerCase()
+      })
+    }
+
+    if (sizeFilter && sizeFilter !== 'ALL') {
+      targetVariants = targetVariants.filter(v => {
+        let attrs: any = {}
+        try { attrs = typeof v.attributes === 'string' ? JSON.parse(v.attributes) : (v.attributes || {}) } catch (e) {}
+        const sz = (attrs.size || attrs.Beden || attrs.beden || '').trim()
+        return sz.toLowerCase() === sizeFilter.trim().toLowerCase()
+      })
+    }
+
+    if (targetVariants.length === 0) {
+      res.status(400).json({ error: 'Kriterlere uygun varyant bulunamadı.' })
+      return
+    }
+
+    const sVal = parseDecimal(salePriceValue)
+    const dVal = parseDecimal(discountValue)
+    const cVal = parseDecimal(costPriceValue)
+
+    const updatedVariants = await prisma.$transaction(async (tx) => {
+      const list: any[] = []
+      const affectedProductIds = new Set<string>()
+
+      for (const variant of targetVariants) {
+        affectedProductIds.add(variant.productId)
+        let newSalePrice = variant.salePrice
+
+        // 1. Calculate new sale price
+        if (salePriceAction === 'fixed') {
+          newSalePrice = applyRounding(sVal)
+        } else if (salePriceAction === 'increase_percent') {
+          newSalePrice = applyRounding(variant.salePrice * (1 + sVal / 100))
+        } else if (salePriceAction === 'decrease_percent') {
+          newSalePrice = applyRounding(Math.max(0, variant.salePrice * (1 - sVal / 100)))
+        } else if (salePriceAction === 'increase_amount') {
+          newSalePrice = applyRounding(variant.salePrice + sVal)
+        } else if (salePriceAction === 'decrease_amount') {
+          newSalePrice = applyRounding(Math.max(0, variant.salePrice - sVal))
+        }
+
+        // 2. Calculate new discount price
+        let newDiscountPrice: number | null = variant.discountPrice
+        if (discountAction === 'remove') {
+          newDiscountPrice = null
+        } else if (discountAction === 'fixed') {
+          if (dVal > 0) {
+            newDiscountPrice = applyRounding(dVal)
+          } else {
+            newDiscountPrice = null
+          }
+        } else if (discountAction === 'percent_off') {
+          if (dVal > 0 && dVal < 100) {
+            newDiscountPrice = applyRounding(newSalePrice * (1 - dVal / 100))
+          } else {
+            newDiscountPrice = null
+          }
+        } else if (discountAction === 'amount_off') {
+          if (dVal > 0 && dVal < newSalePrice) {
+            newDiscountPrice = applyRounding(newSalePrice - dVal)
+          } else {
+            newDiscountPrice = null
+          }
+        }
+
+        // If discount price is >= sale price or <= 0, discount is invalid -> set to null
+        if (newDiscountPrice !== null && (newDiscountPrice >= newSalePrice || newDiscountPrice <= 0)) {
+          newDiscountPrice = null
+        }
+
+        // 3. Calculate new cost price
+        let newCostPrice = variant.costPrice
+        if (costPriceAction === 'fixed') {
+          newCostPrice = applyRounding(cVal)
+        } else if (costPriceAction === 'percent_of_sale') {
+          newCostPrice = applyRounding(newSalePrice * (cVal / 100))
+        }
+
+        const updated = await tx.productVariant.update({
+          where: { id: variant.id },
+          data: {
+            salePrice: newSalePrice,
+            discountPrice: newDiscountPrice,
+            costPrice: newCostPrice,
+          },
+          include: { product: true }
+        })
+        list.push(updated)
+      }
+
+      // Sync parent product basePrice if requested
+      if (syncBasePrice) {
+        for (const prodId of affectedProductIds) {
+          const minVar = await tx.productVariant.findFirst({
+            where: { productId: prodId },
+            orderBy: { salePrice: 'asc' }
+          })
+          if (minVar) {
+            await tx.product.update({
+              where: { id: prodId },
+              data: { basePrice: minVar.salePrice }
+            })
+          }
+        }
+      }
+
+      return list
+    })
+
+    res.json({
+      success: true,
+      count: updatedVariants.length,
+      message: `${updatedVariants.length} varyantın fiyat ve iskontosu başarıyla güncellendi.`,
+      variants: updatedVariants.map(formatVariant)
+    })
+  } catch (error: any) {
+    res.status(500).json({ error: 'Toplu fiyat güncelleme hatası: ' + error.message })
+  }
+}
+
+productRouter.post('/variants/bulk-price-discount', requireAdminPinAuth, handleBulkPriceDiscount)
+productRouter.put('/variants/bulk-price-discount', requireAdminPinAuth, handleBulkPriceDiscount)
+
+// DELETE /api/products/variants/:id - Delete single variant (Yönetici PIN Gerekli)
+productRouter.delete('/variants/:id', requireAdminPinAuth, async (req, res) => {
+  try {
+    const { id } = req.params
+
+    const variant = await prisma.productVariant.findUnique({
+      where: { id },
+      include: {
+        product: true,
+        _count: { select: { saleItems: true } }
+      }
+    })
+
+    if (!variant) {
+      res.status(404).json({ error: 'Varyant bulunamadı' })
+      return
+    }
+
+    if (variant._count.saleItems > 0) {
+      res.status(400).json({
+        canDelete: false,
+        hasSales: true,
+        salesCount: variant._count.saleItems,
+        error: `Bu varyant (${variant.sku}) için ${variant._count.saleItems} adet geçmiş satış fişi bulunmaktadır! Mali verileri ve geçmiş fişleri korumak adına silinemez. Stoğunu 0 yapabilir veya indirimini düzenleyebilirsiniz.`
+      })
+      return
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.stockMovement.deleteMany({
+        where: { variantId: id }
+      })
+      await tx.productVariant.delete({
+        where: { id }
+      })
+    })
+
+    res.json({
+      success: true,
+      message: `"${variant.sku}" kodlu varyant başarıyla silindi.`
+    })
+  } catch (error: any) {
+    res.status(500).json({ error: 'Varyant silinirken hata oluştu: ' + error.message })
+  }
+})
+
 // PUT /api/variants/:id - Update full variant details: price, barcode, color, size, stock (Yönetici PIN Gerekli)
 productRouter.put('/variants/:id', requireAdminPinAuth, async (req, res) => {
   try {

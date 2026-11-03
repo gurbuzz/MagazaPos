@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { CategoryModal } from './CategoryModal'
+import { BulkVariantPriceModal } from './BulkVariantPriceModal'
 import { AdminPinModal } from '../Security/AdminPinModal'
 import { notifyDataChanged } from '../../utils/events'
 import { usePosStore } from '../../store/usePosStore'
@@ -105,10 +106,18 @@ export const StockView: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedProduct, setSelectedProduct] = useState<any | null>(null)
   const [selectedColorFilter, setSelectedColorFilter] = useState<string>('ALL')
+  const [selectedVariantIds, setSelectedVariantIds] = useState<string[]>([])
+  const [isBulkPriceModalOpen, setIsBulkPriceModalOpen] = useState(false)
 
-  // Reset color filter when product changes
+  // Variant Delete modal & loading states
+  const [deleteConfirmVariant, setDeleteConfirmVariant] = useState<any | null>(null)
+  const [variantDeleteError, setVariantDeleteError] = useState<string | null>(null)
+  const [isDeletingVariant, setIsDeletingVariant] = useState(false)
+
+  // Reset color filter and selection when product changes
   useEffect(() => {
     setSelectedColorFilter('ALL')
+    setSelectedVariantIds([])
   }, [selectedProduct?.id])
 
   // Variant Edit states
@@ -296,6 +305,8 @@ export const StockView: React.FC = () => {
   const [pendingVariantEdit, setPendingVariantEdit] = useState<any | null>(null)
   const [pendingProductEdit, setPendingProductEdit] = useState<any | null>(null)
   const [pendingProductDelete, setPendingProductDelete] = useState<any | null>(null)
+  const [pendingVariantDelete, setPendingVariantDelete] = useState<any | null>(null)
+  const [pendingAction, setPendingAction] = useState<(() => Promise<void>) | null>(null)
   const [stockFilter, setStockFilter] = useState<'active' | 'archived'>('active')
   const [adminVerifiedForSession, setAdminVerifiedForSession] = useState(false)
 
@@ -995,6 +1006,68 @@ export const StockView: React.FC = () => {
     if (pendingProductDelete) {
       performProductDelete(pendingProductDelete)
       setPendingProductDelete(null)
+    }
+    if (pendingVariantDelete) {
+      performVariantDelete(pendingVariantDelete)
+      setPendingVariantDelete(null)
+    }
+    if (pendingAction) {
+      pendingAction()
+      setPendingAction(null)
+    }
+  }
+
+  const handleRequestAdminPinForAction = (action: () => Promise<void>) => {
+    setPendingAction(() => action)
+    setIsAdminPinOpen(true)
+  }
+
+  // --- DELETE VARIANT HANDLERS ---
+  const handleVariantDeleteClick = (variant: any) => {
+    if (!variant) return
+    setVariantDeleteError(null)
+    setDeleteConfirmVariant(variant)
+  }
+
+  const performVariantDelete = async (variant: any) => {
+    if (!adminVerifiedForSession) {
+      setPendingVariantDelete(variant)
+      setIsAdminPinOpen(true)
+      return
+    }
+
+    setIsDeletingVariant(true)
+    setVariantDeleteError(null)
+    try {
+      const res = await fetch(`/api/products/variants/${variant.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Pin': localStorage.getItem('pos_admin_pin_session') || '',
+        },
+      })
+
+      const data = await res.json()
+      if (res.ok) {
+        showToast('success', data.message || 'Varyant başarıyla silindi.')
+        setDeleteConfirmVariant(null)
+        setSelectedVariantIds((prev) => prev.filter((id) => id !== variant.id))
+        fetchProducts()
+        notifyDataChanged()
+      } else {
+        if (data.code === 'UNAUTHORIZED_ADMIN_PIN') {
+          showToast('error', 'Yönetici PIN doğrulaması başarısız. Lütfen tekrar deneyin.')
+          setAdminVerifiedForSession(false)
+          setPendingVariantDelete(variant)
+          setIsAdminPinOpen(true)
+        } else {
+          setVariantDeleteError(data.error || 'Varyant silinemedi.')
+        }
+      }
+    } catch (err: any) {
+      setVariantDeleteError('İşlem sırasında hata oluştu: ' + (err.message || ''))
+    } finally {
+      setIsDeletingVariant(false)
     }
   }
 
@@ -1712,43 +1785,54 @@ export const StockView: React.FC = () => {
                   <PackageCheck className="w-4 h-4 text-blue-700" />
                   <span>Ürün Varyantları & Stok Seviyeleri</span>
                 </h3>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const firstVariant = selectedProduct.variants?.[0]
-                    setNewVarColor('Siyah')
-                    setNewVarSize('M')
-                    if (firstVariant) {
-                      setNewVarSalePrice(
-                        firstVariant.salePrice != null
-                          ? firstVariant.salePrice.toString()
-                          : (selectedProduct.basePrice?.toString() || '100')
-                      )
-                      setNewVarCostPrice(
-                        firstVariant.costPrice != null
-                          ? firstVariant.costPrice.toString()
-                          : ((parseFloat(selectedProduct.basePrice) || 100) * 0.5).toString()
-                      )
-                      setNewVarDiscountPrice(
-                        firstVariant.discountPrice != null && firstVariant.discountPrice > 0
-                          ? firstVariant.discountPrice.toString()
-                          : ''
-                      )
-                    } else {
-                      setNewVarSalePrice(selectedProduct.basePrice?.toString() || '100')
-                      setNewVarCostPrice(((parseFloat(selectedProduct.basePrice) || 100) * 0.5).toString())
-                      setNewVarDiscountPrice('')
-                    }
-                    setNewVarBarcode('')
-                    setNewVarStockQty('1')
-                    setIsAddVariantModalOpen(true)
-                  }}
-                  className="px-2.5 py-1.5 bg-blue-700 hover:bg-blue-800 text-white rounded text-xs font-semibold flex items-center space-x-1 shadow-xs transition"
-                  title="Bu ürüne yeni renk, beden veya barkod varyantı ekle"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>+ Yeni Varyant Ekle</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsBulkPriceModalOpen(true)}
+                    className="px-2.5 py-1.5 bg-gradient-to-r from-indigo-600 to-blue-700 hover:from-indigo-700 hover:to-blue-800 text-white rounded text-xs font-bold flex items-center space-x-1.5 shadow-xs transition cursor-pointer"
+                    title="Bu ürünün varyant fiyatı ya da iskontosunu toplu değiştir"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                    <span>⚡ Toplu Fiyat & İskonto</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const firstVariant = selectedProduct.variants?.[0]
+                      setNewVarColor('Siyah')
+                      setNewVarSize('M')
+                      if (firstVariant) {
+                        setNewVarSalePrice(
+                          firstVariant.salePrice != null
+                            ? firstVariant.salePrice.toString()
+                            : (selectedProduct.basePrice?.toString() || '100')
+                        )
+                        setNewVarCostPrice(
+                          firstVariant.costPrice != null
+                            ? firstVariant.costPrice.toString()
+                            : ((parseFloat(selectedProduct.basePrice) || 100) * 0.5).toString()
+                        )
+                        setNewVarDiscountPrice(
+                          firstVariant.discountPrice != null && firstVariant.discountPrice > 0
+                            ? firstVariant.discountPrice.toString()
+                            : ''
+                        )
+                      } else {
+                        setNewVarSalePrice(selectedProduct.basePrice?.toString() || '100')
+                        setNewVarCostPrice(((parseFloat(selectedProduct.basePrice) || 100) * 0.5).toString())
+                        setNewVarDiscountPrice('')
+                      }
+                      setNewVarBarcode('')
+                      setNewVarStockQty('1')
+                      setIsAddVariantModalOpen(true)
+                    }}
+                    className="px-2.5 py-1.5 bg-blue-700 hover:bg-blue-800 text-white rounded text-xs font-semibold flex items-center space-x-1 shadow-xs transition cursor-pointer"
+                    title="Bu ürüne yeni renk, beden veya barkod varyantı ekle"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Yeni Varyant Ekle</span>
+                  </button>
+                </div>
               </div>
 
               {/* Active Scanned Variant Alert Banner */}
@@ -1919,17 +2003,67 @@ export const StockView: React.FC = () => {
                 </div>
               )}
 
+              {/* Toplu İşlem Seçim Çubuğu */}
+              {selectedVariantIds.length > 0 && (
+                <div className="p-2.5 px-4 bg-indigo-50/95 border-2 border-indigo-400 rounded-2xl flex items-center justify-between shadow-xs animate-fadeIn mb-2">
+                  <div className="flex items-center space-x-2.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 animate-pulse"></span>
+                    <span className="text-xs font-black text-indigo-950">
+                      {selectedVariantIds.length} varyant seçildi
+                    </span>
+                    <span className="text-[11px] text-indigo-700 font-medium">
+                      (Toplam {selectedProduct.variants?.length || 0} varyant arasından)
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsBulkPriceModalOpen(true)}
+                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-xs transition flex items-center space-x-1.5 cursor-pointer"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                      <span>⚡ Seçilenlerin Fiyat / İskontosunu Değiştir</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedVariantIds([])}
+                      className="px-2.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl text-xs font-semibold transition cursor-pointer"
+                    >
+                      Seçimi Temizle
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Varyantlar Tablosu - Ayrı Renk & Beden Sütunları, Yapışkan ve Tam Görünen İşlem Sütunu */}
               <div className="glass-card rounded-2xl overflow-x-auto shadow-xs border border-white/60">
                 <table className="w-full text-left text-xs text-slate-700">
                   <thead className="bg-slate-50 text-slate-600 font-semibold uppercase tracking-wider border-b border-slate-200 text-[11px]">
                     <tr>
+                      <th className="px-3 py-3 w-10 text-center">
+                        <input
+                          type="checkbox"
+                          checked={
+                            sortedAndFilteredVariants.length > 0 &&
+                            sortedAndFilteredVariants.every((v: any) => selectedVariantIds.includes(v.id))
+                          }
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedVariantIds(sortedAndFilteredVariants.map((v: any) => v.id))
+                            } else {
+                              setSelectedVariantIds([])
+                            }
+                          }}
+                          className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer accent-blue-600"
+                          title="Tümünü Seç / Seçimi Kaldır"
+                        />
+                      </th>
                       <th className="px-3.5 py-3 whitespace-nowrap">Renk</th>
                       <th className="px-3.5 py-3 whitespace-nowrap text-center">Beden</th>
                       <th className="px-3.5 py-3 whitespace-nowrap">Barkod & SKU</th>
                       <th className="px-3.5 py-3 whitespace-nowrap">Satış Fiyatı</th>
                       <th className="px-3.5 py-3 whitespace-nowrap text-center">Mevcut Stok</th>
-                      <th className="px-3.5 py-3 text-right whitespace-nowrap w-[170px] min-w-[170px] sticky right-0 bg-slate-50 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] z-10">
+                      <th className="px-3.5 py-3 text-right whitespace-nowrap w-[210px] min-w-[210px] sticky right-0 bg-slate-50 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] z-10">
                         İşlem
                       </th>
                     </tr>
@@ -1950,6 +2084,23 @@ export const StockView: React.FC = () => {
                               : 'hover:bg-slate-50/80'
                           }`}
                         >
+                          {/* Seçim Kutusu */}
+                          <td className="px-3 py-2.5 text-center">
+                            <input
+                              type="checkbox"
+                              checked={selectedVariantIds.includes(v.id)}
+                              onChange={(e) => {
+                                e.stopPropagation()
+                                if (e.target.checked) {
+                                  setSelectedVariantIds((prev) => [...prev, v.id])
+                                } else {
+                                  setSelectedVariantIds((prev) => prev.filter((id) => id !== v.id))
+                                }
+                              }}
+                              className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer accent-blue-600"
+                            />
+                          </td>
+
                           {/* Ayrı Renk Sütunu */}
                           <td className="px-3.5 py-2.5 font-semibold text-slate-900 whitespace-nowrap">
                             <div className="flex items-center space-x-1.5">
@@ -2030,7 +2181,7 @@ export const StockView: React.FC = () => {
 
                           {/* İşlem Sütunu - STICKY ve TAM GÖRÜNÜR */}
                           <td
-                            className={`px-3.5 py-2 text-right w-[170px] min-w-[170px] whitespace-nowrap sticky right-0 z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] ${
+                            className={`px-3.5 py-2 text-right w-[210px] min-w-[210px] whitespace-nowrap sticky right-0 z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)] ${
                               isHighlighted
                                 ? 'bg-emerald-50/95 backdrop-blur-xs'
                                 : 'bg-white/95 backdrop-blur-xs group-hover:bg-slate-50/95'
@@ -2056,6 +2207,13 @@ export const StockView: React.FC = () => {
                                 <Edit3 className="w-3 h-3 text-indigo-600 shrink-0" />
                                 <span>Düzelt</span>
                                 <ShieldAlert className="w-2.5 h-2.5 text-indigo-400 opacity-60 shrink-0" />
+                              </button>
+                              <button
+                                onClick={() => handleVariantDeleteClick(v)}
+                                className="p-1 bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-800 border border-rose-300 rounded-lg transition text-xs font-bold flex items-center justify-center shrink-0 cursor-pointer shadow-2xs"
+                                title="Varyantı Sil (Yönetici PIN Gerekli)"
+                              >
+                                <Trash2 className="w-3.5 h-3.5 text-rose-600 shrink-0" />
                               </button>
                             </div>
                           </td>
@@ -3267,6 +3425,93 @@ export const StockView: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Custom Non-blocking Variant Delete Confirmation Modal */}
+      {deleteConfirmVariant && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 w-full max-w-md shadow-2xl space-y-4">
+            <div className="flex items-center space-x-3 text-rose-600">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5 text-rose-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm">Varyantı Silmek İstiyor Musunuz?</h3>
+                <p className="text-xs text-slate-500 font-semibold">
+                  {getVariantAttrs(deleteConfirmVariant).color} - {getVariantAttrs(deleteConfirmVariant).size} ({deleteConfirmVariant.sku})
+                </p>
+              </div>
+            </div>
+
+            {variantDeleteError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs font-semibold flex items-start space-x-2 animate-fadeIn">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <span className="flex-1 leading-snug">{variantDeleteError}</span>
+              </div>
+            )}
+
+            <div className="text-xs text-slate-600 space-y-1.5 bg-slate-50 p-3 rounded-xl border border-slate-200">
+              <div className="flex justify-between py-0.5 border-b border-slate-200/60">
+                <span className="text-slate-500 font-medium">Barkod:</span>
+                <span className="font-mono font-bold text-slate-800">{deleteConfirmVariant.barcode || '-'}</span>
+              </div>
+              <div className="flex justify-between py-0.5 border-b border-slate-200/60">
+                <span className="text-slate-500 font-medium">Mevcut Stok:</span>
+                <span className="font-bold text-slate-800">{deleteConfirmVariant.stockQuantity || 0} Adet</span>
+              </div>
+              <div className="flex justify-between py-0.5">
+                <span className="text-slate-500 font-medium">Satış Fiyatı:</span>
+                <span className="font-bold text-emerald-700">{(Number(deleteConfirmVariant.salePrice) || 0).toFixed(2)} ₺</span>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-slate-400 italic">
+              * Bu varyanta ait geçmiş satış kaydı yoksa tamamen silinir. Geçmiş satışı varsa sistem mali kaydı korumak için silinmesini engeller.
+            </p>
+
+            <div className="flex justify-end space-x-2 pt-2">
+              <button
+                type="button"
+                disabled={isDeletingVariant}
+                onClick={() => {
+                  setDeleteConfirmVariant(null)
+                  setVariantDeleteError(null)
+                }}
+                className="px-3.5 py-1.5 bg-slate-100 text-slate-700 rounded-xl text-xs font-semibold hover:bg-slate-200 border border-slate-200 transition"
+              >
+                Vazgeç
+              </button>
+              <button
+                type="button"
+                disabled={isDeletingVariant}
+                onClick={() => performVariantDelete(deleteConfirmVariant)}
+                className="px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-semibold shadow-sm transition flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{isDeletingVariant ? 'Siliniyor...' : 'Evet, Varyantı Sil'}</span>
+                <ShieldAlert className="w-3 h-3 text-rose-200 opacity-70" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Variant Price & Discount Modal */}
+      {selectedProduct && (
+        <BulkVariantPriceModal
+          isOpen={isBulkPriceModalOpen}
+          onClose={() => setIsBulkPriceModalOpen(false)}
+          product={selectedProduct}
+          preselectedVariantIds={selectedVariantIds}
+          adminVerified={adminVerifiedForSession}
+          onRequestAdminPin={handleRequestAdminPinForAction}
+          onSuccess={(msg) => {
+            showToast('success', msg)
+            fetchProducts()
+            notifyDataChanged()
+            setSelectedVariantIds([])
+          }}
+        />
       )}
 
       {/* Global Fixed High-Z Toast Banner (always visible on top of all modals) */}
