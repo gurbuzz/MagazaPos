@@ -67,7 +67,21 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
     lockApp,
   } = usePosStore()
 
-  const [activeTab, setActiveTab] = useState<'general' | 'receipt' | 'display' | 'network' | 'database'>('general')
+  const [activeTab, setActiveTab] = useState<'general' | 'receipt' | 'display' | 'network' | 'database' | 'update'>('general')
+  const cartItems = usePosStore(state => state.cartItems)
+  const exchange = usePosStore(state => state.exchange)
+  const [updateStatus, setUpdateStatus] = useState<{ state: string; version?: string; message?: string; percent?: number }>({ state: 'idle' })
+  useEffect(() => window.electron?.onUpdateStatus(setUpdateStatus), [])
+  const runUpdateAction = async (action: 'checkUpdates' | 'downloadUpdate' | 'installUpdate') => {
+    if (!window.electron) { setUpdateStatus({ state: 'error', message: 'Bu özellik masaüstü uygulamasında kullanılabilir.' }); return }
+    if (action === 'installUpdate') {
+      if (cartItems.length || exchange) { setUpdateStatus({ state: 'downloaded', message: 'Önce açık satışı veya değişimi tamamlayın ya da sepeti temizleyin.' }); return }
+      if (!window.confirm('Veritabanı yedeklenip uygulama kapatılacak ve güncelleme kurulacak. Devam edilsin mi?')) return
+      setUpdateStatus({ state: 'installing' })
+    }
+    const result = await window.electron[action]()
+    if (!result.success) setUpdateStatus({ state: action === 'installUpdate' ? 'downloaded' : 'error', message: result.error })
+  }
 
   const [formStoreName, setFormStoreName] = useState(storeName)
   const [formStoreAddress, setFormStoreAddress] = useState(storeAddress)
@@ -728,10 +742,26 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
           >
             Veritabanı & Yedek
           </button>
+          <button type="button" onClick={() => setActiveTab('update')} className={`px-3.5 py-1.5 text-xs font-semibold rounded-t border-b-2 ${activeTab === 'update' ? 'bg-white border-blue-700 text-blue-700' : 'border-transparent text-slate-600'}`}>
+            Güncelleme
+          </button>
         </div>
 
         {/* Settings Form */}
         <form onSubmit={handleSubmit} className="p-5 space-y-5 max-h-[70vh] overflow-y-auto">
+          {activeTab === 'update' && (
+            <div className="space-y-3 text-sm">
+              <h4 className="font-bold">Uygulama Güncellemesi</h4>
+              <p>GitHub üzerinde yayınlanmış sürümleri kontrol edin. Kurulumdan önce veritabanı yedeklenir.</p>
+              <p className="text-slate-600">{updateStatus.state === 'checking' ? 'Güncellemeler kontrol ediliyor...' : updateStatus.state === 'available' ? `Yeni sürüm: ${updateStatus.version}` : updateStatus.state === 'current' ? `Uygulama güncel (${updateStatus.version}).` : updateStatus.state === 'downloading' ? `İndiriliyor: %${updateStatus.percent || 0}` : updateStatus.state === 'downloaded' ? `Sürüm ${updateStatus.version || ''} kuruluma hazır.` : updateStatus.state === 'installing' ? 'Yedek alınıyor ve kurulum başlatılıyor...' : 'Kontrol etmek için düğmeye basın.'}</p>
+              {updateStatus.message && <p className="text-rose-700">{updateStatus.message}</p>}
+              <div className="flex gap-2">
+                <button type="button" disabled={['checking', 'downloading', 'installing'].includes(updateStatus.state)} onClick={() => runUpdateAction('checkUpdates')} className="px-3 py-2 bg-blue-700 text-white rounded disabled:opacity-50">Güncellemeleri Kontrol Et</button>
+                {updateStatus.state === 'available' && <button type="button" onClick={() => runUpdateAction('downloadUpdate')} className="px-3 py-2 bg-indigo-700 text-white rounded">Güncellemeyi İndir</button>}
+                {updateStatus.state === 'downloaded' && <button type="button" onClick={() => runUpdateAction('installUpdate')} className="px-3 py-2 bg-emerald-700 text-white rounded">Yedekle ve Kur</button>}
+              </div>
+            </div>
+          )}
           {settingsError && (
             <div className="p-3 bg-rose-50 border border-rose-300 rounded-xl text-xs font-semibold text-rose-800 flex items-center justify-between shadow-2xs">
               <span>⚠️ {settingsError}</span>

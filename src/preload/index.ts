@@ -14,6 +14,14 @@ contextBridge.exposeInMainWorld('electron', {
   ) => ipcRenderer.invoke('print-raw', printerName, rawBase64),
   getPrinters: () => ipcRenderer.invoke('get-printers'),
   getLocalIp: () => ipcRenderer.invoke('get-local-ip'),
+  checkUpdates: () => ipcRenderer.invoke('update-check'),
+  downloadUpdate: () => ipcRenderer.invoke('update-download'),
+  installUpdate: () => ipcRenderer.invoke('update-install'),
+  onUpdateStatus: (callback: (status: any) => void) => {
+    const handler = (_: any, status: any) => callback(status)
+    ipcRenderer.on('update-status', handler)
+    return () => ipcRenderer.removeListener('update-status', handler)
+  },
   toggleFullscreen: () => ipcRenderer.invoke('toggle-fullscreen'),
   isFullscreen: () => ipcRenderer.invoke('is-fullscreen'),
   openExternal: (url: string) => ipcRenderer.invoke('open-external', url),

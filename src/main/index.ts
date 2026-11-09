@@ -1,8 +1,11 @@
 import { app, BrowserWindow, ipcMain, Menu, screen, shell } from 'electron'
 import path from 'path'
 import fs from 'fs'
-import { startServer } from '../server'
-import { prisma } from '../server/db'
+import { startServer, beginUpdateMaintenance, endUpdateMaintenance } from '../server'
+import { prisma, getActiveDbPath, toSqliteUrl } from '../server/db'
+import { PrismaClient } from '@prisma/client'
+import { autoUpdater } from 'electron-updater'
+import { getBackupsDir } from '../server/utils/databaseBackup'
 import { getLocalIpAddress } from '../server/utils/network'
 
 // MağazaPOS Main Electron Process & Express Server Entry
@@ -43,6 +46,59 @@ let mainWindow: BrowserWindow | null = null
 let customerWindow: BrowserWindow | null = null
 let cachedCustomerData: any = null
 let isCustomerDisplayBusy = false
+
+autoUpdater.autoDownload = false
+autoUpdater.autoInstallOnAppQuit = false
+let updateDownloaded = false
+let updateBusy = false
+const updateStatus = (status: object) => {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('update-status', status)
+}
+autoUpdater.on('update-available', info => updateStatus({ state: 'available', version: info.version }))
+autoUpdater.on('update-not-available', () => updateStatus({ state: 'current', version: app.getVersion() }))
+autoUpdater.on('download-progress', progress => updateStatus({ state: 'downloading', percent: Math.round(progress.percent) }))
+autoUpdater.on('update-downloaded', info => { updateDownloaded = true; updateStatus({ state: 'downloaded', version: info.version }) })
+autoUpdater.on('error', err => updateStatus({ state: 'error', message: err.message }))
+
+ipcMain.handle('update-check', async () => {
+  if (!app.isPackaged || process.platform !== 'win32') return { success: false, error: 'Güncelleme yalnızca kurulu Windows uygulamasında kullanılabilir.' }
+  if (updateBusy) return { success: false, error: 'Bir güncelleme işlemi devam ediyor.' }
+  updateBusy = true
+  try { updateStatus({ state: 'checking' }); await autoUpdater.checkForUpdates(); return { success: true } }
+  catch (err: any) { return { success: false, error: err.message } }
+  finally { updateBusy = false }
+})
+ipcMain.handle('update-download', async () => {
+  if (!app.isPackaged || updateBusy) return { success: false, error: 'Güncelleme şu anda indirilemiyor.' }
+  updateBusy = true
+  try { await autoUpdater.downloadUpdate(); return { success: true } }
+  catch (err: any) { return { success: false, error: err.message } }
+  finally { updateBusy = false }
+})
+ipcMain.handle('update-install', async () => {
+  if (!app.isPackaged || !updateDownloaded || updateBusy) return { success: false, error: 'Kuruluma hazır bir güncelleme yok.' }
+  updateBusy = true
+  try {
+    await beginUpdateMaintenance()
+    const dbPath = getActiveDbPath()
+    if (!fs.existsSync(dbPath)) throw new Error('Aktif veritabanı bulunamadı.')
+    const backupPath = path.join(getBackupsDir(), `guncelleme_${Date.now()}.db`)
+    const safePath = backupPath.replace(/\\/g, '/').replace(/'/g, "''")
+    await prisma.$executeRawUnsafe(`VACUUM INTO '${safePath}'`)
+    const backup = new PrismaClient({ datasources: { db: { url: toSqliteUrl(backupPath) } } })
+    try {
+      const result: any[] = await backup.$queryRawUnsafe('PRAGMA integrity_check;')
+      if (result.length !== 1 || Object.values(result[0])[0] !== 'ok') throw new Error('Veritabanı yedeği doğrulanamadı.')
+    } finally { await backup.$disconnect() }
+    await prisma.$disconnect()
+    autoUpdater.quitAndInstall(false, true)
+    return { success: true }
+  } catch (err: any) {
+    endUpdateMaintenance()
+    updateBusy = false
+    return { success: false, error: `Güncelleme başlatılamadı: ${err.message}` }
+  }
+})
 
 function getAllCustomerWindows(): BrowserWindow[] {
   return BrowserWindow.getAllWindows().filter((win) => {

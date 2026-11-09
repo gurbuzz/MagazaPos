@@ -18,6 +18,7 @@
   },
   "build": {
     "appId": "com.magazapos.app",
+    "publish": [{ "provider": "github", "owner": "gurbuzz", "repo": "MagazaPos", "releaseType": "release" }],
     "productName": "MagazaPOS",
     "directories": {
       "output": "release"
@@ -77,6 +78,7 @@
     "@types/qrcode": "^1.5.6",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
+    "electron-updater": "^6.8.11",
     "express": "^4.19.2",
     "lucide-react": "^0.436.0",
     "multer": "^2.3.0",

@@ -142,27 +142,29 @@ function initializeDatabaseFile(): string {
     return url
   }
 
+  // Never replace an existing database just because a preliminary file check failed.
+  // It may contain recoverable store data or SQLite journal files.
+  if (fs.existsSync(targetDbPath)) {
+    const message = `Mevcut veritabanı doğrulanamadı; veri korunması için başlatma durduruldu: ${targetDbPath}`
+    logDebug('DB_INIT', message)
+    throw new Error(message)
+  }
+
   // İlk çalıştırma veya eksik/bozuk/0-byte veritabanı: hazır dev.db şablonunu ara
   const foundSeed = findSeedDb()
 
   if (foundSeed) {
     try {
       logDebug('DB_INIT', `Selected seed DB: ${foundSeed}. Attempting to copy to ${targetDbPath}...`)
-      // Eğer hedefte 0-byte veya bozuk kalıntı dosya varsa önce temizle
-      if (fs.existsSync(targetDbPath)) {
-        try { fs.unlinkSync(targetDbPath) } catch {}
-      }
-      fs.copyFileSync(foundSeed, targetDbPath)
+      fs.copyFileSync(foundSeed, targetDbPath, fs.constants.COPYFILE_EXCL)
       currentActiveDbPath = targetDbPath
       const url = toSqliteUrl(targetDbPath)
       logDebug('DB_INIT', `Seed DB successfully copied. Returning URL: ${url}`)
       console.log(`[DB] Hazır veritabanı AppData konumuna başarıyla kopyalandı:\n  Kaynak: ${foundSeed}\n  Hedef: ${targetDbPath}`)
       return url
     } catch (err: any) {
-      currentActiveDbPath = foundSeed
-      logDebug('DB_INIT', `Error copying seed database! Using seed DB directly as fallback.`, err)
-      console.error('[DB] Hazır veritabanı kopyalanırken hata, doğrudan kaynak kullanılacak:', err)
-      return toSqliteUrl(foundSeed)
+      logDebug('DB_INIT', 'Error copying seed database; refusing to use the packaged template as live data.', err)
+      throw new Error(`Kalıcı veritabanı oluşturulamadı: ${err.message}`)
     }
   }
 

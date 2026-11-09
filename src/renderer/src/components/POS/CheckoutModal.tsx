@@ -22,6 +22,7 @@ const parseDecimal = (val: any): number => {
 export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, onSuccess }) => {
   const {
     cartItems,
+    exchange,
     discountAmount,
     surchargeAmount,
     getTotal,
@@ -143,12 +144,17 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
       }
     }
 
+    if (exchange && Math.round((getSubtotal() - discountAmount + surchargeAmount) * 100) < Math.round(exchange.credit * 100)) {
+      setCheckoutError('Yeni ürünlerin tutarı değişim bedelinden düşük olamaz.')
+      return
+    }
     setIsProcessing(true)
     try {
       const payload = {
         items: cartItems,
+        exchange,
         totalAmount: total,
-        discountAmount,
+        discountAmount: discountAmount + (exchange?.credit || 0),
         cashierName,
         customerId: selectedCustomer ? selectedCustomer.id : null,
         receiptPrefix: receiptPrefix || 'FIS',

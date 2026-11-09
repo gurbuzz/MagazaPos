@@ -20,6 +20,7 @@ export default defineConfig({
             rollupOptions: {
               external: [
                 '@prisma/client',
+                'electron-updater',
                 '.prisma/client',
                 /^\.prisma\/.*/,
                 /^@prisma\/.*/,

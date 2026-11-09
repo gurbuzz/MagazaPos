@@ -16,6 +16,35 @@ import { musicRouter } from './routes/music'
 const app = express()
 const PORT = Number(process.env.PORT) || 3782
 
+let maintenance = false
+let activeRequests = 0
+app.use((req, res, next) => {
+  if (maintenance) {
+    res.status(503).json({ error: 'Güncelleme için uygulama kapatılıyor.' })
+    return
+  }
+  activeRequests++
+  let finished = false
+  const done = () => { if (!finished) { finished = true; activeRequests-- } }
+  res.once('finish', done)
+  res.once('close', done)
+  next()
+})
+
+export async function beginUpdateMaintenance(): Promise<void> {
+  maintenance = true
+  const deadline = Date.now() + 15000
+  while (activeRequests > 0 && Date.now() < deadline) {
+    await new Promise(resolve => setTimeout(resolve, 100))
+  }
+  if (activeRequests > 0) {
+    maintenance = false
+    throw new Error('Devam eden işlemler tamamlanamadı. Tekrar deneyin.')
+  }
+}
+
+export function endUpdateMaintenance(): void { maintenance = false }
+
 app.use(cors())
 app.use(express.json())
 

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { X, Search, RotateCcw, AlertCircle, CheckCircle2, Sparkles, ArrowRight } from 'lucide-react'
 import { usePosStore } from '../../store/usePosStore'
-import { notifyDataChanged } from '../../utils/events'
 
 interface ExchangeModalProps {
   isOpen: boolean
@@ -9,7 +8,7 @@ interface ExchangeModalProps {
 }
 
 export const ExchangeModal: React.FC<ExchangeModalProps> = ({ isOpen, onClose }) => {
-  const { applyDiscount } = usePosStore()
+  const { setExchange } = usePosStore()
 
   const [searchReceipt, setSearchReceipt] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -142,45 +141,11 @@ export const ExchangeModal: React.FC<ExchangeModalProps> = ({ isOpen, onClose })
       return
     }
 
-    setIsProcessing(true)
-    setErrorMsg('')
-
-    try {
-      // 1. Process return of 1 qty for exchange
-      const res = await fetch(`/api/sales/${foundSale.id}/return`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          items: [{ saleItemId: item.id, returnQuantity: 1 }],
-          reason: 'Beden / Ürün Değişimi (Sıfır Fark Mahsubu)',
-          customerName: foundSale.customer
-            ? `${foundSale.customer.firstName} ${foundSale.customer.lastName}`
-            : 'Anonim Değişim Müşterisi',
-        }),
-      })
-
-      if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.error || 'İade işlemi kaydedilemedi.')
-      }
-
-      // 2. Apply credit/discount to cart equal to returned item's unit price
-      const creditAmount = item.unitPrice
-      applyDiscount(creditAmount)
-
-      setSuccessMsg(
-        `✅ "${item.variant?.product?.name || 'Ürün'}" iade stoğuna alındı ve ${creditAmount.toFixed(2)} ₺ değişim mahsubu sepete uygulandı!`
-      )
-      notifyDataChanged()
-
-      setTimeout(() => {
-        setIsProcessing(false)
-        onClose()
-      }, 1200)
-    } catch (err: any) {
-      setErrorMsg(`Değişim hatası: ${err.message}`)
-      setIsProcessing(false)
-    }
+    const subtotal = foundSale.items.reduce((sum: number, entry: any) => sum + entry.quantity * entry.unitPrice, 0)
+    const paidValue = Number(foundSale.totalAmount) + (Number(foundSale.paymentType?.exchange?.credit) || 0)
+    const credit = Math.round(item.unitPrice * (subtotal > 0 ? Math.min(1, paidValue / subtotal) : 1) * 100) / 100
+    setExchange({ saleId: foundSale.id, itemId: item.id, credit })
+    onClose()
   }
 
   return (
@@ -326,7 +291,7 @@ export const ExchangeModal: React.FC<ExchangeModalProps> = ({ isOpen, onClose })
                     <span>Sıfır Fark Değişim Kuralı</span>
                   </div>
                   <p className="text-[11px] text-emerald-700">
-                    Seçilen ürün stoğa geri alınacak ve <strong>{(foundSale.items.find((i: any) => i.id === selectedItemId)?.unitPrice ?? 0).toFixed(2)} ₺</strong> tutarındaki bedel sepete indirim/mahsup olarak yansıtılacaktır.
+                    Ürünün fişte ödenen bedeli sepette mahsup edilir. Değişim ve stok hareketi ödeme tamamlandığında kaydedilir.
                   </p>
                 </div>
               )}

@@ -37,6 +37,8 @@ export const PosView: React.FC = () => {
     removeFromCart,
     updateQuantity,
     discountAmount,
+    exchange,
+    setExchange,
     surchargeAmount,
     customTotal,
     setCustomTotal,
@@ -954,6 +956,12 @@ export const PosView: React.FC = () => {
                   <span className="text-slate-500 font-medium text-[11px]">Ara Toplam</span>
                   <span className="font-semibold text-xs">{subtotal.toFixed(2)} ₺</span>
                 </div>
+                {exchange && (
+                  <div className="flex justify-between text-xs text-indigo-700 font-semibold">
+                    <span>Değişim mahsubu <button onClick={() => setExchange(null)} className="underline ml-1">İptal</button></span>
+                    <span>-{exchange.credit.toFixed(2)} ₺</span>
+                  </div>
+                )}
                 {discountAmount > 0 && (
                   <div className="flex justify-between text-emerald-700 font-semibold text-xs">
                     <span className="text-[11px]">İndirim Tutarı</span>

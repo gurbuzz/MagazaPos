@@ -87,6 +87,8 @@ interface PosState {
   setSelectedCustomer: (customer: Customer | null) => void
   clearSelectedCustomer: () => void
 
+  exchange: { saleId: string; itemId: string; credit: number } | null
+  setExchange: (exchange: { saleId: string; itemId: string; credit: number } | null) => void
   discountAmount: number
   surchargeAmount: number
   customTotal: number | null
@@ -253,6 +255,8 @@ export const usePosStore = create<PosState>((set, get) => ({
   setSelectedCustomer: (customer) => set({ selectedCustomer: customer }),
   clearSelectedCustomer: () => set({ selectedCustomer: null }),
 
+  exchange: null,
+  setExchange: (exchange) => set({ exchange }),
   discountAmount: 0,
   surchargeAmount: 0,
   customTotal: null,
@@ -559,6 +563,7 @@ export const usePosStore = create<PosState>((set, get) => ({
       activeCampaign: null,
       customTotal: null,
       selectedCustomer: null,
+      exchange: null,
     }),
 
   getSubtotal: () => {
@@ -573,15 +578,15 @@ export const usePosStore = create<PosState>((set, get) => ({
   },
 
   getTotal: () => {
-    const { customTotal, discountAmount, surchargeAmount, cartItems } = get()
+    const { customTotal, discountAmount, surchargeAmount, cartItems, exchange } = get()
     if (!cartItems || cartItems.length === 0) return 0
     if (customTotal !== null && !isNaN(customTotal) && customTotal >= 0) {
-      return Math.round(customTotal * 100) / 100
+      return Math.round(Math.max(0, customTotal - (exchange?.credit || 0)) * 100) / 100
     }
     const subtotal = get().getSubtotal()
     const disc = Math.min(subtotal, Math.max(0, Number(discountAmount) || 0))
     const sur = Math.max(0, Number(surchargeAmount) || 0)
-    const raw = Math.max(0, subtotal - disc + sur)
+    const raw = Math.max(0, subtotal - disc + sur - (exchange?.credit || 0))
     return Math.round(raw * 100) / 100
   },
 }))
@@ -592,6 +597,7 @@ usePosStore.subscribe((state) => {
   const syncKey = JSON.stringify({
     items: state.cartItems.map((i) => ({ id: i.variantId, q: i.quantity, p: i.totalPrice })),
     discount: state.discountAmount,
+    exchange: state.exchange,
     surcharge: state.surchargeAmount,
     customTotal: state.customTotal,
     campaign: state.activeCampaign?.id,

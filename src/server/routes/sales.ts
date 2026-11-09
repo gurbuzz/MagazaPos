@@ -43,14 +43,12 @@ export function formatSale(s: any) {
   const discountFactor = itemsSubtotal > 0 ? Math.min(1, totalAmountNum / itemsSubtotal) : 1
 
   let calculatedRefund = (items || []).reduce((sum: number, it: any) => {
-    const retQty = Number(it.returnedQuantity) || 0
+    const retQty = Math.max(0, (Number(it.returnedQuantity) || 0) - (Number(pay?.exchangedItems?.[it.id]) || 0))
     return sum + retQty * (Number(it.unitPrice) || 0) * discountFactor
   }, 0)
   calculatedRefund = Math.round(calculatedRefund * 100) / 100
 
-  const isFullyReturned =
-    s.status === 'RETURNED' ||
-    (items && items.length > 0 && items.every((it: any) => (Number(it.returnedQuantity) || 0) >= (Number(it.quantity) || 0)))
+  const isFullyReturned = s.status === 'RETURNED' && !Object.keys(pay?.exchangedItems || {}).length
 
   const refundAmount = isFullyReturned ? totalAmountNum : Math.min(totalAmountNum, calculatedRefund)
   const netAmount = isFullyReturned ? 0 : Math.max(0, Math.round((totalAmountNum - refundAmount) * 100) / 100)
@@ -287,7 +285,7 @@ salesRouter.get('/', async (req, res) => {
 // POST /api/sales - Create & Checkout POS Sale
 salesRouter.post('/', async (req, res) => {
   try {
-    const { items, totalAmount, discountAmount, paymentType, cashierName, customerId, receiptPrefix } = req.body
+    const { items, totalAmount, discountAmount, paymentType, cashierName, customerId, receiptPrefix, exchange } = req.body
 
     if (!items || items.length === 0) {
       res.status(400).json({ error: 'Sepette ürün bulunmamaktadır.' })
@@ -316,6 +314,37 @@ salesRouter.post('/', async (req, res) => {
 
     // Transaction to create sale, items, update stock and log movements atomically
     const result = await prisma.$transaction(async (tx) => {
+      if (exchange) {
+        const original = await tx.sale.findUnique({ where: { id: exchange.saleId }, include: { items: true } })
+        const oldItem = original?.items.find(item => item.id === exchange.itemId)
+        if (!original || !oldItem || original.status === 'CANCELLED' || oldItem.returnedQuantity >= oldItem.quantity) {
+          throw new Error('Değiştirilecek ürün artık kullanılabilir değil.')
+        }
+        let originalPay: any = {}
+        try { originalPay = JSON.parse(original.paymentType) } catch {
+          originalPay = original.paymentType === 'CARD' ? { cash: 0, card: original.totalAmount } : { cash: original.totalAmount, card: 0 }
+        }
+        const subtotal = original.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0)
+        const paidValue = original.totalAmount + (Number(originalPay?.exchange?.credit) || 0)
+        const credit = Math.round(oldItem.unitPrice * (subtotal > 0 ? Math.min(1, paidValue / subtotal) : 1) * 100) / 100
+        if (Math.round(Number(exchange.credit) * 100) !== Math.round(credit * 100) || parseDecimal(discountAmount) < credit) {
+          throw new Error('Değişim bedeli değişti; fişi yeniden seçin.')
+        }
+        const newSubtotal = items.reduce((sum: number, item: any) => sum + parseDecimal(item.totalPrice), 0)
+        if (newSubtotal < parseDecimal(discountAmount) || Math.round((newSubtotal - parseDecimal(discountAmount)) * 100) > Math.round(parseDecimal(totalAmount) * 100)) {
+          throw new Error('Değişim tutarı veya tahsilat geçersiz.')
+        }
+        originalPay.exchangedItems = originalPay.exchangedItems || {}
+        originalPay.exchangedItems[oldItem.id] = (Number(originalPay.exchangedItems[oldItem.id]) || 0) + 1
+        await tx.saleItem.update({ where: { id: oldItem.id }, data: { returnedQuantity: { increment: 1 } } })
+        await tx.productVariant.update({ where: { id: oldItem.variantId }, data: { stockQuantity: { increment: 1 } } })
+        await tx.stockMovement.create({ data: { variantId: oldItem.variantId, type: 'EXCHANGE', quantity: 1, note: `Değişim: ${original.receiptNo} → ${receiptNo}` } })
+        const allHandled = original.items.every(item => item.returnedQuantity + (item.id === oldItem.id ? 1 : 0) >= item.quantity)
+        await tx.sale.update({ where: { id: original.id }, data: { status: allHandled ? 'EXCHANGED' : 'PARTIAL_EXCHANGE', paymentType: JSON.stringify(originalPay) } })
+        if (typeof paymentType === 'object' && paymentType) {
+          paymentType.exchange = { receiptNo: original.receiptNo, saleId: original.id, itemId: oldItem.id, credit }
+        }
+      }
       // 1. Create Sale record
       const parsedTotal = parseDecimal(totalAmount)
       const parsedDiscount = parseDecimal(discountAmount)
@@ -476,7 +505,9 @@ salesRouter.post('/:id/return', async (req, res) => {
       // Check if all items in sale are fully returned
       const freshSaleItems: any[] = await tx.saleItem.findMany({ where: { saleId: id } })
       const allFullyReturned = freshSaleItems.every((item: any) => (item.returnedQuantity || 0) >= item.quantity)
-      const newStatus = allFullyReturned ? 'RETURNED' : 'PARTIAL_RETURN'
+      let hasExchanges = false
+      try { hasExchanges = Object.keys(JSON.parse(sale.paymentType)?.exchangedItems || {}).length > 0 } catch {}
+      const newStatus = allFullyReturned ? (hasExchanges ? 'EXCHANGED' : 'RETURNED') : 'PARTIAL_RETURN'
 
       // Calculate refund amount for items returned in this transaction
       const itemsSubtotal = (sale.items || []).reduce(
@@ -531,9 +562,7 @@ salesRouter.post('/:id/return', async (req, res) => {
 
       const newRefundCash = Math.min(origCash, Math.round((prevRefundCash + addCash) * 100) / 100)
       const newRefundCard = Math.min(origCard, Math.round((prevRefundCard + addCard) * 100) / 100)
-      const newRefundTotal = allFullyReturned
-        ? totalAmountNum
-        : Math.min(totalAmountNum, Math.round((newRefundCash + newRefundCard) * 100) / 100)
+      const newRefundTotal = Math.min(totalAmountNum, Math.round((newRefundCash + newRefundCard) * 100) / 100)
 
       currentPay.refundCash = newRefundCash
       currentPay.refundCard = newRefundCard

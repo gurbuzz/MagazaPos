@@ -862,6 +862,9 @@ export const SalesHistoryView: React.FC = () => {
                         {sale.items?.length || 0} Kalem Ürün
                       </td>
                       <td className="px-4 py-2.5 text-xs">
+                        {(sale.status === 'EXCHANGED' || sale.status === 'PARTIAL_EXCHANGE') && (
+                          <span className="block text-indigo-700 font-semibold">{sale.status === 'EXCHANGED' ? 'Değişim yapıldı' : 'Kısmi değişim'}</span>
+                        )}
                         {sale.status === 'RETURNED' ? (
                           <div className="space-y-0.5">
                             <span className="line-through text-slate-400 text-[11px] block">

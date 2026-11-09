@@ -590,6 +590,11 @@ export const CustomerView: React.FC = () => {
                                 Kısmi İade Yapıldı
                               </span>
                             )}
+                            {(sale.status === 'EXCHANGED' || sale.status === 'PARTIAL_EXCHANGE') && (
+                              <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded font-bold text-[10px]">
+                                {sale.status === 'EXCHANGED' ? 'Değişim Yapıldı' : 'Kısmi Değişim Yapıldı'}
+                              </span>
+                            )}
 
                             <span className="text-xs text-slate-500 flex items-center space-x-1">
                               <Clock className="w-3.5 h-3.5 text-slate-400" />

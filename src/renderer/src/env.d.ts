@@ -22,6 +22,10 @@ declare global {
       ) => Promise<{ success: boolean; failureReason?: string }>
       getPrinters: () => Promise<any[]>
       getLocalIp: () => Promise<string>
+      checkUpdates: () => Promise<{ success: boolean; error?: string }>
+      downloadUpdate: () => Promise<{ success: boolean; error?: string }>
+      installUpdate: () => Promise<{ success: boolean; error?: string }>
+      onUpdateStatus: (callback: (status: { state: string; version?: string; message?: string; percent?: number }) => void) => () => void
       toggleFullscreen: () => Promise<boolean>
       isFullscreen: () => Promise<boolean>
 
