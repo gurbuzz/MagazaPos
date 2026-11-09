@@ -5,6 +5,7 @@ import { startServer, beginUpdateMaintenance, endUpdateMaintenance } from '../se
 import { prisma, getActiveDbPath, toSqliteUrl } from '../server/db'
 import { PrismaClient } from '@prisma/client'
 import { autoUpdater } from 'electron-updater'
+import type { ProgressInfo, UpdateDownloadedEvent, UpdateInfo } from 'electron-updater'
 import { getBackupsDir } from '../server/utils/databaseBackup'
 import { getLocalIpAddress } from '../server/utils/network'
 
@@ -54,11 +55,11 @@ let updateBusy = false
 const updateStatus = (status: object) => {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('update-status', status)
 }
-autoUpdater.on('update-available', info => updateStatus({ state: 'available', version: info.version }))
+autoUpdater.on('update-available', (info: UpdateInfo) => updateStatus({ state: 'available', version: info.version }))
 autoUpdater.on('update-not-available', () => updateStatus({ state: 'current', version: app.getVersion() }))
-autoUpdater.on('download-progress', progress => updateStatus({ state: 'downloading', percent: Math.round(progress.percent) }))
-autoUpdater.on('update-downloaded', info => { updateDownloaded = true; updateStatus({ state: 'downloaded', version: info.version }) })
-autoUpdater.on('error', err => updateStatus({ state: 'error', message: err.message }))
+autoUpdater.on('download-progress', (progress: ProgressInfo) => updateStatus({ state: 'downloading', percent: Math.round(progress.percent) }))
+autoUpdater.on('update-downloaded', (info: UpdateDownloadedEvent) => { updateDownloaded = true; updateStatus({ state: 'downloaded', version: info.version }) })
+autoUpdater.on('error', (err: Error) => updateStatus({ state: 'error', message: err.message }))
 
 ipcMain.handle('update-check', async () => {
   if (!app.isPackaged || process.platform !== 'win32') return { success: false, error: 'Güncelleme yalnızca kurulu Windows uygulamasında kullanılabilir.' }

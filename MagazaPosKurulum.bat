@@ -40,35 +40,17 @@ if not exist ".env" (
     echo.
 )
 
-REM --- npm install ---
-set "NEED_INSTALL=0"
-if not exist "node_modules" set "NEED_INSTALL=1"
-if not exist "node_modules\prisma" set "NEED_INSTALL=1"
-if not exist "node_modules\.bin\prisma.cmd" set "NEED_INSTALL=1"
-
-if "%NEED_INSTALL%"=="1" (
-    if exist "node_modules" (
-        echo  [BILGI] Onceki kurulum yarim kalmis, eksik paketler tamamlaniyor...
-    ) else (
-        echo  [1/4] Paketler yukleniyor - npm install...
-    )
-    echo  Bu islem birkac dakika surebilir, lutfen bekleyin...
+REM Kaynak guncellendiginde yeni bagimliliklarin da kurulmasini garanti et.
+echo  [BILGI] Kilit dosyasindaki tum paketler kuruluyor, lutfen bekleyin...
+call npm ci --include=dev
+if errorlevel 1 (
     echo.
-    call npm install
-    if errorlevel 1 (
-        echo.
-        echo  [HATA] npm install basarisiz!
-        echo  Lutfen internet baglantinizi kontrol edip tekrar deneyin.
-        pause
-        goto BITIS
-    )
-    echo.
-    echo  [OK] npm install tamamlandi.
-    echo.
-) else (
-    echo  [OK] Bagimli paketler ^(node_modules^) mevcut.
-    echo.
+    echo  [HATA] npm ci basarisiz! Internet baglantisini ve package-lock.json dosyasini kontrol edin.
+    pause
+    goto BITIS
 )
+echo  [OK] Bagimliliklar guncel.
+echo.
 
 REM --- Prisma Generate (her zaman kontrol et) ---
 if not exist "node_modules\.prisma\client" (
@@ -207,6 +189,12 @@ echo  [OK] Veritabani pakete hazirlandi.
 echo.
 echo  [2/4] TypeScript derleniyor...
 call npx tsc --skipLibCheck
+if errorlevel 1 (
+    echo.
+    echo  [HATA] TypeScript derlemesi basarisiz! Paketleme durduruldu.
+    pause
+    goto BITIS
+)
 echo.
 
 echo  [3/4] Arayuz (Vite) derleniyor...

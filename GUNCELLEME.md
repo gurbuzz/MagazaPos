@@ -1,5 +1,15 @@
 # Windows güncelleme süreci
 
+## Açılışta `Cannot find module 'electron-updater'` hatası
+
+Bu hata, kurulu uygulamanın güncelleme modülünü içermediğini gösterir. Aynı modül kaynak klasöründeki `node_modules` içinde de eksikse TypeScript `TS2307` ve güncelleme olaylarında `TS7006` hataları verir.
+
+Windows'ta güncel kaynak koduyla `Paketle_EXE.bat` dosyasını çalıştırın. Betik, her paketlemeden önce `npm ci --include=dev` ile kilit dosyasındaki bağımlılıkları kurar. Alternatif olarak kaynak klasöründe sırasıyla `npm ci --include=dev` ve `npm run package:win` çalıştırın. `release` klasöründe yeni oluşturulan kurulum dosyasını mevcut uygulamanın üzerine kurun. Kaynak klasöründe paketleri kurmak, daha önce oluşturulmuş EXE'yi düzeltmez. Mevcut mağaza veritabanını veya kullanıcı verileri klasörünü silmeyin.
+
+`MagazaPosKurulum.bat` da bağımlılıkları aynı şekilde kurar ve TypeScript hatası varsa paketlemeyi durdurur.
+
+## Yeni sürüm yayınlama
+
 Güncelleme kaynağı `gurbuzz/MagazaPos` GitHub deposunun yayınlanmış Release kayıtlarıdır. Kaynak kodunu göndermek tek başına güncelleme yayınlamaz.
 
 1. Paket ve veritabanı şablonunun paylaşılabilir olduğundan ve Git geçmişinde gizli bilgi bulunmadığından emin olun. Depoyu herkese açık yapmak bütün kodu ve geçmişi de açar; tekrar gizlemek daha önce indirilen kopyaları geri almaz.
