@@ -14,6 +14,7 @@ import {
   Keyboard as KeyboardIcon,
   Tv,
   Music,
+  Gift,
 } from 'lucide-react'
 import { usePosStore } from '../store/usePosStore'
 import { useKeyboardStore } from '../store/useKeyboardStore'
@@ -21,6 +22,7 @@ import { useMusicStore } from '../store/useMusicStore'
 import { CampaignModal } from './POS/CampaignModal'
 import { SystemSettingsModal } from './Security/SystemSettingsModal'
 import { AdminPinModal } from './Security/AdminPinModal'
+import { GiftVoucherModal } from './POS/GiftVoucherModal'
 import { MusicModal } from './Music/MusicModal'
 import lufianLogo from '../assets/lufian-og.png'
 import jackJonesLogo from '../assets/org_logo.svg'
@@ -29,6 +31,7 @@ export const Header: React.FC = () => {
   const { activeTab, setActiveTab, setLocalIp, lockApp, isStockOnlyMode, toggleStockOnlyMode } = usePosStore()
   const { isOpen: isKeyboardOpen, toggleKeyboard } = useKeyboardStore()
   const { isPlaying, setIsModalOpen: setIsMusicModalOpen, fetchStatus: fetchMusicStatus } = useMusicStore()
+  const [isGiftVoucherModalOpen, setIsGiftVoucherModalOpen] = useState(false)
   const [isCampaignModalOpen, setIsCampaignModalOpen] = useState(false)
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
@@ -280,12 +283,14 @@ export const Header: React.FC = () => {
         <button
           onClick={() => setIsCampaignModalOpen(true)}
           className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-[11px] xl:text-xs font-black transition shadow-xs whitespace-nowrap shrink-0"
+          aria-label="Kampanyalar"
           title="Kampanya ve İndirim Yönetimi"
         >
           <Sparkles className="w-3.5 h-3.5 text-amber-200 shrink-0" />
-          <span className="hidden lg:inline">Kampanyalar</span>
+
         </button>
 
+        {!isStockOnlyMode && <button type="button" onClick={() => setIsGiftVoucherModalOpen(true)} aria-label="Hediye Çekleri" title="Hediye Çeki Oluştur / Sorgula" className="w-8 h-8 flex items-center justify-center rounded-xl bg-purple-600 hover:bg-purple-700 text-white shadow-xs"><Gift className="w-4 h-4" /></button>}
         {/* Store Music Button */}
         <button
           onClick={() => setIsMusicModalOpen(true)}
@@ -294,10 +299,11 @@ export const Header: React.FC = () => {
               ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 ring-2 ring-emerald-300'
               : 'bg-indigo-600 hover:bg-indigo-700'
           }`}
+          aria-label="Müzik"
           title="Mağaza Müzik & Ses Sistemi (Amfi Kontrolü)"
         >
           <Music className={`w-3.5 h-3.5 shrink-0 ${isPlaying ? 'animate-bounce text-emerald-200' : 'text-indigo-200'}`} />
-          <span className="hidden lg:inline">Müzik</span>
+
           {isPlaying && (
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-ping shrink-0" />
           )}
@@ -396,6 +402,7 @@ export const Header: React.FC = () => {
         </button>
       </div>
 
+      <GiftVoucherModal isOpen={isGiftVoucherModalOpen} onClose={() => setIsGiftVoucherModalOpen(false)} />
       <CampaignModal
         isOpen={isCampaignModalOpen}
         onClose={() => setIsCampaignModalOpen(false)}

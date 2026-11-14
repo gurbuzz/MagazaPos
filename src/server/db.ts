@@ -3,6 +3,7 @@ import path from 'path'
 import fs from 'fs'
 import { getUserDataDir } from './utils/paths'
 import { logDebug } from './utils/logger'
+import { ensureGiftVoucherSchema } from './services/giftVouchers'
 
 // Windows dosya yollarını SQLite URI formatına dönüştürür (ters eğik çizgi '\\' yerine '/')
 // Windows'ta 'file:C:\\...' kullanımı SQLite Error Code 14 (SQLITE_CANTOPEN) hatasına yol açar!
@@ -418,6 +419,7 @@ async function seedDefaultData() {
 // Otomatik tablo oluşturma ve şema migrasyonu kontrolü
 export async function ensureDatabaseSchema(allowSeed: boolean = true) {
   try {
+    await ensureGiftVoucherSchema(prisma, getActiveDbPath())
     // 1. Product tablosu var mı kontrol et
     const tables: any = await prisma.$queryRawUnsafe(
       `SELECT count(*) as count FROM sqlite_master WHERE type='table' AND name='Product';`
@@ -588,6 +590,7 @@ export async function ensureDatabaseSchema(allowSeed: boolean = true) {
   } catch (err: any) {
     logDebug('DB_INIT', 'Error in ensureDatabaseSchema', err)
     console.error('[DB] Otomatik sema hazirlanirken hata:', err)
+    throw err
   }
 }
 
@@ -670,6 +673,7 @@ export async function initDbPragmas(): Promise<void> {
     } catch (err: any) {
       logDebug('PRISMA_TEST', `ERROR in initDbPragmas: ${err.message}`, err)
       console.error('[DB] PRAGMA ayarları uygulanırken hata:', err)
+      throw err
     } finally {
       initPragmasPromise = null
     }
@@ -679,7 +683,8 @@ export async function initDbPragmas(): Promise<void> {
 }
 
 // Safely execute on startup with unhandled error handler
-initDbPragmas().catch((err) => {
+export const databaseReady = initDbPragmas()
+databaseReady.catch((err) => {
   console.error('[DB] Background initDbPragmas error:', err)
 })
 

@@ -51,6 +51,7 @@ export function formatCenterText(text: string, width = 42): string {
  * Returns Uint8Array that can be dispatched directly to Windows spooler via RAW printing.
  */
 export function generateEscposReceipt(data: ReceiptData, openDrawer = false): Uint8Array {
+  if (data.voucherIssue) return generateVoucherEscpos(data)
   const bytes: number[] = []
 
   const pushBytes = (...arr: number[]) => {
@@ -215,8 +216,14 @@ export function generateEscposReceipt(data: ReceiptData, openDrawer = false): Ui
     } else if (data.totalAmount === 0) {
       paymentText = 'Sifir Fark Degisim'
     }
+    if (data.giftVoucher) paymentText = `Cek + Nakit ${(data.cashAmount || 0).toFixed(2)} / Kart ${(data.cardAmount || 0).toFixed(2)}`
 
     pushText(formatTwoCols('Odeme Sekli:', paymentText, width))
+    if (data.giftVoucher) {
+      pushText(formatTwoCols('Hediye Ceki:', `${data.giftVoucher.amount.toFixed(2)} TL`, width))
+      pushLine(`Cek: ${data.giftVoucher.code}`)
+      pushText(formatTwoCols('Cek Kalan Bakiye:', `${data.giftVoucher.balance.toFixed(2)} TL`, width))
+    }
 
     if (data.paymentMode === 'CASH' && data.givenCash && data.givenCash > 0) {
       pushText(formatTwoCols('Alinan Nakit:', `${data.givenCash.toFixed(2)} TL`, width))
@@ -284,4 +291,29 @@ export function uint8ArrayToBase64(bytes: Uint8Array): string {
     binary += String.fromCharCode(bytes[i])
   }
   return btoa(binary)
+}
+
+function generateVoucherEscpos(data: ReceiptData): Uint8Array {
+  const bytes: number[] = [0x1b, 0x40, 0x1b, 0x61, 1]
+  const text = (s: string) => { for (const c of cleanTurkish(s + '\n')) bytes.push(c.charCodeAt(0)) }
+  bytes.push(0x1b, 0x45, 1)
+  text(data.storeInfo.storeName || 'MagazaPOS')
+  text(data.storeInfo.storeAddress || '')
+  text('HEDIYE CEKI')
+  bytes.push(0x1d, 0x21, 0x11)
+  text(`${(data.voucherIssue!.balanceCents / 100).toFixed(2)} TL`)
+  bytes.push(0x1d, 0x21, 0, 0x1b, 0x45, 0)
+  text(`Ilk tutar: ${(data.voucherIssue!.initialCents / 100).toFixed(2)} TL`)
+  text(new Date(data.createdAt || Date.now()).toLocaleString('tr-TR'))
+  const barcode = '{B' + data.receiptNo
+  bytes.push(0x1d, 0x68, 64, 0x1d, 0x77, 2, 0x1d, 0x48, 0, 0x1d, 0x6b, 73, barcode.length)
+  for (const c of barcode) bytes.push(c.charCodeAt(0))
+  text(''); text(data.receiptNo)
+  text('Alisveriste barkodu okutunuz.')
+  text('Kalan bakiye sonraki alisveriste kullanilir.')
+  text('Nakit para ustu verilmez.')
+  text('Gecerli bakiye sistemden dogrulanir.')
+  text('Tekrar baski yeni cek olusturmaz.')
+  bytes.push(0x1b, 0x64, 4, 0x1d, 0x56, 0)
+  return new Uint8Array(bytes)
 }

@@ -722,6 +722,7 @@ export const CustomerView: React.FC = () => {
                         <div className="flex items-center justify-between pt-1 text-[11px] text-slate-500">
                           <div className="flex items-center space-x-2">
                             <span className="font-medium">Ödeme Yöntemi:</span>
+                            {pay.giftVoucher && <span className="text-purple-800 font-semibold">Hediye çeki: {pay.giftVoucher.amount}₺</span>}
                             {isCash && (
                               <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded font-semibold flex items-center space-x-1">
                                 <Banknote className="w-3 h-3" />
@@ -734,7 +735,7 @@ export const CustomerView: React.FC = () => {
                                 <span>Kredi Kartı</span>
                               </span>
                             )}
-                            {!isCash && !isCard && (
+                            {!isCash && !isCard && !pay.giftVoucher && (
                               <span className="px-2 py-0.5 bg-purple-50 text-purple-800 border border-purple-200 rounded font-semibold">
                                 Parçalı ({pay.cash || 0}₺ Nakit / {pay.card || 0}₺ Kart)
                               </span>

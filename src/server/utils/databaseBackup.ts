@@ -23,7 +23,7 @@ export function cleanupOldBackups(maxKeep: number = 20): void {
   try {
     const dir = getBackupsDir()
     const files = fs.readdirSync(dir)
-      .filter((f) => f.endsWith('.db') || f.endsWith('.backup'))
+      .filter((f) => !f.startsWith('hediye_oncesi_') && (f.endsWith('.db') || f.endsWith('.backup')))
       .map((f) => {
         const fullPath = path.join(dir, f)
         const stats = fs.statSync(fullPath)

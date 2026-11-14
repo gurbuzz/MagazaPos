@@ -22,6 +22,7 @@ import {
   Undo2,
 } from 'lucide-react'
 import { usePosStore } from '../../store/usePosStore'
+import { PENDING_VOUCHER_CHECKOUT } from '../../utils/giftVoucherPending'
 import { CheckoutModal } from './CheckoutModal'
 import { CampaignModal } from './CampaignModal'
 import { CustomerSelectModal } from '../Customer/CustomerSelectModal'
@@ -62,7 +63,7 @@ export const PosView: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL')
   const [searchTerm, setSearchTerm] = useState<string>('')
   const [barcodeInput, setBarcodeInput] = useState<string>('')
-  const [isCheckoutOpen, setIsCheckoutOpen] = useState<boolean>(false)
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState<boolean>(() => Boolean(localStorage.getItem(PENDING_VOUCHER_CHECKOUT)))
   const [isCampaignModalOpen, setIsCampaignModalOpen] = useState<boolean>(false)
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState<boolean>(false)
   const [isExchangeModalOpen, setIsExchangeModalOpen] = useState<boolean>(false)
@@ -1012,6 +1013,7 @@ export const PosView: React.FC = () => {
             </>
           )}
 
+          {localStorage.getItem(PENDING_VOUCHER_CHECKOUT) && <button type="button" onClick={() => setIsCheckoutOpen(true)} className="w-full bg-amber-100 text-amber-900 border border-amber-300 p-3 rounded-lg text-xs font-bold">Sonucu Bekleyen Çek Ödemesini Tamamla</button>}
           {/* Checkout or Direct Stock Deduction Trigger */}
           {isStockOnlyMode ? (
             <button

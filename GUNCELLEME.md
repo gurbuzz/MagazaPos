@@ -1,5 +1,19 @@
 # Windows güncelleme süreci
 
+## Hediye çeki sürümüne geçiş ve kullanım
+
+`MagazaPosKurulum.bat` artık `db push --accept-data-loss` veya örnek veri yükleme çalıştırmaz. Her seferinde aynı betikle paketleme yapabilirsiniz; mevcut kullanıcı verileri dizinini, mağaza veritabanını ve lisans dosyalarını silmeyin. İlk kurulumda uygulama mevcut şablondan veritabanı oluşturur; sonraki açılışlarda kalıcı mağaza veritabanını kullanır. `prisma/seed.ts` dolu bir veritabanına örnek veri yüklemeyi reddeder.
+
+Hediye çeki tabloları ilk açılışta eklenir. Önce SQLite bütünlüğü denetlenir, tutarlı bir yedek alınır ve ayrı bağlantıyla doğrulanır. Yedek alınamazsa işlem yapılmaz ve API satış kabul etmez. `GiftVoucher` ve `GiftVoucherMovement` tabloları tek işlemde eklenir; mevcut satış, ürün, stok ve müşteri tabloları bu geçişte yeniden oluşturulmaz veya temizlenmez. Geçiş yedeği kullanıcı verileri dizinindeki `backups/hediye_oncesi_*.db` konumundadır ve rutin yedek temizliği bu dosyaları silmez.
+
+Mağazada ilk uygulamadan önce Ayarlar → Veritabanı & Yedek bölümünden yedek indirip başka bir cihazda saklayın. Mağaza verisinin bir kopyasında yükseltmeyi doğrulayın; testler örnek kayıtlarla yapılır, Windows cihazındaki gerçek verilerin testi yerine geçmez. İlk açılışta eski kayıtları, stokları ve satışları kontrol edin. Eski yedeğe dönmek, o yedekten sonra oluşturulan çek ve satışları da geri alır; işlem yapmaya başladıktan sonra eski yedeği doğrudan yüklemeyin.
+
+Navbar’daki hediye simgesiyle **Çek Oluştur** veya **Sorgula / Tekrar Yazdır** açılır. Nakit/kart karşılığı çekler ve yönetici PIN’iyle mağaza hediyeleri desteklenir. Kart seçimi banka terminalinden tahsilat yapmaz; önce tahsilatı tamamlayın. Oluşturma işlemi tekrar denendiğinde aynı işlem kimliği aynı çeki getirir. Yazıcı hatasında yeni çek oluşturmak yerine tekrar yazdırın. Bu sürümde çekler süresizdir ve nakit para üstü verilmez.
+
+Ödeme ekranında **Hediye Çeki Kullan** alanına barkodu okutun, sorgulayın ve kullanılacak tutarı belirleyin. Kalan tutar nakit, kart veya parçalı ödeme ile tamamlanır. Çek bakiyesi satış ve stok hareketleriyle aynı veritabanı işleminde düşer. Kopya fiş ek bakiye oluşturmaz. İadelerde çekle ödenen pay çeke, nakit/kart payı başlangıç oranlarına göre geri döner. Çek oluşturma tahsilatları çek penceresinde ürün satışlarından ayrı gösterilir; ürün satışlarında çek kullanımı ayrıca belirtilir. Satış veya tam veri sıfırlama işlemleri çekleri ve bakiyelerini silmez.
+
+Doğrulama: `npm run test:gift-vouchers` geçici veritabanlarında eski kayıtların korunmasını, yedekleme başarısızlığında işlemin durmasını, bakiye düşümünü, tekrarlı isteği, iadeleri ve fiş üretimini sınar. Gerçek mağaza veritabanına bağlanmaz.
+
 ## Açılışta `Cannot find module 'electron-updater'` hatası
 
 Bu hata, kurulu uygulamanın güncelleme modülünü içermediğini gösterir. Aynı modül kaynak klasöründeki `node_modules` içinde de eksikse TypeScript `TS2307` ve güncelleme olaylarında `TS7006` hataları verir.

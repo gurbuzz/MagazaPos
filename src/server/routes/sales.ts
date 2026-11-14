@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { prisma } from '../db'
+import { GiftVoucherError, moneyCents, redeemVoucher, refundVoucher } from '../services/giftVouchers'
 
 export const salesRouter = Router()
 
@@ -61,7 +62,7 @@ export function formatSale(s: any) {
   let refundCard = Number(pay?.refundCard) || 0
 
   // If refund occurred but refundCash/refundCard was not explicitly logged, derive from original payment method:
-  if (refundAmount > 0 && refundCash === 0 && refundCard === 0) {
+  if (refundAmount > 0 && refundCash === 0 && refundCard === 0 && !pay?.giftVoucher) {
     if (origCash > 0 && origCard === 0) {
       refundCash = refundAmount
     } else if (origCard > 0 && origCash === 0) {
@@ -84,7 +85,8 @@ export function formatSale(s: any) {
     refundCard,
     refundTotal: refundAmount,
     netCash,
-    netCard
+    netCard,
+    netGiftVoucher: Math.max(0, (Number(pay?.giftVoucher?.amount) || 0) - (Number(pay?.refundGiftVoucher) || 0))
   }
 
   return {
@@ -205,6 +207,7 @@ salesRouter.get('/stats', async (req, res) => {
     let totalNet = 0
     let netCash = 0
     let netCard = 0
+    let netGiftVoucher = 0
     let refundedCount = 0
     let activeSalesCount = 0
     let grossItemsSold = 0
@@ -217,6 +220,7 @@ salesRouter.get('/stats', async (req, res) => {
       totalNet += Number(formatted.netAmount) || 0
       netCash += Number(formatted.paymentType?.netCash) || 0
       netCard += Number(formatted.paymentType?.netCard) || 0
+      netGiftVoucher += Number(formatted.paymentType?.netGiftVoucher) || 0
 
       const isFullyReturned = formatted.status === 'RETURNED'
       for (const it of (formatted.items || [])) {
@@ -245,13 +249,14 @@ salesRouter.get('/stats', async (req, res) => {
       netRevenue: Math.round(totalNet * 100) / 100,
       netCash: Math.round(netCash * 100) / 100,
       netCard: Math.round(netCard * 100) / 100,
+      netGiftVoucher: Math.round(netGiftVoucher * 100) / 100,
       avgReceiptAmount: activeSalesCount > 0 ? Math.round((totalNet / activeSalesCount) * 100) / 100 : 0,
       grossItemsSold,
       returnedItemsCount,
       netItemsSold,
     })
   } catch (error: any) {
-    res.status(500).json({ error: error.message })
+    res.status(error instanceof GiftVoucherError ? 400 : 500).json({ error: error.message })
   }
 })
 
@@ -278,14 +283,15 @@ salesRouter.get('/', async (req, res) => {
     })
     res.json(sales.map(formatSale))
   } catch (error: any) {
-    res.status(500).json({ error: error.message })
+    res.status(error instanceof GiftVoucherError ? 400 : 500).json({ error: error.message })
   }
 })
 
 // POST /api/sales - Create & Checkout POS Sale
 salesRouter.post('/', async (req, res) => {
   try {
-    const { items, totalAmount, discountAmount, paymentType, cashierName, customerId, receiptPrefix, exchange } = req.body
+    let { items, totalAmount, discountAmount, paymentType, cashierName, customerId, receiptPrefix, exchange } = req.body
+    if (typeof paymentType === 'string' && paymentType.trim().startsWith('{')) paymentType = JSON.parse(paymentType)
 
     if (!items || items.length === 0) {
       res.status(400).json({ error: 'Sepette ürün bulunmamaktadır.' })
@@ -314,6 +320,20 @@ salesRouter.post('/', async (req, res) => {
 
     // Transaction to create sale, items, update stock and log movements atomically
     const result = await prisma.$transaction(async (tx) => {
+      const requestVoucher = typeof paymentType === 'object' ? paymentType?.giftVoucher : null
+      if (requestVoucher) {
+        if (!/^[a-zA-Z0-9-]{16,80}$/.test(requestVoucher.requestId || '')) throw new GiftVoucherError('Çek ödeme işlem kimliği geçersiz.')
+        const previous = await tx.$queryRaw<{ saleId: string }[]>`SELECT saleId FROM "GiftVoucherMovement" WHERE id = ${`checkout-${requestVoucher.requestId}`}`
+        if (previous[0]) {
+          const existing = await tx.sale.findUnique({ where: { id: previous[0].saleId }, include: { customer: true, items: { include: { variant: { include: { product: true } } } } } })
+          if (!existing) throw new GiftVoucherError('Bu çek işlemi daha önce işlendi; satış geçmişini kontrol edin.')
+          const pay = JSON.parse(existing.paymentType)
+          if (pay.giftVoucher?.code !== requestVoucher.code || moneyCents(pay.giftVoucher.amount) !== moneyCents(requestVoucher.amount) || moneyCents(existing.totalAmount) !== moneyCents(totalAmount)) throw new GiftVoucherError('İşlem daha önce farklı tutarla tamamlandı. Satış geçmişini kontrol edin.')
+          const signature = (lines: any[]) => JSON.stringify(lines.map(item => ({ variantId: item.variantId, quantity: Number(item.quantity), unitPrice: moneyCents(item.unitPrice), totalPrice: moneyCents(item.totalPrice) })).sort((a, b) => a.variantId.localeCompare(b.variantId)))
+          if (signature(existing.items) !== signature(items) || moneyCents(pay.cash || 0) !== moneyCents(paymentType.cash || 0) || moneyCents(pay.card || 0) !== moneyCents(paymentType.card || 0)) throw new GiftVoucherError('Bu işlem önceki sepetle tamamlandı. Önce satış geçmişini kontrol edin.')
+          return existing
+        }
+      }
       if (exchange) {
         const original = await tx.sale.findUnique({ where: { id: exchange.saleId }, include: { items: true } })
         const oldItem = original?.items.find(item => item.id === exchange.itemId)
@@ -345,6 +365,17 @@ salesRouter.post('/', async (req, res) => {
           paymentType.exchange = { receiptNo: original.receiptNo, saleId: original.id, itemId: oldItem.id, credit }
         }
       }
+      // Voucher amounts and balance changes are verified in the sale transaction.
+      let safePayment: any = typeof paymentType === 'string' ? paymentType : { ...(paymentType || { cash: parseDecimal(totalAmount) }) }
+      const voucherPayment = typeof safePayment === 'object' ? safePayment.giftVoucher : null
+      if (voucherPayment) {
+        const voucherCents = moneyCents(voucherPayment.amount)
+        const cashCents = moneyCents(safePayment.cash || 0)
+        const cardCents = moneyCents(safePayment.card || 0)
+        if (!voucherCents || cashCents + cardCents + voucherCents !== moneyCents(totalAmount)) throw new GiftVoucherError('Çek, nakit ve kart toplamı satış tutarına eşit olmalıdır.')
+        if (!voucherPayment.code || typeof voucherPayment.code !== 'string') throw new GiftVoucherError('Çek kodu geçersiz.')
+        safePayment = { cash: cashCents / 100, card: cardCents / 100, ...(safePayment.exchange ? { exchange: safePayment.exchange } : {}), giftVoucher: { code: voucherPayment.code, amount: voucherCents / 100 } }
+      }
       // 1. Create Sale record
       const parsedTotal = parseDecimal(totalAmount)
       const parsedDiscount = parseDecimal(discountAmount)
@@ -354,7 +385,7 @@ salesRouter.post('/', async (req, res) => {
           customerId: customerId || null,
           totalAmount: parsedTotal,
           discountAmount: parsedDiscount,
-          paymentType: typeof paymentType === 'string' ? paymentType : JSON.stringify(paymentType || { cash: parsedTotal }),
+          paymentType: typeof safePayment === 'string' ? safePayment : JSON.stringify(safePayment),
           cashierName: cashierName || 'Kasiyer 1',
           items: {
             create: items.map((item: any) => ({
@@ -377,6 +408,11 @@ salesRouter.post('/', async (req, res) => {
         }
       })
 
+      if (voucherPayment) {
+        const applied = await redeemVoucher(tx, voucherPayment.code, moneyCents(voucherPayment.amount), sale.id, voucherPayment.requestId)
+        sale.paymentType = JSON.stringify({ ...safePayment, giftVoucher: applied })
+        await tx.sale.update({ where: { id: sale.id }, data: { paymentType: sale.paymentType } })
+      }
       // 2. Update stock quantities & record movements
       for (const item of items) {
         const qty = Math.max(1, parseInt(item.quantity) || 1)
@@ -405,7 +441,7 @@ salesRouter.post('/', async (req, res) => {
     res.status(201).json(formatSale(result))
     return
   } catch (error: any) {
-    res.status(500).json({ error: error.message })
+    res.status(error instanceof GiftVoucherError ? 400 : 500).json({ error: error.message })
     return
   }
 })
@@ -421,7 +457,7 @@ salesRouter.post('/:id/return', async (req, res) => {
       return
     }
 
-    const sale: any = await prisma.sale.findUnique({
+    let sale: any = await prisma.sale.findUnique({
       where: { id },
       include: {
         customer: true,
@@ -438,6 +474,9 @@ salesRouter.post('/:id/return', async (req, res) => {
       return
     }
 
+    if (new Set(items.map((item: any) => item.saleItemId)).size !== items.length) {
+      res.status(400).json({ error: 'Aynı ürün birden fazla kez seçilemez.' }); return
+    }
     // Validate return items
     for (const returnItem of items) {
       const existingItem = sale.items?.find((i: any) => i.id === returnItem.saleItemId)
@@ -461,6 +500,12 @@ salesRouter.post('/:id/return', async (req, res) => {
 
     // Process return in atomic transaction
     const updatedSale = await prisma.$transaction(async (tx) => {
+      sale = await tx.sale.findUnique({ where: { id }, include: { customer: true, items: { include: { variant: { include: { product: true } } } } } })
+      if (!sale || sale.status === 'CANCELLED') throw new Error('İade edilebilir satış bulunamadı.')
+      for (const input of items) {
+        const item = sale.items.find((i: any) => i.id === input.saleItemId)
+        if (!item || !Number.isInteger(Number(input.returnQuantity)) || Number(input.returnQuantity) < 1 || Number(input.returnQuantity) > item.quantity - item.returnedQuantity) throw new Error('İade miktarı değişti; fişi yeniden sorgulayın.')
+      }
       const effectiveCustomerName = sale.customer
         ? `${sale.customer.firstName} ${sale.customer.lastName}`
         : customerName && customerName.trim()
@@ -560,9 +605,23 @@ salesRouter.post('/:id/return', async (req, res) => {
         }
       }
 
+      if (currentPay.giftVoucher) {
+        const usedCents = moneyCents(currentPay.giftVoucher.amount)
+        const previousGiftCents = moneyCents(currentPay.refundGiftVoucher || 0)
+        const cumulativeRefund = Math.min(totalAmountNum, formatSale({ ...sale, items: freshSaleItems, status: newStatus }).refundAmount)
+        const targetGiftCents = Math.min(usedCents, Math.round(usedCents * (totalAmountNum > 0 ? cumulativeRefund / totalAmountNum : 0)))
+        const giftReturnCents = Math.max(0, targetGiftCents - previousGiftCents)
+        await refundVoucher(tx, currentPay.giftVoucher.code, giftReturnCents, id)
+        currentPay.refundGiftVoucher = targetGiftCents / 100
+        const externalTargetCents = Math.max(0, Math.round(cumulativeRefund * 100) - targetGiftCents)
+        const externalTotalCents = Math.round((origCash + origCard) * 100)
+        const cashTarget = externalTotalCents ? Math.round(externalTargetCents * Math.round(origCash * 100) / externalTotalCents) / 100 : 0
+        addCash = Math.max(0, cashTarget - prevRefundCash)
+        addCard = Math.max(0, externalTargetCents / 100 - cashTarget - prevRefundCard)
+      }
       const newRefundCash = Math.min(origCash, Math.round((prevRefundCash + addCash) * 100) / 100)
       const newRefundCard = Math.min(origCard, Math.round((prevRefundCard + addCard) * 100) / 100)
-      const newRefundTotal = Math.min(totalAmountNum, Math.round((newRefundCash + newRefundCard) * 100) / 100)
+      const newRefundTotal = Math.min(totalAmountNum, Math.round((newRefundCash + newRefundCard + (Number(currentPay.refundGiftVoucher) || 0)) * 100) / 100)
 
       currentPay.refundCash = newRefundCash
       currentPay.refundCard = newRefundCard
@@ -590,7 +649,7 @@ salesRouter.post('/:id/return', async (req, res) => {
     res.json(formatSale(updatedSale))
     return
   } catch (error: any) {
-    res.status(500).json({ error: error.message })
+    res.status(error instanceof GiftVoucherError ? 400 : 500).json({ error: error.message })
     return
   }
 })

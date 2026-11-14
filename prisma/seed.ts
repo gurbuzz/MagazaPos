@@ -5,13 +5,12 @@ const prisma = new PrismaClient()
 async function main() {
   console.log('🌱 Zengin Mağaza Stok & Satış Test Verisi Yükleniyor...')
 
-  // Clean existing tables
-  await prisma.saleItem.deleteMany()
-  await prisma.sale.deleteMany()
-  await prisma.stockMovement.deleteMany()
-  await prisma.productVariant.deleteMany()
-  await prisma.product.deleteMany()
-  await prisma.category.deleteMany()
+  // Never clear an existing store database to load demo data.
+  const tables = await prisma.$queryRawUnsafe<{ name: string }[]>("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
+  for (const { name } of tables) {
+    const count = await prisma.$queryRawUnsafe<{ count: bigint }[]>(`SELECT COUNT(*) AS count FROM "${name.replace(/"/g, '""')}"`)
+    if (Number(count[0]?.count) > 0) throw new Error('Veritabanı boş değil. Veri korunması için örnek veri yükleme durduruldu.')
+  }
 
   // 1. Categories
   const catUst = await prisma.category.create({ data: { name: 'Üst Giyim' } })

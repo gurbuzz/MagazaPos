@@ -12,6 +12,8 @@ import { systemRouter } from './routes/system'
 import { licenseRouter } from './routes/license'
 import { customerDisplayRouter } from './routes/customerDisplay'
 import { musicRouter } from './routes/music'
+import { giftVouchersRouter } from './routes/giftVouchers'
+import { databaseReady } from './db'
 
 const app = express()
 const PORT = Number(process.env.PORT) || 3782
@@ -135,6 +137,11 @@ app.get('/', (_req, res) => {
 })
 
 // Register API Routes
+app.use('/api', async (_req, res, next) => {
+  try { await databaseReady; next() }
+  catch { res.status(503).json({ error: 'Veritabanı güvenle hazırlanamadı. Veriler korunuyor; işlem yapmadan önce destek alın.' }) }
+})
+app.use('/api/gift-vouchers', giftVouchersRouter)
 app.use('/api/products', productRouter)
 
 // Direct compatibility alias for /api/variants/* requests

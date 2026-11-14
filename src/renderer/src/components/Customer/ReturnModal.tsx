@@ -50,6 +50,8 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({ isOpen, onClose, sale,
 
   if (!isOpen || !sale) return null
 
+  const hasGiftVoucher = Boolean(sale?.paymentType?.giftVoucher)
+
   const handleQtyChange = (saleItemId: string, maxAvailable: number, val: number) => {
     const validVal = Math.max(0, Math.min(maxAvailable, val))
     setReturnItems((prev) => ({
@@ -247,7 +249,8 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({ isOpen, onClose, sale,
             })}
           </div>
 
-          {/* Refund Method Selector (Kasadan Para Çıkışı) */}
+          {hasGiftVoucher && <p className="text-xs bg-purple-50 text-purple-800 p-3 rounded-lg">Çekle ödenen pay aynı çeke geri yüklenir. Nakit/kart payı ilk ödemedeki oranlarda iade edilir; çek tutarı nakit olarak ödenmez.</p>}
+{/* Refund Method Selector (Kasadan Para Çıkışı) */}
           <div>
             <label className="block text-[11px] font-semibold text-slate-700 mb-1.5 uppercase">
               İade Ödeme Yöntemi (Kasadan Çıkış Türü)
@@ -255,6 +258,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({ isOpen, onClose, sale,
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
+                disabled={hasGiftVoucher}
                 onClick={() => setRefundMethod('CASH')}
                 className={`p-2 rounded-lg border text-xs font-bold flex items-center justify-center space-x-1.5 transition ${
                   refundMethod === 'CASH'
@@ -267,6 +271,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({ isOpen, onClose, sale,
               </button>
               <button
                 type="button"
+                disabled={hasGiftVoucher}
                 onClick={() => setRefundMethod('CARD')}
                 className={`p-2 rounded-lg border text-xs font-bold flex items-center justify-center space-x-1.5 transition ${
                   refundMethod === 'CARD'
@@ -304,7 +309,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({ isOpen, onClose, sale,
                     Stoğa İade: {totalReturnCount} Adet Ürün
                   </span>
                   <span className="text-[10px] text-amber-800">
-                    Kasadan {refundMethod === 'CASH' ? 'nakit para düşülecek' : 'kart iadesi düşülecek'}.
+                    {hasGiftVoucher ? 'İade, çek / nakit / kart paylarına göre yapılacak.' : <>Kasadan {refundMethod === 'CASH' ? 'nakit para düşülecek' : 'kart iadesi düşülecek'}.</>}
                   </span>
                 </div>
               </div>

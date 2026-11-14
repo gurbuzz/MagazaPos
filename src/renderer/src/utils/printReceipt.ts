@@ -39,6 +39,8 @@ export interface ReceiptData {
     receiptPrintMode?: 'ESC_POS' | 'HTML'
   }
   isGiftReceipt?: boolean
+  voucherIssue?: { initialCents: number; balanceCents: number }
+  giftVoucher?: { code: string; amount: number; balance: number }
 }
 
 /**
@@ -135,7 +137,14 @@ export function normalizeSaleToReceiptData(
   }
 
   const givenCash = extra?.givenCash !== undefined ? Number(extra.givenCash) : undefined
-  const changeDue = (givenCash !== undefined && givenCash >= totalAmount) ? (givenCash - totalAmount) : undefined
+  const voucherPayment = sale?.paymentType?.giftVoucher
+  if (voucherPayment) {
+    cashAmount = Number(sale.paymentType.cash) || 0
+    cardAmount = Number(sale.paymentType.card) || 0
+    paymentMode = cardAmount > 0 && cashAmount > 0 ? 'SPLIT' : cardAmount > 0 ? 'CARD' : 'CASH'
+  }
+  const cashDue = voucherPayment ? (cashAmount || 0) : totalAmount
+  const changeDue = (givenCash !== undefined && givenCash >= cashDue) ? (givenCash - cashDue) : undefined
 
   return {
     receiptNo: sale?.receiptNo || 'FIS-0000',
@@ -165,6 +174,7 @@ export function normalizeSaleToReceiptData(
       receiptPrintMode: storeState.receiptPrintMode || 'ESC_POS',
     },
     isGiftReceipt: !!extra?.isGiftReceipt,
+    giftVoucher: sale?.paymentType?.giftVoucher,
   }
 }
 
@@ -172,6 +182,7 @@ export function normalizeSaleToReceiptData(
  * Generates thermal receipt HTML strictly formatted for standard 80mm POS receipt printers.
  */
 export function generateReceiptHtml(data: ReceiptData): string {
+  if (data.voucherIssue) return generateVoucherHtml(data)
   const store = data.storeInfo
   const dateStr = data.createdAt
     ? new Date(data.createdAt).toLocaleString('tr-TR', {
@@ -196,6 +207,7 @@ export function generateReceiptHtml(data: ReceiptData): string {
   } else if (data.totalAmount === 0) {
     paymentText = 'Sıfır Fark Değişim'
   }
+  if (data.giftVoucher) paymentText = `Hediye Çeki: ${data.giftVoucher.amount.toFixed(2)} TL / Nakit: ${(data.cashAmount || 0).toFixed(2)} TL / Kart: ${(data.cardAmount || 0).toFixed(2)} TL. Çek kalan: ${data.giftVoucher.balance.toFixed(2)} TL`
 
   const barcodeSvg = generateCode128Svg(data.receiptNo, 36)
 
@@ -534,6 +546,18 @@ export async function printReceipt(
 
   // 3. Web browser popup fallback
   return openPrintWindow(html)
+}
+
+function generateVoucherHtml(data: ReceiptData): string {
+  const esc = (value: string) => value.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!))
+  return `<!doctype html><html><head><meta charset="utf-8"><style>@page{margin:0}body{font:13px Arial;width:70mm;margin:0 auto;padding:5mm 0;color:black;text-align:center}h1{font-size:21px}svg{max-width:66mm}p{margin:8px 0}.amount{font-size:24px;font-weight:bold}</style></head><body>
+    <h1>${esc(data.storeInfo.storeName || 'MagazaPOS')}</h1><p>${esc(data.storeInfo.storeAddress || '')}</p><hr>
+    <h2>HEDİYE ÇEKİ</h2><p>İlk tutar: ${(data.voucherIssue!.initialCents / 100).toFixed(2)} TL</p>
+    <p class="amount">Bakiye: ${(data.voucherIssue!.balanceCents / 100).toFixed(2)} TL</p>
+    <p>${esc(new Date(data.createdAt || Date.now()).toLocaleString('tr-TR'))}</p>
+    ${generateCode128Svg(data.receiptNo, 48)}<p>${esc(data.receiptNo)}</p><hr>
+    <p>Alışverişte bu barkodu okutunuz. Kısmi kullanım sonrası kalan bakiye korunur. Nakit para üstü verilmez.</p>
+    <p>Geçerli bakiye sistem kayıtlarından doğrulanır. Fişin tekrar basılması yeni çek oluşturmaz.</p></body></html>`
 }
 
 function openPrintWindow(html: string): Promise<{ success: boolean; error?: string }> {

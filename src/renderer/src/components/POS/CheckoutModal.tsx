@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { X, CreditCard, Banknote, CheckCircle, Printer, Loader2, Gift } from 'lucide-react'
 import { usePosStore } from '../../store/usePosStore'
 import { notifyDataChanged } from '../../utils/events'
 import { syncCustomerDisplay } from '../../utils/customerDisplaySync'
+import { PENDING_VOUCHER_CHECKOUT, readPending } from '../../utils/giftVoucherPending'
 import { printReceipt, normalizeSaleToReceiptData } from '../../utils/printReceipt'
 
 interface CheckoutModalProps {
@@ -53,12 +54,41 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
   const [giftReceiptPrinted, setGiftReceiptPrinted] = useState(false)
   const [receiptPrintFeedback, setReceiptPrintFeedback] = useState<string | null>(null)
 
+  const [voucherCode, setVoucherCode] = useState('')
+  const [voucher, setVoucher] = useState<{ code: string; balanceCents: number } | null>(null)
+  const [voucherAmount, setVoucherAmount] = useState('')
+  const [lookingUpVoucher, setLookingUpVoucher] = useState(false)
+  const checkoutRequestId = useRef('')
+  const submitting = useRef(false)
+  const pendingPayload = useRef<any>(null)
+  const [recoveryError, setRecoveryError] = useState(false)
   const total = getTotal()
+  const giftAmount = voucher ? parseDecimal(voucherAmount) : 0
+  const payable = Math.max(0, Math.round((total - giftAmount) * 100) / 100)
+  useEffect(() => {
+    if (paymentMode === 'SPLIT') {
+      setCashAmount(payable); setCardAmount(0)
+    }
+  }, [payable])
+  const lookupVoucher = async () => {
+    setLookingUpVoucher(true); setCheckoutError(null); setVoucher(null); setVoucherAmount('')
+    try {
+      const res = await fetch('/api/gift-vouchers/' + encodeURIComponent(voucherCode.trim()))
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      if (!data.balanceCents) throw new Error('Bu çekin bakiyesi tükenmiş.')
+      setVoucher(data); setVoucherAmount((Math.min(data.balanceCents, Math.round(total * 100)) / 100).toFixed(2))
+      setGivenCash('')
+    } catch (err: any) { setCheckoutError(err.message) }
+    finally { setLookingUpVoucher(false) }
+  }
 
   // Reset checkout modal state cleanly when opened
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (isOpen) {
       setPaymentMode('CASH')
+      setVoucherCode(''); setVoucher(null); setVoucherAmount(''); setLookingUpVoucher(false)
+      checkoutRequestId.current = crypto.randomUUID(); submitting.current = false
       setGivenCash('')
       setCashAmount(0)
       setCardAmount(0)
@@ -70,6 +100,18 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
       setIsPrintingGiftReceipt(false)
       setGiftReceiptPrinted(false)
       setReceiptPrintFeedback(null)
+      setRecoveryError(false)
+      try {
+        pendingPayload.current = readPending(PENDING_VOUCHER_CHECKOUT)
+        if (pendingPayload.current) {
+          const pay = pendingPayload.current.paymentType
+          checkoutRequestId.current = pay.giftVoucher.requestId
+          setVoucherCode(pay.giftVoucher.code)
+          setVoucher({ code: pay.giftVoucher.code, balanceCents: Math.round(pay.giftVoucher.amount * 100) })
+          setVoucherAmount(String(pay.giftVoucher.amount))
+          setCheckoutError('Önceki çek ödemesinin sonucu doğrulanamadı. Aynı İşlemi Yeniden Dene ile sonucu alın; ikinci kez bakiye düşülmez.')
+        }
+      } catch (err: any) { setCheckoutError(err.message); setRecoveryError(true) }
     }
   }, [isOpen])
 
@@ -90,7 +132,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
         paymentInfo: {
           mode: paymentMode,
           givenCash: parsedCash,
-          changeDue: Math.max(0, parsedCash - total),
+          changeDue: Math.max(0, parsedCash - payable),
           receiptNo: completedSale.receiptNo,
           isFinished: true,
         },
@@ -107,50 +149,55 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
         paymentInfo: {
           mode: paymentMode,
           givenCash: parsedCash,
-          changeDue: Math.max(0, parsedCash - total),
+          changeDue: Math.max(0, parsedCash - payable),
         },
       })
     }
-  }, [isOpen, paymentMode, givenCash, completedSale, total, cartItems, discountAmount, surchargeAmount, selectedCustomer, getSubtotal])
+  }, [isOpen, paymentMode, givenCash, completedSale, payable, total, cartItems, discountAmount, surchargeAmount, selectedCustomer, getSubtotal])
 
   if (!isOpen) return null
 
   const handleModeChange = (mode: 'CASH' | 'CARD' | 'SPLIT') => {
     setPaymentMode(mode)
     if (mode === 'CASH') {
-      setCashAmount(total)
+      setCashAmount(payable)
       setCardAmount(0)
     } else if (mode === 'CARD') {
       setCashAmount(0)
-      setCardAmount(total)
+      setCardAmount(payable)
     } else {
-      const half = Math.round((total / 2) * 100) / 100
+      const half = Math.round((payable / 2) * 100) / 100
       setCashAmount(half)
-      setCardAmount(Number((total - half).toFixed(2)))
+      setCardAmount(Number((payable - half).toFixed(2)))
     }
   }
 
   const handleCheckoutSubmit = async () => {
+    if (submitting.current || recoveryError) return
     setCheckoutError(null)
-    if (paymentMode === 'SPLIT' && total > 0) {
+    if (!pendingPayload.current && voucher && (!Number.isFinite(giftAmount) || giftAmount <= 0 || Math.round(giftAmount * 100) > voucher.balanceCents || giftAmount > total || !/^\d+(\.\d{1,2})?$/.test(voucherAmount.trim().replace(',', '.')))) {
+      setCheckoutError('Çek tutarı, bakiye ve satış tutarını aşmamalı; sıfırdan büyük olmalıdır.'); return
+    }
+    if (!pendingPayload.current && paymentMode === 'SPLIT' && total > 0) {
       if (cashAmount < 0 || cardAmount < 0) {
         setCheckoutError('Nakit ve kart tutarları 0 veya daha büyük olmalıdır!')
         return
       }
       const splitSum = Math.round((cashAmount + cardAmount) * 100) / 100
-      if (Math.abs(splitSum - total) > 0.05) {
-        setCheckoutError(`Parçalı ödeme toplamı (${splitSum.toFixed(2)} ₺), ödenecek tutara (${total.toFixed(2)} ₺) eşit olmalıdır!`)
+      if (Math.round(splitSum * 100) !== Math.round(payable * 100)) {
+        setCheckoutError(`Parçalı ödeme toplamı (${splitSum.toFixed(2)} ₺), kalan tutara (${payable.toFixed(2)} ₺) eşit olmalıdır!`)
         return
       }
     }
 
-    if (exchange && Math.round((getSubtotal() - discountAmount + surchargeAmount) * 100) < Math.round(exchange.credit * 100)) {
+    if (!pendingPayload.current && exchange && Math.round((getSubtotal() - discountAmount + surchargeAmount) * 100) < Math.round(exchange.credit * 100)) {
       setCheckoutError('Yeni ürünlerin tutarı değişim bedelinden düşük olamaz.')
       return
     }
+    submitting.current = true
     setIsProcessing(true)
     try {
-      const payload = {
+      const payload = pendingPayload.current || {
         items: cartItems,
         exchange,
         totalAmount: total,
@@ -158,16 +205,20 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
         cashierName,
         customerId: selectedCustomer ? selectedCustomer.id : null,
         receiptPrefix: receiptPrefix || 'FIS',
-        paymentType:
+        paymentType: { ...(
           total === 0
             ? { cash: 0, card: 0, note: 'Sıfır Fark Değişim' }
             : paymentMode === 'CASH'
-            ? { cash: total, card: 0 }
+            ? { cash: payable, card: 0 }
             : paymentMode === 'CARD'
-            ? { cash: 0, card: total }
-            : { cash: cashAmount, card: cardAmount },
+            ? { cash: 0, card: payable }
+            : { cash: cashAmount, card: cardAmount }), ...(voucher ? { giftVoucher: { code: voucher.code, amount: giftAmount, requestId: checkoutRequestId.current } } : {}) },
       }
 
+      if (payload.paymentType?.giftVoucher) {
+        localStorage.setItem(PENDING_VOUCHER_CHECKOUT, JSON.stringify(payload))
+        pendingPayload.current = payload
+      }
       const res = await fetch('/api/sales', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -176,12 +227,15 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
 
       if (!res.ok) {
         const err = await res.json()
+        if (res.status < 500) { localStorage.removeItem(PENDING_VOUCHER_CHECKOUT); pendingPayload.current = null }
         setCheckoutError(`Hata: ${err.error || 'İşlem başarısız oldu'}`)
         setIsProcessing(false)
+        submitting.current = false
         return
       }
 
       const saleData = await res.json()
+      localStorage.removeItem(PENDING_VOUCHER_CHECKOUT); pendingPayload.current = null
       setCompletedSale(saleData)
       setIsProcessing(false)
       notifyDataChanged()
@@ -193,7 +247,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
     } catch (err: any) {
       setCheckoutError(`Tahsilat sırasında hata oluştu: ${err.message || 'Bağlantı hatası'}`)
       setIsProcessing(false)
-    }
+    } finally { submitting.current = false }
   }
 
   const handleFinish = () => {
@@ -205,6 +259,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
   }
 
   const handleModalClose = () => {
+    if (submitting.current) return
+    if (pendingPayload.current) {
+      setCheckoutError('Önce bekleyen çek ödemesinin sonucunu alın. Aynı İşlemi Yeniden Dene düğmesini kullanın.')
+      return
+    }
     if (completedSale) {
       handleFinish()
     } else {
@@ -286,17 +345,18 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
     }
   }
 
-  const changeDue = parseDecimal(givenCash) - total
+  const changeDue = parseDecimal(givenCash) - payable
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 font-sans">
-      <div className="glass-modal rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
+      <div role="dialog" aria-modal="true" aria-label="Ödeme ve Tahsilat" className="glass-modal rounded-2xl w-full max-w-md max-h-[90vh] shadow-2xl overflow-y-auto">
         {/* Header */}
         <div className="px-5 py-3.5 border-b border-white/50 flex items-center justify-between bg-white/40 backdrop-blur-xs">
           <h2 className="font-bold text-slate-900 text-sm">
             {completedSale ? 'İşlem Tamamlandı' : total === 0 ? 'Sıfır Fark Değişim Onayı' : 'Ödeme ve Tahsilat'}
           </h2>
           <button
+            aria-label="Ödeme penceresini kapat"
             onClick={handleModalClose}
             className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-200/60 transition"
           >
@@ -320,6 +380,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
               </div>
             )}
 
+            <fieldset disabled={isProcessing || Boolean(pendingPayload.current)} className="space-y-4">
             {/* Total Display */}
             <div className="glass-card rounded-2xl p-4 text-center shadow-xs">
               <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">
@@ -331,6 +392,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
             </div>
 
             {/* Payment Mode Selector */}
+            {total > 0 && <div className="border border-purple-200 rounded-xl p-3 space-y-2 bg-purple-50">
+              <label className="text-xs font-bold text-purple-800 flex items-center gap-1"><Gift size={15} />Hediye Çeki Kullan</label>
+              <div className="flex gap-2"><input aria-label="Hediye çeki kodu" disabled={isProcessing || lookingUpVoucher} value={voucherCode} onChange={e => { setVoucherCode(e.target.value); setVoucher(null); setVoucherAmount('') }} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); lookupVoucher() } }} placeholder="Barkodu okutun / kod girin" className="border rounded p-2 min-w-0 flex-1 text-xs" /><button type="button" disabled={isProcessing || lookingUpVoucher || !voucherCode.trim()} onClick={lookupVoucher} className="px-2 rounded bg-purple-700 text-white text-xs disabled:opacity-50">Sorgula</button></div>
+              {voucher && <><p className="text-xs">Bakiye: {(voucher.balanceCents / 100).toFixed(2)} TL</p><label className="text-xs block">Çekten kullanılacak (TL)<input disabled={isProcessing} inputMode="decimal" value={voucherAmount} onChange={e => setVoucherAmount(e.target.value)} className="border rounded p-2 w-full" /></label><p className="text-sm font-bold">Nakit / kart ile kalan: {payable.toFixed(2)} TL</p><button type="button" disabled={isProcessing} className="underline text-xs" onClick={() => { setVoucher(null); setVoucherAmount(''); setVoucherCode('') }}>Çeki kaldır</button></>}
+            </div>}
             {total === 0 ? (
               <div className="bg-emerald-50 border border-emerald-300 rounded-lg p-3.5 text-center space-y-1">
                 <span className="text-xs font-bold text-emerald-800 flex items-center justify-center space-x-1">
@@ -427,7 +493,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
                           onChange={(e) => {
                             const val = parseDecimal(e.target.value)
                             setCashAmount(val)
-                            setCardAmount(Math.max(0, Number((total - val).toFixed(2))))
+                            setCardAmount(Math.max(0, Number((payable - val).toFixed(2))))
                           }}
                           className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded text-xs font-bold text-slate-900"
                         />
@@ -451,9 +517,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
               </>
             )}
 
+            </fieldset>
             {/* Final Action Button */}
             <button
-              disabled={isProcessing}
+              disabled={isProcessing || lookingUpVoucher || recoveryError}
               onClick={handleCheckoutSubmit}
               className="w-full py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded shadow-sm transition flex items-center justify-center space-x-2 text-xs disabled:opacity-50 mt-2"
             >
@@ -462,7 +529,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
               ) : (
                 <>
                   <CheckCircle className="w-4 h-4" />
-                  <span>{total === 0 ? 'Sıfır Fark Değişimi Tamamla' : 'Tahsilatı Tamamla ve Fiş Kes'}</span>
+                  <span>{pendingPayload.current ? 'Aynı İşlemi Yeniden Dene' : total === 0 ? 'Sıfır Fark Değişimi Tamamla' : 'Tahsilatı Tamamla ve Fiş Kes'}</span>
                 </>
               )}
             </button>
@@ -484,6 +551,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
                 <span>Ödeme Şekli:</span>
                 <span className="font-semibold text-slate-900">{paymentMode}</span>
               </div>
+              {completedSale.paymentType?.giftVoucher && <div className="text-purple-800 font-semibold">Hediye çeki: {completedSale.paymentType.giftVoucher.amount.toFixed(2)} TL · Çek kalan: {completedSale.paymentType.giftVoucher.balance.toFixed(2)} TL</div>}
               <div className="flex justify-between">
                 <span>Tahsil Edilen Toplam:</span>
                 <span className="font-bold text-emerald-700 text-sm">

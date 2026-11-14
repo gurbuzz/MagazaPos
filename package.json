@@ -10,6 +10,7 @@
     "dev:server": "npx tsx src/server/index.ts",
     "build": "node scripts/copy-public.js && npx tsc && npx vite build",
     "test:api": "npx tsx scripts/test_system.ts",
+    "test:gift-vouchers": "node --import tsx tests/giftVouchers.test.ts",
     "package:win": "node scripts/copy-public.js && npx prisma generate && npx tsc --skipLibCheck && npx vite build && npx electron-builder --win nsis",
     "db:migrate": "npx prisma migrate dev",
     "db:seed": "npx tsx prisma/seed.ts",

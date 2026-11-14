@@ -33,6 +33,8 @@ export const PosReturnModal: React.FC<PosReturnModalProps> = ({ isOpen, onClose 
   const [refundMethod, setRefundMethod] = useState<'CASH' | 'CARD'>('CASH')
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
 
+  const hasGiftVoucher = Boolean(foundSale?.paymentType?.giftVoucher)
+
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -545,7 +547,8 @@ export const PosReturnModal: React.FC<PosReturnModalProps> = ({ isOpen, onClose 
                     <div className="grid grid-cols-2 gap-2">
                       <button
                         type="button"
-                        onClick={() => setRefundMethod('CASH')}
+                        disabled={hasGiftVoucher}
+                onClick={() => setRefundMethod('CASH')}
                         className={`p-2 rounded-lg border text-xs font-bold flex items-center justify-center space-x-1.5 transition ${
                           refundMethod === 'CASH'
                             ? 'bg-amber-600 text-white border-amber-600 shadow-2xs'
@@ -557,7 +560,8 @@ export const PosReturnModal: React.FC<PosReturnModalProps> = ({ isOpen, onClose 
                       </button>
                       <button
                         type="button"
-                        onClick={() => setRefundMethod('CARD')}
+                        disabled={hasGiftVoucher}
+                onClick={() => setRefundMethod('CARD')}
                         className={`p-2 rounded-lg border text-xs font-bold flex items-center justify-center space-x-1.5 transition ${
                           refundMethod === 'CARD'
                             ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
@@ -584,7 +588,8 @@ export const PosReturnModal: React.FC<PosReturnModalProps> = ({ isOpen, onClose 
                     />
                   </div>
 
-                  {/* Summary Card */}
+                  {hasGiftVoucher && <p className="text-xs bg-purple-50 text-purple-800 p-3 rounded-lg">Çekle ödenen pay aynı çeke geri yüklenir. Nakit/kart payı ilk ödemedeki oranlarda iade edilir; çek tutarı nakit olarak ödenmez.</p>}
+{/* Summary Card */}
                   <div className="flex items-center justify-between bg-amber-50/80 p-3 rounded-lg border border-amber-200">
                     <div className="flex items-center space-x-2">
                       <PackageCheck className="w-5 h-5 text-amber-700" />
@@ -593,7 +598,7 @@ export const PosReturnModal: React.FC<PosReturnModalProps> = ({ isOpen, onClose 
                           Stoğa İade: {totalReturnCount} Adet Ürün
                         </span>
                         <span className="text-[10px] text-amber-800">
-                          Kasadan {refundMethod === 'CASH' ? 'nakit ödenecek' : 'kart iadesi düşülecek'}.
+                          {hasGiftVoucher ? 'İade, çek / nakit / kart paylarına göre yapılacak.' : <>Kasadan {refundMethod === 'CASH' ? 'nakit ödenecek' : 'kart iadesi düşülecek'}.</>}
                         </span>
                       </div>
                     </div>

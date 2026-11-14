@@ -72,37 +72,8 @@ if not exist "node_modules\.prisma\client" (
     echo  [OK] Prisma istemcisi mevcut.
 )
 
-REM --- Veritabani ---
-if not exist "prisma\dev.db" (
-    echo  [3/4] Veritabani olusturuluyor...
-    if exist "node_modules\.bin\prisma.cmd" (
-        call "node_modules\.bin\prisma.cmd" db push --accept-data-loss
-    ) else (
-        call npx prisma db push --accept-data-loss
-    )
-    if errorlevel 1 (
-        echo  [HATA] Veritabani olusturulamadi!
-        pause
-        goto BITIS
-    )
-    echo  [OK] Veritabani olusturuldu.
-    echo.
-    echo  [4/4] Ornek veriler yukleniyor...
-    if exist "node_modules\.bin\tsx.cmd" (
-        call "node_modules\.bin\tsx.cmd" prisma/seed.ts
-    ) else (
-        call npx tsx prisma/seed.ts
-    )
-    if errorlevel 1 (
-        echo  [HATA] Ornek veriler yuklenemedi!
-        pause
-        goto BITIS
-    )
-    echo  [OK] Ornek veriler yuklendi.
-    echo.
-) else (
-    echo  [OK] Veritabani mevcut.
-)
+REM Canli veritabani uygulama tarafindan yedeklenerek hazirlanir.
+REM Kurulumda db push veya demo veri yukleme CALISTIRILMAZ.
 
 REM --- Public dosyalari kopyala ---
 if exist "scripts\copy-public.js" (
@@ -157,35 +128,13 @@ if exist "%LOCALAPPDATA%\electron-builder\Cache\winCodeSign" (
 REM Eger MagazaPOS arkada aciksa dosya kilitlenmesini onlemek icin kapat
 taskkill /F /IM MagazaPOS.exe >nul 2>&1
 
-echo  [1/4] Veritabani semasi ve ornek veriler pakete hazirlaniyor...
-if exist "node_modules\.bin\prisma.cmd" (
-    call "node_modules\.bin\prisma.cmd" generate
-    call "node_modules\.bin\prisma.cmd" db push --accept-data-loss
-) else (
-    call npx prisma generate
-    call npx prisma db push --accept-data-loss
-)
+echo  [1/4] Prisma istemcisi hazirlaniyor - mevcut veriler degistirilmez...
+call npx prisma generate
 if errorlevel 1 (
-    echo  [HATA] Prisma db push basarisiz! Lutfen .env dosyanizi kontrol edin.
+    echo  [HATA] Prisma istemcisi olusturulamadi.
     pause
     goto BITIS
 )
-if exist "node_modules\.bin\tsx.cmd" (
-    call "node_modules\.bin\tsx.cmd" prisma/seed.ts
-) else (
-    call npx tsx prisma/seed.ts
-)
-if errorlevel 1 (
-    echo  [HATA] Ornek veriler yuklenemedi!
-    pause
-    goto BITIS
-)
-if not exist "prisma\dev.db" (
-    if exist "dev.db" copy /y "dev.db" "prisma\dev.db" >nul 2>&1
-)
-if exist "prisma\dev.db" copy /y "prisma\dev.db" "dev.db" >nul 2>&1
-echo  [OK] Veritabani pakete hazirlandi.
-
 echo.
 echo  [2/4] TypeScript derleniyor...
 call npx tsc --skipLibCheck

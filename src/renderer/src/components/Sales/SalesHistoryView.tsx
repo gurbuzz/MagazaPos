@@ -49,6 +49,7 @@ export const SalesHistoryView: React.FC = () => {
     netRevenue: number
     netCash: number
     netCard: number
+    netGiftVoucher?: number
     avgReceiptAmount: number
     grossItemsSold?: number
     returnedItemsCount?: number
@@ -636,6 +637,7 @@ export const SalesHistoryView: React.FC = () => {
           </div>
         </div>
 
+        <p className="text-xs text-purple-800 bg-purple-50 rounded-lg p-2">Hediye çekiyle ödenen net ürün satışı: {(paymentFilter === 'ALL' && serverStats ? (serverStats.netGiftVoucher || 0) : filteredSales.reduce((sum, sale) => sum + (Number(sale.paymentType?.netGiftVoucher) || 0), 0)).toFixed(2)} TL. Çek oluşturma tahsilatları navbar’daki hediye simgesinden ayrıca izlenir.</p>
         {/* TOP DYNAMIC KPI CARDS (Net Ciro, Satılan Ürün Adedi, Net Nakit Kasa, Net Kart, Toplam İadeler) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
           {/* Net Dönem Cirosu */}
@@ -851,11 +853,11 @@ export const SalesHistoryView: React.FC = () => {
                       <td className="px-4 py-2.5 font-semibold text-slate-800">{sale.cashierName || 'Kasiyer 1'}</td>
                       <td className="px-4 py-2.5">
                         <span className="px-2 py-0.5 rounded bg-blue-50 border border-blue-100 text-[11px] font-semibold text-blue-700">
-                          {(sale.paymentType?.cash || 0) > 0 && (sale.paymentType?.card || 0) > 0
+                          {sale.paymentType?.giftVoucher ? `Hediye çeki: ${sale.paymentType.giftVoucher.amount}₺ / Nakit: ${sale.paymentType.cash || 0}₺ / Kart: ${sale.paymentType.card || 0}₺` : ((sale.paymentType?.cash || 0) > 0 && (sale.paymentType?.card || 0) > 0
                             ? `Parçalı (${sale.paymentType.cash}₺ Nakit / ${sale.paymentType.card}₺ Kart)`
                             : (sale.paymentType?.cash || 0) > 0
                             ? 'Nakit Ödeme'
-                            : 'Kredi Kartı'}
+                            : 'Kredi Kartı')}
                         </span>
                       </td>
                       <td className="px-4 py-2.5 font-semibold text-slate-700">
@@ -1029,11 +1031,11 @@ export const SalesHistoryView: React.FC = () => {
                 <div className="flex justify-between">
                   <span>Ödeme Türü:</span>
                   <span className="font-semibold text-slate-900">
-                    {(selectedSale.paymentType?.cash || 0) > 0 && (selectedSale.paymentType?.card || 0) > 0
+                    {selectedSale.paymentType?.giftVoucher ? `Hediye çeki: ${selectedSale.paymentType.giftVoucher.amount}₺ / Nakit: ${selectedSale.paymentType.cash || 0}₺ / Kart: ${selectedSale.paymentType.card || 0}₺` : ((selectedSale.paymentType?.cash || 0) > 0 && (selectedSale.paymentType?.card || 0) > 0
                       ? `Parçalı (${selectedSale.paymentType.cash}₺ Nakit / ${selectedSale.paymentType.card}₺ Kart)`
                       : (selectedSale.paymentType?.cash || 0) > 0
                       ? 'Nakit'
-                      : 'Kredi Kartı'}
+                      : 'Kredi Kartı')}
                   </span>
                 </div>
                 {selectedSale.discountAmount > 0 && (
