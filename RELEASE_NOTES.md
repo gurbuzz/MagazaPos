@@ -5,6 +5,7 @@
 - Kaynak ürünlerin stoğa dönüşü ve yeni satış aynı işlemde tamamlanır. İşlem başarısızsa stok hareketleri geri alınır; daha önce işlenen adetler tekrar kullanılamaz.
 - Mobil stok sorgulamada fotoğraflar farklı yön, boyut ve merkez bölgeleriyle yeniden taranır. Barkod okuyucu uygulamaya dahil edilmiştir; okuyucunun yüklenmesi için dış internet bağlantısı gerekmez.
 - Destekleyen telefonlarda daha yüksek kamera çözünürlüğü ve sürekli odaklama istenir. Kamera/fotoğraf geçişindeki çakışmalar giderildi. Fiziksel bulanıklık veya parlama her fotoğrafta giderilemeyebilir.
+- Mobil sayfa ve barkod okuyucu dosyaları derleme sonrasında kurulum paketine kopyalanıp doğrulanır.
 
 Bu sürüm için veritabanı şema değişikliği yoktur. Güncelleme kurulmadan önce mevcut veritabanı yedeklenip doğrulanır.
 
