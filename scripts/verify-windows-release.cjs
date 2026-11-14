@@ -12,6 +12,7 @@ assert.ok(manifest.files?.length)
 for (const file of manifest.files) {
   const filename = decodeURIComponent(file.url)
   assert.equal(path.basename(filename), filename)
+  assert.equal(filename, `MagazaPOS-Setup-${version}.exe`, 'Installer and update manifest must use the same portable filename')
   const fullPath = path.join('release', filename)
   const data = fs.readFileSync(fullPath)
   assert.equal(data.length, file.size)
