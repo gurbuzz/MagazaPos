@@ -40,6 +40,8 @@ Sürüm numarası `package.json` ve `package-lock.json` içinde yükseltilip de�
 
 ### Windows bilgisayarda elle yayın
 
+Etiket gönderildiğinde otomatik çalışma oluşmazsa GitHub'da Actions → Windows Release → Run workflow üzerinden mevcut sürüm etiketi girilerek yayın başlatılabilir. Etiketin gösterdiği kod kullanılır; sürüm numarası etiketle eşleşmezse paketleme durur.
+
 Güncelleme kaynağı `gurbuzz/MagazaPos` GitHub deposunun yayınlanmış Release kayıtlarıdır. Kaynak kodunu göndermek tek başına güncelleme yayınlamaz.
 
 Ayarlar → Güncelleme ekranındaki **Kurulu sürüm**, POS'ta çalışan EXE'nin sürümüdür. Henüz yayımlanmış Release yoksa bu durum ayrı bir mesajla gösterilir; bağlantı veya eksik `latest.yml` hataları da güncel sürüm olarak değerlendirilmez. Daha yeni paket bulunamadığı mesajı, yalnızca yayımlanmış paketle karşılaştırmayı ifade eder; GitHub'daki son kaynak kodunun POS'ta bulunduğu anlamına gelmez. Ayarlar kapatılıp açıldığında devam eden indirme veya kuruluma hazır paket durumu korunur.

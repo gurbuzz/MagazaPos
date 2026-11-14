@@ -3,16 +3,23 @@ name: Windows Release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Yayımlanacak mevcut sürüm etiketi (ör. v1.0.1)'
+        required: true
+        default: 'v1.0.1'
 
 permissions:
   contents: write
 
 concurrency:
-  group: windows-release-${{ github.ref }}
+  group: windows-release-${{ inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 env:
   DATABASE_URL: 'file:./dev.db'
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   validate:
@@ -20,6 +27,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -39,13 +48,15 @@ jobs:
         shell: pwsh
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
       - name: Check release version
         run: |
-          node -e "const p=require('./package.json'); if(process.env.GITHUB_REF_NAME !== 'v'+p.version) throw Error('Tag and package version must match')"
+          node -e "const p=require('./package.json'); if(process.env.RELEASE_TAG !== 'v'+p.version) throw Error('Tag and package version must match')"
       - run: npm ci --include=dev
       - run: npx prisma generate
       - name: Create empty installer database in disposable runner
@@ -57,7 +68,7 @@ jobs:
       - name: Keep build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: MagazaPOS-Windows-${{ github.ref_name }}
+          name: MagazaPOS-Windows-${{ env.RELEASE_TAG }}
           path: |
             release/*.exe
             release/*.blockmap
@@ -68,4 +79,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $assets = @(Get-ChildItem release -File | Where-Object { $_.Name -match '\.(exe|blockmap)$' -or $_.Name -eq 'latest.yml' } | ForEach-Object { $_.FullName })
-          gh release create "$env:GITHUB_REF_NAME" @assets --verify-tag --title "MagazaPOS $env:GITHUB_REF_NAME" --notes-file RELEASE_NOTES.md --latest
+          gh release create "$env:RELEASE_TAG" @assets --verify-tag --title "MagazaPOS $env:RELEASE_TAG" --notes-file RELEASE_NOTES.md --latest
