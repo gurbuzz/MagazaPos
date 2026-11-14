@@ -1,9 +1,12 @@
-Hediye çeki oluşturma, bakiye sorgulama, tekrar fiş yazdırma ve alışverişte kullanma desteği eklendi.
+Çoklu ürün değişimi ve mobil barkod okuma iyileştirmeleri.
 
-- Nakit/kart karşılığı çek oluşturulduğunda tahsilat ciroya eklenir. Çek kullanıldığında aynı tutar tekrar eklenmez; yalnızca ek nakit/kart ödemesi sayılır.
-- Kısmi ve tam iadelerde çek tutarı çek bakiyesine, nakit/kart kısmı ilgili iade hesabına yansır.
-- Güncelleme ekranında kurulu sürüm, indirme durumu ve yayımlanmamış/eksik paket hataları gösterilir.
-- Güncelleme kurulmadan önce mevcut veritabanı yedeklenip doğrulanır. Hediye çeki tabloları mevcut kayıtlar korunarak eklenir.
+- Değişim fişinde birden fazla ürün ve adet birlikte seçilebilir. Tümünü Seç ile kalan değiştirilebilir adetler alınabilir.
+- Seçilen ürünler kasada değişim bölümünde görünür; toplam ödenmiş bedelleri mahsup edilir. Yeni alınacak ürünler kasaya ayrıca eklenir.
+- Kaynak ürünlerin stoğa dönüşü ve yeni satış aynı işlemde tamamlanır. İşlem başarısızsa stok hareketleri geri alınır; daha önce işlenen adetler tekrar kullanılamaz.
+- Mobil stok sorgulamada fotoğraflar farklı yön, boyut ve merkez bölgeleriyle yeniden taranır. Barkod okuyucu uygulamaya dahil edilmiştir; okuyucunun yüklenmesi için dış internet bağlantısı gerekmez.
+- Destekleyen telefonlarda daha yüksek kamera çözünürlüğü ve sürekli odaklama istenir. Kamera/fotoğraf geçişindeki çakışmalar giderildi. Fiziksel bulanıklık veya parlama her fotoğrafta giderilemeyebilir.
+
+Bu sürüm için veritabanı şema değişikliği yoktur. Güncelleme kurulmadan önce mevcut veritabanı yedeklenip doğrulanır.
 
 Ayarlar → Güncelleme → Güncellemeleri Kontrol Et yoluyla indirilebilir. Açık satışı tamamladıktan sonra Yedekle ve Kur seçilir. Windows yönetici izni isteyebilir.
 

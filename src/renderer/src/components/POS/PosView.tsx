@@ -758,10 +758,21 @@ export const PosView: React.FC = () => {
 
         {/* Cart Items List */}
         <div className="flex-1 p-2 overflow-y-auto space-y-1.5">
+          {exchange?.items?.length ? (
+            <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-2 text-xs space-y-1">
+              <div className="font-bold text-indigo-800">Değişim için geri alınacak ürünler</div>
+              {exchange.items.map(item => (
+                <div key={item.itemId} className="flex justify-between gap-2 text-indigo-900">
+                  <span>{item.productName || 'Değişim ürünü'}{item.variantLabel ? ` · ${item.variantLabel}` : ''}</span>
+                  <span className="font-semibold whitespace-nowrap">{item.quantity} adet</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
           {cartItems.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-slate-400 text-center p-4">
+            <div className={`${exchange ? 'py-4' : 'h-full'} flex flex-col items-center justify-center text-slate-400 text-center p-4`}>
               <Barcode className="w-8 h-8 stroke-[1.5] mb-1.5 text-slate-300" />
-              <p className="text-xs font-semibold text-slate-600">Sepetiniz Boş</p>
+              <p className="text-xs font-semibold text-slate-600">{exchange ? 'Yeni alınacak ürünleri okutun' : 'Sepetiniz Boş'}</p>
               <p className="text-[10px] text-slate-400 mt-0.5">Barkod okutarak veya ürün seçerek işlem başlatın.</p>
             </div>
           ) : (
@@ -959,7 +970,7 @@ export const PosView: React.FC = () => {
                 </div>
                 {exchange && (
                   <div className="flex justify-between text-xs text-indigo-700 font-semibold">
-                    <span>Değişim mahsubu <button onClick={() => setExchange(null)} className="underline ml-1">İptal</button></span>
+                    <span>Değişim mahsubu ({exchange.items?.reduce((sum, item) => sum + item.quantity, 0) || 1} adet) <button onClick={() => setExchange(null)} className="underline ml-1">İptal</button></span>
                     <span>-{exchange.credit.toFixed(2)} ₺</span>
                   </div>
                 )}

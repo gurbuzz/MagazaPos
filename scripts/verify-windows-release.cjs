@@ -22,6 +22,10 @@ for (const file of manifest.files) {
 const archive = 'release/win-unpacked/resources/app.asar'
 const entries = asar.listPackage(archive).map(entry => entry.replace(/\\/g, '/'))
 assert.ok(entries.includes('/node_modules/electron-updater/package.json'), 'Updater runtime must be packaged')
+for (const asset of ['mobile.html', 'mobile-scanner.js', 'vendor/html5-qrcode.min.js', 'vendor/html5-qrcode.LICENSE']) {
+  const packaged = asar.extractFile(archive, `dist-electron/main/public/${asset}`)
+  assert.ok(packaged.equals(fs.readFileSync(path.join('src/server/public', asset))), `Mobile scanner asset missing or outdated: ${asset}`)
+}
 assert.equal(JSON.parse(asar.extractFile(archive, 'package.json').toString()).version, version)
 const config = yaml.load(fs.readFileSync('release/win-unpacked/resources/app-update.yml', 'utf8'))
 assert.equal(config.provider, 'github')

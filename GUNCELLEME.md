@@ -1,5 +1,9 @@
 # Windows güncelleme süreci
 
+## Çoklu ürün değişimi
+
+Kasa → Değişim ekranında fişi okutun. Birden fazla ürünün seçim kutusunu işaretleyin, gerekirse adetlerini belirleyin; **Tümünü Seç** kalan değiştirilebilir adetleri birlikte seçer. **Değişimi Sepete Aktar** seçilenlerin toplam ödenmiş bedelini tek mahsup olarak kasaya aktarır. Yeni alınacak ürünler kasaya ayrıca eklenir. Kaynak ürünlerin stok girişi ve yeni ürünlerin stok çıkışı ödeme tamamlandığında aynı veritabanı işlemi içinde kaydedilir; işlem başarısızsa hepsi geri alınır. Önceden iade/değişim yapılmış adetler yeniden seçilemez. Bu düzeltme için veritabanı şema değişikliği gerekmez.
+
 ## Hediye çeki sürümüne geçiş ve kullanım
 
 `MagazaPosKurulum.bat` artık `db push --accept-data-loss` veya örnek veri yükleme çalıştırmaz. Her seferinde aynı betikle paketleme yapabilirsiniz; mevcut kullanıcı verileri dizinini, mağaza veritabanını ve lisans dosyalarını silmeyin. İlk kurulumda uygulama mevcut şablondan veritabanı oluşturur; sonraki açılışlarda kalıcı mağaza veritabanını kullanır. `prisma/seed.ts` dolu bir veritabanına örnek veri yüklemeyi reddeder.

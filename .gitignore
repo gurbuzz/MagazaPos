@@ -8,6 +8,10 @@ dist-electron/
 release/
 out/
 
+# Mobile scanner copies generated from src/server/public by copy:public
+public/mobile-scanner.js
+public/vendor/
+
 # Local Database & SQLite files
 *.db
 *.db-shm

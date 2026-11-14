@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { X, Search, RotateCcw, AlertCircle, CheckCircle2, Sparkles, ArrowRight } from 'lucide-react'
 import { usePosStore } from '../../store/usePosStore'
+import { exchangeCredit } from '../../../../shared/exchanges'
 
 interface ExchangeModalProps {
   isOpen: boolean
@@ -14,7 +15,7 @@ export const ExchangeModal: React.FC<ExchangeModalProps> = ({ isOpen, onClose })
   const [isLoading, setIsLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
   const [foundSale, setFoundSale] = useState<any | null>(null)
-  const [selectedItemId, setSelectedItemId] = useState<string>('')
+  const [selectedQuantities, setSelectedQuantities] = useState<Record<string, number>>({})
   const [isProcessing, setIsProcessing] = useState(false)
   const [successMsg, setSuccessMsg] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -24,7 +25,7 @@ export const ExchangeModal: React.FC<ExchangeModalProps> = ({ isOpen, onClose })
       setSearchReceipt('')
       setErrorMsg('')
       setFoundSale(null)
-      setSelectedItemId('')
+      setSelectedQuantities({})
       setSuccessMsg('')
       setTimeout(() => {
         inputRef.current?.focus()
@@ -33,6 +34,20 @@ export const ExchangeModal: React.FC<ExchangeModalProps> = ({ isOpen, onClose })
   }, [isOpen])
 
   if (!isOpen) return null
+
+  const selectedLines = Object.entries(selectedQuantities).map(([itemId, quantity]) => ({ itemId, quantity }))
+  let selectedCredit = 0
+  let selectionError = ''
+  if (foundSale && selectedLines.length) {
+    try { selectedCredit = exchangeCredit(foundSale, selectedLines) }
+    catch (error) { selectionError = error instanceof Error ? error.message : 'Seçim geçersiz.' }
+  }
+  const toggleItem = (itemId: string) => setSelectedQuantities(previous => {
+    const next = { ...previous }
+    if (next[itemId]) delete next[itemId]
+    else next[itemId] = 1
+    return next
+  })
 
   const handleSearchSale = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -45,7 +60,7 @@ export const ExchangeModal: React.FC<ExchangeModalProps> = ({ isOpen, onClose })
     setIsLoading(true)
     setErrorMsg('')
     setFoundSale(null)
-    setSelectedItemId('')
+    setSelectedQuantities({})
     setSuccessMsg('')
 
     try {
@@ -127,25 +142,22 @@ export const ExchangeModal: React.FC<ExchangeModalProps> = ({ isOpen, onClose })
   }
 
   const handleApplyExchange = async () => {
-    if (!foundSale || !selectedItemId) {
-      setErrorMsg('Lütfen değiştirilecek ürünü seçin.')
+    if (!foundSale || !selectedLines.length) {
+      setErrorMsg('Lütfen değiştirilecek ürünleri seçin.')
       return
     }
 
-    const item = foundSale.items.find((i: any) => i.id === selectedItemId)
-    if (!item) return
-
-    const available = item.quantity - (item.returnedQuantity || 0)
-    if (available <= 0) {
-      setErrorMsg('Bu ürünün tüm adeti daha önce iade edilmiş veya değiştirilmiştir.')
-      return
-    }
-
-    const subtotal = foundSale.items.reduce((sum: number, entry: any) => sum + entry.quantity * entry.unitPrice, 0)
-    const paidValue = Number(foundSale.totalAmount) + (Number(foundSale.paymentType?.exchange?.credit) || 0)
-    const credit = Math.round(item.unitPrice * (subtotal > 0 ? Math.min(1, paidValue / subtotal) : 1) * 100) / 100
-    setExchange({ saleId: foundSale.id, itemId: item.id, credit })
-    onClose()
+    setIsProcessing(true)
+    try {
+      const credit = exchangeCredit(foundSale, selectedLines)
+      setExchange({ saleId: foundSale.id, items: selectedLines.map(line => {
+        const item = foundSale.items.find((entry: any) => entry.id === line.itemId)
+        return { ...line, productName: item.variant?.product?.name || 'Ürün', variantLabel: [item.variant?.attributes?.color, item.variant?.attributes?.size].filter(Boolean).join(' / ') }
+      }), credit })
+      onClose()
+    } catch (error) {
+      setErrorMsg(error instanceof Error ? error.message : 'Değişim sepete aktarılamadı.')
+    } finally { setIsProcessing(false) }
   }
 
   return (
@@ -158,7 +170,7 @@ export const ExchangeModal: React.FC<ExchangeModalProps> = ({ isOpen, onClose })
             <div>
               <h3 className="font-bold text-slate-900 text-sm">Ürün & Beden Değişimi</h3>
               <span className="text-[11px] text-slate-500">
-                Eski fişi sorgulayıp sıfır farkla birebir değişim başlatın.
+                Fişteki birden fazla ürünü ve değiştirilecek adetlerini seçin.
               </span>
             </div>
           </div>
@@ -235,20 +247,30 @@ export const ExchangeModal: React.FC<ExchangeModalProps> = ({ isOpen, onClose })
                 </span>
               </div>
 
-              <label className="block text-[11px] font-bold text-slate-700 uppercase">
-                Değiştirilmek İstenen Ürünü Seçin:
-              </label>
+              <div className="flex justify-between items-center gap-2">
+                <span className="text-[11px] font-bold text-slate-700 uppercase">Değiştirilecek Ürünler:</span>
+                <button type="button" className="text-xs font-bold text-indigo-700" onClick={() => {
+                  const next: Record<string, number> = {}
+                  if (!['CANCELLED', 'RETURNED'].includes(foundSale.status)) {
+                    for (const item of foundSale.items) {
+                      const available = item.quantity - (item.returnedQuantity || 0)
+                      if (available > 0) next[item.id] = available
+                    }
+                  }
+                  setSelectedQuantities(next)
+                }}>Tümünü Seç</button>
+                <button type="button" className="text-xs text-slate-500" onClick={() => setSelectedQuantities({})}>Temizle</button>
+              </div>
 
               <div className="space-y-2 max-h-48 overflow-y-auto">
                 {foundSale.items.map((item: any) => {
-                  const available = item.quantity - (item.returnedQuantity || 0)
-                  const isSelected = selectedItemId === item.id
+                  const available = ['CANCELLED', 'RETURNED'].includes(foundSale.status) ? 0 : item.quantity - (item.returnedQuantity || 0)
+                  const isSelected = Boolean(selectedQuantities[item.id])
                   const isExhausted = available <= 0
 
                   return (
                     <div
                       key={item.id}
-                      onClick={() => !isExhausted && setSelectedItemId(item.id)}
                       className={`p-2.5 rounded-lg border text-xs cursor-pointer transition flex items-center justify-between ${
                         isExhausted
                           ? 'bg-slate-100 border-slate-200 opacity-60 cursor-not-allowed'
@@ -257,7 +279,9 @@ export const ExchangeModal: React.FC<ExchangeModalProps> = ({ isOpen, onClose })
                           : 'bg-white border-slate-200 hover:border-indigo-300'
                       }`}
                     >
-                      <div>
+                      <label className="flex items-center gap-2 flex-1 cursor-pointer">
+                        <input type="checkbox" checked={isSelected} disabled={isExhausted} onChange={() => toggleItem(item.id)} aria-label={`${item.variant?.product?.name || 'Ürün'} değişime seç`} />
+                        <div>
                         <h4 className="font-bold text-slate-900">
                           {item.variant?.product?.name || 'Ürün'}
                         </h4>
@@ -269,13 +293,19 @@ export const ExchangeModal: React.FC<ExchangeModalProps> = ({ isOpen, onClose })
                             ? 'Tamamı İade/Değişim Yapılmış'
                             : `Kalan Değiştirilebilir Adet: ${available}`}
                         </div>
-                      </div>
+                        </div>
+                      </label>
                       <div className="text-right">
                         <span className="font-bold text-indigo-700 font-mono text-sm block">
                           {item.unitPrice.toFixed(2)} ₺
                         </span>
                         {isSelected && (
-                          <span className="text-[10px] font-bold text-indigo-600">Seçildi ✓</span>
+                          <label className="text-[10px] font-bold text-indigo-600 block mt-1">
+                            Adet <input type="number" min={1} max={available} step={1} value={selectedQuantities[item.id]}
+                              aria-label={`${item.variant?.product?.name || 'Ürün'} değişim adedi`}
+                              onChange={event => setSelectedQuantities(previous => ({ ...previous, [item.id]: Math.max(1, Math.min(available, Math.floor(Number(event.target.value)) || 1)) }))}
+                              className="w-14 border border-indigo-300 rounded px-1 py-1 text-right" />
+                          </label>
                         )}
                       </div>
                     </div>
@@ -284,15 +314,16 @@ export const ExchangeModal: React.FC<ExchangeModalProps> = ({ isOpen, onClose })
               </div>
 
               {/* Zero-Difference Explanation Card */}
-              {selectedItemId && (
+              {selectedLines.length > 0 && (
                 <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs space-y-1">
                   <div className="font-bold text-emerald-800 flex items-center space-x-1">
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>Sıfır Fark Değişim Kuralı</span>
+                    <span>{selectedLines.length} ürün / {selectedLines.reduce((sum, line) => sum + line.quantity, 0)} adet · Mahsup: {selectedCredit.toFixed(2)} ₺</span>
                   </div>
                   <p className="text-[11px] text-emerald-700">
-                    Ürünün fişte ödenen bedeli sepette mahsup edilir. Değişim ve stok hareketi ödeme tamamlandığında kaydedilir.
+                    Seçilen ürünlerin fişte ödenen toplam bedeli sepette mahsup edilir. Yeni alınacak ürünleri kasada ekleyin. Değişim ve stok hareketi ödeme tamamlandığında kaydedilir.
                   </p>
+                  {selectionError && <p className="text-rose-700">{selectionError}</p>}
                 </div>
               )}
             </div>
@@ -310,7 +341,7 @@ export const ExchangeModal: React.FC<ExchangeModalProps> = ({ isOpen, onClose })
           </button>
           <button
             type="button"
-            disabled={!selectedItemId || isProcessing}
+            disabled={!selectedLines.length || Boolean(selectionError) || isProcessing}
             onClick={handleApplyExchange}
             className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-bold transition flex items-center space-x-1 disabled:opacity-50 shadow-xs"
           >

@@ -8,7 +8,7 @@ on:
       tag:
         description: 'Yayımlanacak mevcut sürüm etiketi (ör. v1.0.1)'
         required: true
-        default: 'v1.0.2'
+        default: 'v1.0.3'
 
 permissions:
   contents: write
@@ -36,6 +36,7 @@ jobs:
       - run: npm ci --include=dev
       - run: npx prisma generate
       - run: node --import tsx tests/appUpdates.test.ts
+      - run: node --import tsx tests/exchanges.test.ts
       - run: npm run test:gift-vouchers
   release:
     needs: validate

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { syncCustomerDisplay } from '../utils/customerDisplaySync'
+import type { ExchangeSelection } from '../../../shared/exchanges'
 
 export interface CartItem {
   variantId: string
@@ -87,8 +88,8 @@ interface PosState {
   setSelectedCustomer: (customer: Customer | null) => void
   clearSelectedCustomer: () => void
 
-  exchange: { saleId: string; itemId: string; credit: number } | null
-  setExchange: (exchange: { saleId: string; itemId: string; credit: number } | null) => void
+  exchange: ExchangeSelection | null
+  setExchange: (exchange: ExchangeSelection | null) => void
   discountAmount: number
   surchargeAmount: number
   customTotal: number | null

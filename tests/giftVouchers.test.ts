@@ -225,6 +225,57 @@ async function main() {
     console.log('PASS: voucher issue collections, no double counting, mixed payment differences, voucher-only/partial/full refunds, discounted returns, complimentary/cancelled transactions, date/timezone/search/payment filters, full totals beyond display limit')
     console.log('PASS: actual API mixed payment, checkout retry, insufficient funds rollback, partial/full returns, legacy card sale')
 
+    // Multiple source items must be credited and restocked in one checkout.
+    await runtimeDb.productVariant.create({ data: { id: 'exchange-second', productId: 'product', sku: 'EXCHANGE-SECOND', barcode: '654321', attributes: '{}', salePrice: 200, stockQuantity: 20 } })
+    const exchangeSource = await post('/sales', {
+      items: [{ variantId: 'variant', quantity: 2, unitPrice: 100, totalPrice: 200 }, { variantId: 'exchange-second', quantity: 1, unitPrice: 200, totalPrice: 200 }],
+      totalAmount: 360, discountAmount: 40, paymentType: { cash: 200, card: 160 },
+    })
+    assert.equal(exchangeSource.status, 201)
+    const selectedExchangeItems = exchangeSource.data.items.map((item: any) => ({ itemId: item.id, quantity: item.quantity }))
+    const stockBeforeExchange = await runtimeDb.productVariant.findMany({ where: { id: { in: ['variant', 'exchange-second'] } }, orderBy: { id: 'asc' } })
+    const beforeExchangeRevenue = (await stats()).netRevenue
+    const exchangePayload = {
+      items: [{ variantId: 'variant', quantity: 1, unitPrice: 400, totalPrice: 400 }],
+      exchange: { saleId: exchangeSource.data.id, items: selectedExchangeItems, credit: 360 },
+      totalAmount: 40, discountAmount: 360, paymentType: { cash: 40, card: 0 },
+    }
+    const invalidExchange = await post('/sales', { ...exchangePayload, exchange: { ...exchangePayload.exchange, items: [...selectedExchangeItems, selectedExchangeItems[0]] } })
+    assert.notEqual(invalidExchange.status, 201)
+    assert.deepEqual(await runtimeDb.productVariant.findMany({ where: { id: { in: ['variant', 'exchange-second'] } }, orderBy: { id: 'asc' } }), stockBeforeExchange)
+    const brokenReplacement = await post('/sales', { ...exchangePayload, items: [{ variantId: 'does-not-exist', quantity: 1, unitPrice: 400, totalPrice: 400 }] })
+    assert.notEqual(brokenReplacement.status, 201)
+    assert.deepEqual(await runtimeDb.productVariant.findMany({ where: { id: { in: ['variant', 'exchange-second'] } }, orderBy: { id: 'asc' } }), stockBeforeExchange, 'A later checkout failure must roll back both source stock changes')
+    assert.equal((await runtimeDb.sale.findUniqueOrThrow({ where: { id: exchangeSource.data.id } })).status, 'COMPLETED')
+    const multiExchange = await post('/sales', exchangePayload)
+    assert.equal(multiExchange.status, 201, JSON.stringify(multiExchange.data))
+    assert.deepEqual(multiExchange.data.paymentType.exchange.items, selectedExchangeItems)
+    assert.equal(multiExchange.data.paymentType.exchange.credit, 360)
+    assert.equal((await stats()).netRevenue, beforeExchangeRevenue + 40)
+    const updatedSource = await runtimeDb.sale.findUniqueOrThrow({ where: { id: exchangeSource.data.id }, include: { items: true } })
+    assert.equal(updatedSource.status, 'EXCHANGED')
+    assert.ok(updatedSource.items.every(item => item.returnedQuantity === item.quantity))
+    assert.equal((await runtimeDb.stockMovement.findMany({ where: { type: 'EXCHANGE', note: { contains: exchangeSource.data.receiptNo } } })).length, 2)
+    for (const previous of stockBeforeExchange) {
+      const current = await runtimeDb.productVariant.findUniqueOrThrow({ where: { id: previous.id } })
+      assert.equal(current.stockQuantity, previous.stockQuantity + 1, 'Both old products restock; the replacement is deducted once')
+    }
+    assert.notEqual((await post('/sales', exchangePayload)).status, 201, 'Exhausted source items cannot be exchanged twice')
+    const sourceReport = await fetch(base + '/sales?search=' + exchangeSource.data.receiptNo).then(res => res.json()) as any[]
+    assert.equal(sourceReport[0].refundAmount, 0, 'Exchange does not create a cash refund')
+    const newReturn = await post('/sales/' + multiExchange.data.id + '/return', { items: [{ saleItemId: multiExchange.data.items[0].id, returnQuantity: 1 }] })
+    assert.equal(newReturn.status, 200)
+    assert.equal(newReturn.data.paymentType.refundCash, 40, 'Returning the replacement refunds only the newly collected difference')
+    assert.equal((await stats()).netRevenue, beforeExchangeRevenue)
+    const legacyItem = await runtimeDb.saleItem.findFirstOrThrow({ where: { saleId: 'old-sale' } })
+    const legacyExchange = await post('/sales', {
+      items: [{ variantId: 'variant', quantity: 1, unitPrice: 250, totalPrice: 250 }],
+      exchange: { saleId: 'old-sale', itemId: legacyItem.id, credit: 250 },
+      totalAmount: 0, discountAmount: 250, paymentType: { cash: 0, card: 0 },
+    })
+    assert.equal(legacyExchange.status, 201, 'Previously saved single-item exchange carts must remain valid')
+    console.log('PASS: multi-product exchange, quantities, discount, stock movements, duplicate/exhausted selection rejection, cash difference and subsequent return')
+
     const receipt = normalizeSaleToReceiptData(sale.data, { receiptPrintMode: 'HTML' })
     assert.ok(generateReceiptHtml(receipt).includes('Çek kalan: 0.00 TL'))
     assert.ok(Buffer.from(generateEscposReceipt(receipt)).toString('ascii').includes('Cek Kalan Bakiye'))

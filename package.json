@@ -1,6 +1,6 @@
 {
   "name": "magazapos",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "author": "MagazaPOS",
   "description": "POS ve Stok Yönetimi Sistemi (Giyim Mağazaları)",
   "main": "dist-electron/main/index.js",
