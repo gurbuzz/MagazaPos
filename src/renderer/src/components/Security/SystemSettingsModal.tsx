@@ -70,8 +70,19 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
   const [activeTab, setActiveTab] = useState<'general' | 'receipt' | 'display' | 'network' | 'database' | 'update'>('general')
   const cartItems = usePosStore(state => state.cartItems)
   const exchange = usePosStore(state => state.exchange)
-  const [updateStatus, setUpdateStatus] = useState<{ state: string; version?: string; message?: string; percent?: number }>({ state: 'idle' })
-  useEffect(() => window.electron?.onUpdateStatus(setUpdateStatus), [])
+  const [updateStatus, setUpdateStatus] = useState<import('../../../../shared/appUpdates').AppUpdateStatus>({ state: 'idle' })
+  useEffect(() => {
+    let active = true
+    let receivedEvent = false
+    const unsubscribe = window.electron?.onUpdateStatus(status => {
+      receivedEvent = true
+      if (active) setUpdateStatus(status)
+    })
+    window.electron?.getUpdateStatus?.().then(status => {
+      if (active && !receivedEvent) setUpdateStatus(status)
+    }).catch(() => {})
+    return () => { active = false; unsubscribe?.() }
+  }, [])
   const runUpdateAction = async (action: 'checkUpdates' | 'downloadUpdate' | 'installUpdate') => {
     if (!window.electron) { setUpdateStatus({ state: 'error', message: 'Bu özellik masaüstü uygulamasında kullanılabilir.' }); return }
     if (action === 'installUpdate') {
@@ -79,8 +90,13 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
       if (!window.confirm('Veritabanı yedeklenip uygulama kapatılacak ve güncelleme kurulacak. Devam edilsin mi?')) return
       setUpdateStatus({ state: 'installing' })
     }
-    const result = await window.electron[action]()
-    if (!result.success) setUpdateStatus({ state: action === 'installUpdate' ? 'downloaded' : 'error', message: result.error })
+    if (action !== 'installUpdate') setUpdateStatus(previous => ({ currentVersion: previous.currentVersion, state: action === 'checkUpdates' ? 'checking' : 'downloading' }))
+    try {
+      const result = await window.electron[action]()
+      if (!result.success) setUpdateStatus(previous => ({ currentVersion: previous.currentVersion, ...(result.status || { state: action === 'installUpdate' ? 'downloaded' : 'error', message: result.error }) }))
+    } catch (error) {
+      setUpdateStatus(previous => ({ currentVersion: previous.currentVersion, state: action === 'installUpdate' ? 'downloaded' : 'error', message: error instanceof Error ? error.message : 'Güncelleme işlemi tamamlanamadı.' }))
+    }
   }
 
   const [formStoreName, setFormStoreName] = useState(storeName)
@@ -753,7 +769,8 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
             <div className="space-y-3 text-sm">
               <h4 className="font-bold">Uygulama Güncellemesi</h4>
               <p>GitHub üzerinde yayınlanmış sürümleri kontrol edin. Kurulumdan önce veritabanı yedeklenir.</p>
-              <p className="text-slate-600">{updateStatus.state === 'checking' ? 'Güncellemeler kontrol ediliyor...' : updateStatus.state === 'available' ? `Yeni sürüm: ${updateStatus.version}` : updateStatus.state === 'current' ? `Uygulama güncel (${updateStatus.version}).` : updateStatus.state === 'downloading' ? `İndiriliyor: %${updateStatus.percent || 0}` : updateStatus.state === 'downloaded' ? `Sürüm ${updateStatus.version || ''} kuruluma hazır.` : updateStatus.state === 'installing' ? 'Yedek alınıyor ve kurulum başlatılıyor...' : 'Kontrol etmek için düğmeye basın.'}</p>
+              <p>Kurulu sürüm: <strong>{updateStatus.currentVersion || '—'}</strong></p>
+              <p className="text-slate-600">{updateStatus.state === 'checking' ? 'Güncellemeler kontrol ediliyor...' : updateStatus.state === 'available' ? `Yeni sürüm: ${updateStatus.version}` : updateStatus.state === 'current' ? `Kurulu sürümden daha yeni bir paket bulunamadı. Yayımlanan sürüm: ${updateStatus.version}.` : updateStatus.state === 'unpublished' ? 'Yayımlanmış güncelleme paketi bulunamadı.' : updateStatus.state === 'error' ? 'Güncelleme işlemi tamamlanamadı.' : updateStatus.state === 'downloading' ? `İndiriliyor: %${updateStatus.percent || 0}` : updateStatus.state === 'downloaded' ? `Sürüm ${updateStatus.version || ''} kuruluma hazır.` : updateStatus.state === 'installing' ? 'Yedek alınıyor ve kurulum başlatılıyor...' : 'Kontrol etmek için düğmeye basın.'}</p>
               {updateStatus.message && <p className="text-rose-700">{updateStatus.message}</p>}
               <div className="flex gap-2">
                 <button type="button" disabled={['checking', 'downloading', 'installing'].includes(updateStatus.state)} onClick={() => runUpdateAction('checkUpdates')} className="px-3 py-2 bg-blue-700 text-white rounded disabled:opacity-50">Güncellemeleri Kontrol Et</button>

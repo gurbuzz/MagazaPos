@@ -8,6 +8,7 @@ import { autoUpdater } from 'electron-updater'
 import type { ProgressInfo, UpdateDownloadedEvent, UpdateInfo } from 'electron-updater'
 import { getBackupsDir } from '../server/utils/databaseBackup'
 import { getLocalIpAddress } from '../server/utils/network'
+import { updateErrorStatus, type AppUpdateStatus } from '../shared/appUpdates'
 
 // MağazaPOS Main Electron Process & Express Server Entry
 app.setName('MagazaPOS')
@@ -52,27 +53,32 @@ autoUpdater.autoDownload = false
 autoUpdater.autoInstallOnAppQuit = false
 let updateDownloaded = false
 let updateBusy = false
-const updateStatus = (status: object) => {
-  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('update-status', status)
+let lastUpdateStatus: AppUpdateStatus = { state: 'idle', currentVersion: app.getVersion() }
+const updateStatus = (status: AppUpdateStatus) => {
+  lastUpdateStatus = { ...status, currentVersion: app.getVersion() }
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('update-status', lastUpdateStatus)
 }
 autoUpdater.on('update-available', (info: UpdateInfo) => updateStatus({ state: 'available', version: info.version }))
-autoUpdater.on('update-not-available', () => updateStatus({ state: 'current', version: app.getVersion() }))
+autoUpdater.on('update-not-available', (info: UpdateInfo) => updateStatus({ state: 'current', version: info.version }))
 autoUpdater.on('download-progress', (progress: ProgressInfo) => updateStatus({ state: 'downloading', percent: Math.round(progress.percent) }))
 autoUpdater.on('update-downloaded', (info: UpdateDownloadedEvent) => { updateDownloaded = true; updateStatus({ state: 'downloaded', version: info.version }) })
-autoUpdater.on('error', (err: Error) => updateStatus({ state: 'error', message: err.message }))
+autoUpdater.on('error', (err: Error) => updateStatus(updateErrorStatus(err)))
+
+ipcMain.handle('update-status', () => lastUpdateStatus)
 
 ipcMain.handle('update-check', async () => {
   if (!app.isPackaged || process.platform !== 'win32') return { success: false, error: 'Güncelleme yalnızca kurulu Windows uygulamasında kullanılabilir.' }
   if (updateBusy) return { success: false, error: 'Bir güncelleme işlemi devam ediyor.' }
+  if (updateDownloaded) { updateStatus({ state: 'downloaded', version: lastUpdateStatus.version }); return { success: true } }
   updateBusy = true
   try { updateStatus({ state: 'checking' }); await autoUpdater.checkForUpdates(); return { success: true } }
-  catch (err: any) { return { success: false, error: err.message } }
+  catch (err: unknown) { updateStatus(updateErrorStatus(err)); return { success: false, error: lastUpdateStatus.message, status: lastUpdateStatus } }
   finally { updateBusy = false }
 })
 ipcMain.handle('update-download', async () => {
   if (!app.isPackaged || updateBusy) return { success: false, error: 'Güncelleme şu anda indirilemiyor.' }
   updateBusy = true
-  try { await autoUpdater.downloadUpdate(); return { success: true } }
+  try { updateStatus({ state: 'downloading', percent: 0, version: lastUpdateStatus.version }); await autoUpdater.downloadUpdate(); return { success: true } }
   catch (err: any) { return { success: false, error: err.message } }
   finally { updateBusy = false }
 })

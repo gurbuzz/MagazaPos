@@ -34,7 +34,17 @@ Windows'ta güncel kaynak koduyla `Paketle_EXE.bat` dosyasını çalıştırın.
 
 ## Yeni sürüm yayınlama
 
+### GitHub Actions ile otomatik yayın
+
+Sürüm numarası `package.json` ve `package-lock.json` içinde yükseltilip değişiklikler gönderildikten sonra aynı numaralı etiket gönderilir (örneğin `git tag v1.0.1` ve `git push origin v1.0.1`). `Windows Release` iş akışı önce izole veritabanında hediye çeki ve güncelleme testlerini çalıştırır. Ardından Windows ortamında sıfırdan, yalnızca şema içeren boş kurulum veritabanı oluşturur; mağaza kayıtlarını paketlemez. EXE, blockmap, manifest özeti ve paket içindeki güncelleme/Prisma bağımlılıkları doğrulandıktan sonra GitHub Release yayımlanır. Herhangi bir adım başarısız olursa yeni Release yayımlanmaz. GitHub Actions için depoda izinlerin açık olması gerekir; yayın için iş akışının kendi `GITHUB_TOKEN` anahtarı kullanılır.
+
+### Windows bilgisayarda elle yayın
+
 Güncelleme kaynağı `gurbuzz/MagazaPos` GitHub deposunun yayınlanmış Release kayıtlarıdır. Kaynak kodunu göndermek tek başına güncelleme yayınlamaz.
+
+Ayarlar → Güncelleme ekranındaki **Kurulu sürüm**, POS'ta çalışan EXE'nin sürümüdür. Henüz yayımlanmış Release yoksa bu durum ayrı bir mesajla gösterilir; bağlantı veya eksik `latest.yml` hataları da güncel sürüm olarak değerlendirilmez. Daha yeni paket bulunamadığı mesajı, yalnızca yayımlanmış paketle karşılaştırmayı ifade eder; GitHub'daki son kaynak kodunun POS'ta bulunduğu anlamına gelmez. Ayarlar kapatılıp açıldığında devam eden indirme veya kuruluma hazır paket durumu korunur.
+
+Örneğin kurulu EXE `1.0.0` ise yeni paket `1.0.1` veya daha yüksek olmalıdır. Aynı `1.0.0` numarasıyla tekrar paketlemek güncelleme oluşturmaz. Sürümü artırırken `package.json` ve `package-lock.json` birlikte güncellenmelidir (`npm version 1.0.1 --no-git-tag-version`).
 
 1. Paket ve veritabanı şablonunun paylaşılabilir olduğundan ve Git geçmişinde gizli bilgi bulunmadığından emin olun. Depoyu herkese açık yapmak bütün kodu ve geçmişi de açar; tekrar gizlemek daha önce indirilen kopyaları geri almaz.
 2. `package.json` sürümünü mevcut kurulu sürümden yüksek bir sürüme yükseltin. Sürüm numaralarını tekrar kullanmayın.

@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('electron', {
   getPrinters: () => ipcRenderer.invoke('get-printers'),
   getLocalIp: () => ipcRenderer.invoke('get-local-ip'),
   checkUpdates: () => ipcRenderer.invoke('update-check'),
+  getUpdateStatus: () => ipcRenderer.invoke('update-status'),
   downloadUpdate: () => ipcRenderer.invoke('update-download'),
   installUpdate: () => ipcRenderer.invoke('update-install'),
   onUpdateStatus: (callback: (status: any) => void) => {
