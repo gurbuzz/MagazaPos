@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Gift, X, Printer, Search, Loader2 } from 'lucide-react'
 import { usePosStore } from '../../store/usePosStore'
+import { notifyDataChanged } from '../../utils/events'
 import { printReceipt } from '../../utils/printReceipt'
 import { PENDING_VOUCHER_ISSUE, readPending } from '../../utils/giftVoucherPending'
 
@@ -69,6 +70,7 @@ export function GiftVoucherModal({ isOpen, onClose }: { isOpen: boolean; onClose
       localStorage.removeItem(PENDING_VOUCHER_ISSUE)
       requestId.current = crypto.randomUUID()
       setSelected(data); setUncertain(false); setAdminPin('')
+      notifyDataChanged()
       await print(data)
       await load()
     } catch (err: any) { setMessage(err.message || 'Bağlantı hatası. Aynı işlemi yeniden deneyin.') }
@@ -109,7 +111,7 @@ export function GiftVoucherModal({ isOpen, onClose }: { isOpen: boolean; onClose
         </div>}
         {busy && <Loader2 className="animate-spin text-purple-600" />}
         {message && <p role="status" className="text-sm rounded-lg bg-amber-50 text-amber-900 p-3">{message}</p>}
-        <div className="text-xs text-slate-600 space-y-1 border-t pt-3"><p className="font-semibold">Çek tahsilatları (ürün satışlarından ayrı)</p>{totals.map(t => <p key={t.paymentMethod}>{({ CASH: 'Nakit', CARD: 'Kart', COMPLIMENTARY: 'Mağaza hediyesi' } as Record<string, string>)[t.paymentMethod]}: {t.issued.toFixed(2)} TL · Kullanılmamış: {t.balance.toFixed(2)} TL</p>)}</div>
+        <div className="text-xs text-slate-600 space-y-1 border-t pt-3"><p className="font-semibold">Çek tahsilatları (tüm zamanlar; ücretli çekler kasa cirosuna dahil)</p>{totals.map(t => <p key={t.paymentMethod}>{({ CASH: 'Nakit', CARD: 'Kart', COMPLIMENTARY: 'Mağaza hediyesi' } as Record<string, string>)[t.paymentMethod]}: {t.issued.toFixed(2)} TL · Kullanılmamış: {t.balance.toFixed(2)} TL</p>)}</div>
         <div className="space-y-1"><h3 className="text-xs font-bold">Son 50 çek</h3>{vouchers.map(v => <button key={v.code} type="button" disabled={busy || uncertain} onClick={() => { setCode(v.code); setTab('lookup'); lookup(v.code) }} className="w-full flex justify-between text-xs p-2 rounded hover:bg-slate-100"><span className="font-mono">{v.code}</span><span>{money(v.balanceCents)}</span></button>)}</div>
       </div>
     </section>

@@ -10,9 +10,19 @@ Mağazada ilk uygulamadan önce Ayarlar → Veritabanı & Yedek bölümünden ye
 
 Navbar’daki hediye simgesiyle **Çek Oluştur** veya **Sorgula / Tekrar Yazdır** açılır. Nakit/kart karşılığı çekler ve yönetici PIN’iyle mağaza hediyeleri desteklenir. Kart seçimi banka terminalinden tahsilat yapmaz; önce tahsilatı tamamlayın. Oluşturma işlemi tekrar denendiğinde aynı işlem kimliği aynı çeki getirir. Yazıcı hatasında yeni çek oluşturmak yerine tekrar yazdırın. Bu sürümde çekler süresizdir ve nakit para üstü verilmez.
 
-Ödeme ekranında **Hediye Çeki Kullan** alanına barkodu okutun, sorgulayın ve kullanılacak tutarı belirleyin. Kalan tutar nakit, kart veya parçalı ödeme ile tamamlanır. Çek bakiyesi satış ve stok hareketleriyle aynı veritabanı işleminde düşer. Kopya fiş ek bakiye oluşturmaz. İadelerde çekle ödenen pay çeke, nakit/kart payı başlangıç oranlarına göre geri döner. Çek oluşturma tahsilatları çek penceresinde ürün satışlarından ayrı gösterilir; ürün satışlarında çek kullanımı ayrıca belirtilir. Satış veya tam veri sıfırlama işlemleri çekleri ve bakiyelerini silmez.
+Ödeme ekranında **Hediye Çeki Kullan** alanına barkodu okutun, sorgulayın ve kullanılacak tutarı belirleyin. Kalan tutar nakit, kart veya parçalı ödeme ile tamamlanır. Çek bakiyesi satış ve stok hareketleriyle aynı veritabanı işleminde düşer. Kopya fiş ek bakiye oluşturmaz. İadelerde çekle ödenen pay çeke, nakit/kart payı başlangıç oranlarına göre geri döner. Ücretli çek oluşturma tahsilatları Net Kasa Cirosu ve ödeme yöntemine göre Net Nakit Kasa / Net Kart Tahsilat toplamlarına dahildir. Ürün alışverişinde çek tutarı tekrar sayılmaz; yalnızca ek nakit/kart tahsilatı eklenir. Rapor çek oluşturma payını ayrıca gösterir. Mağaza hediyeleri tahsilat oluşturmaz. Satış veya tam veri sıfırlama işlemleri çekleri ve bakiyelerini silmez.
 
 Doğrulama: `npm run test:gift-vouchers` geçici veritabanlarında eski kayıtların korunmasını, yedekleme başarısızlığında işlemin durmasını, bakiye düşümünü, tekrarlı isteği, iadeleri ve fiş üretimini sınar. Gerçek mağaza veritabanına bağlanmaz.
+
+## Hediye çeklerinin kasa cirosuna etkisi
+
+Kasa cirosu, ücretli çek oluşturma tahsilatları + ürün satışındaki nakit/kart ödemeleri − nakit/kart iadeleri olarak hesaplanır. Çek bakiyesinden ödeme ve çeke geri yüklenen iade bu toplama tekrar eklenmez veya toplamdan düşülmez. Örneğin 1.000 TL nakit çek oluşturma kasaya 1.000 TL ekler; çekle 650 TL alışveriş ek tahsilat oluşturmaz. Sonraki 500 TL alışverişin 350 TL'si çekten, 150 TL'si karttan ödendiğinde ciroya yalnızca 150 TL daha eklenir.
+
+Bu hesap geçmiş çek kayıtları için de geçerlidir; veritabanı şeması veya kayıt içerikleri değiştirilmez. Fişlerdeki ürün tutarları korunur; satış inceleme ekranındaki NET KASA GELİRİ yalnızca o satışın ek nakit/kart tahsilatını gösterir. Çek oluşturmak ürün veya satılan adet sayısını artırmaz.
+
+Tarih aralığı çekin oluşturulma tarihine uygulanır; önceki gün oluşturulmuş çekin bugün kullanılması bugüne çek bedeli kadar tahsilat eklemez. Nakit/kart filtreleri parçalı ödemedeki ilgili payı kapsar. Arama eşleşmesi olmayan çekler rapor toplamına eklenmez. Son 20 fiş görüntülense bile toplamlar filtreye uyan bütün kayıtlardan hesaplanır. Çek penceresindeki genel toplamlar ise açıkça tüm zamanları gösterir.
+
+İadeler mevcut raporlama düzeninde orijinal satışın tarih aralığına yansır. Bu rapor ayrı bir günlük kasa hareket defteri veya açılış bakiyesi kaydı tutmaz; farklı gün yapılan nakit/kart iadesini iade gününde göstermek ayrı bir hareket kaydı gerektirir.
 
 ## Açılışta `Cannot find module 'electron-updater'` hatası
 

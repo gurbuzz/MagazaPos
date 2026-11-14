@@ -2,6 +2,9 @@ import { Router } from 'express'
 import { prisma } from '../db'
 import { GiftVoucherError, moneyCents, redeemVoucher, refundVoucher } from '../services/giftVouchers'
 
+import { matchesReportPayment, reportPaymentFilter, saleCollections } from '../../shared/salesReporting'
+import { voucherCollections } from '../services/voucherCollections'
+
 export const salesRouter = Router()
 
 function parseDecimal(val: any): number {
@@ -152,6 +155,7 @@ function buildSalesWhere(query: any): any {
     where.OR = [
       ...receiptQueries.map((q) => ({ receiptNo: { contains: q } })),
       { cashierName: { contains: textFilter } },
+      ...(rawQuery.toUpperCase().startsWith('HC') ? [{ paymentType: { contains: rawQuery.toUpperCase() } }] : []),
       {
         customer: {
           OR: [
@@ -184,76 +188,54 @@ function buildSalesWhere(query: any): any {
 salesRouter.get('/stats', async (req, res) => {
   try {
     const where = buildSalesWhere(req.query)
-
+    const payment = reportPaymentFilter(req.query.payment)
     const sales = await prisma.sale.findMany({
       where,
-      select: {
-        id: true,
-        totalAmount: true,
-        paymentType: true,
-        status: true,
-        items: {
-          select: {
-            quantity: true,
-            unitPrice: true,
-            returnedQuantity: true,
-          }
-        }
-      }
+      select: { id: true, totalAmount: true, paymentType: true, status: true,
+        items: { select: { id: true, quantity: true, unitPrice: true, returnedQuantity: true } } },
     })
-
-    let totalGross = 0
-    let totalRefund = 0
-    let totalNet = 0
-    let netCash = 0
-    let netCard = 0
-    let netGiftVoucher = 0
-    let refundedCount = 0
-    let activeSalesCount = 0
-    let grossItemsSold = 0
-    let returnedItemsCount = 0
-
-    for (const s of sales) {
-      const formatted = formatSale(s)
-      totalGross += Number(formatted.totalAmount) || 0
-      totalRefund += Number(formatted.refundAmount) || 0
-      totalNet += Number(formatted.netAmount) || 0
-      netCash += Number(formatted.paymentType?.netCash) || 0
-      netCard += Number(formatted.paymentType?.netCard) || 0
-      netGiftVoucher += Number(formatted.paymentType?.netGiftVoucher) || 0
-
-      const isFullyReturned = formatted.status === 'RETURNED'
-      for (const it of (formatted.items || [])) {
-        const qty = Number(it.quantity) || 0
-        const retQty = isFullyReturned ? qty : (Number(it.returnedQuantity) || 0)
-        grossItemsSold += qty
-        returnedItemsCount += retQty
-      }
-
-      if (formatted.status === 'RETURNED' || (formatted.refundAmount && formatted.refundAmount > 0)) {
-        refundedCount++
-      }
-      if (formatted.status !== 'RETURNED') {
-        activeSalesCount++
+    const issues = await voucherCollections(prisma, {
+      payment, start: where.createdAt?.gte, end: where.createdAt?.lte, search: req.query.search,
+    })
+    let grossCash = 0, grossCard = 0, refundCash = 0, refundCard = 0
+    let netGiftVoucher = 0, productGross = 0, productNet = 0
+    let refundedCount = 0, activeSalesCount = 0, totalCount = 0
+    let grossItemsSold = 0, returnedItemsCount = 0
+    for (const sale of sales) {
+      const formatted = formatSale(sale)
+      if (!matchesReportPayment(formatted, payment)) continue
+      totalCount++
+      if (sale.status === 'CANCELLED') continue
+      const collection = saleCollections(formatted)
+      if (payment !== 'CARD') { grossCash += collection.cash; refundCash += collection.refundCash }
+      if (payment !== 'CASH') { grossCard += collection.card; refundCard += collection.refundCard }
+      netGiftVoucher += Math.round(formatted.paymentType.netGiftVoucher * 100)
+      productGross += Math.round(Number(formatted.totalAmount) * 100)
+      productNet += Math.round(Number(formatted.netAmount) * 100)
+      if (formatted.refundAmount > 0) refundedCount++
+      if (formatted.status !== 'RETURNED') activeSalesCount++
+      for (const item of sale.items) {
+        grossItemsSold += item.quantity
+        returnedItemsCount += formatted.status === 'RETURNED' ? item.quantity : item.returnedQuantity
       }
     }
-
-    const netItemsSold = Math.max(0, grossItemsSold - returnedItemsCount)
-
+    const grossRevenue = grossCash + grossCard + issues.cash + issues.card
+    const totalRefund = refundCash + refundCard
     res.json({
-      totalCount: sales.length,
-      activeSalesCount,
-      refundedCount,
-      grossRevenue: Math.round(totalGross * 100) / 100,
-      totalRefund: Math.round(totalRefund * 100) / 100,
-      netRevenue: Math.round(totalNet * 100) / 100,
-      netCash: Math.round(netCash * 100) / 100,
-      netCard: Math.round(netCard * 100) / 100,
-      netGiftVoucher: Math.round(netGiftVoucher * 100) / 100,
-      avgReceiptAmount: activeSalesCount > 0 ? Math.round((totalNet / activeSalesCount) * 100) / 100 : 0,
-      grossItemsSold,
-      returnedItemsCount,
-      netItemsSold,
+      totalCount, activeSalesCount, refundedCount,
+      grossRevenue: grossRevenue / 100,
+      totalRefund: totalRefund / 100,
+      netRevenue: (grossRevenue - totalRefund) / 100,
+      netCash: (grossCash - refundCash + issues.cash) / 100,
+      netCard: (grossCard - refundCard + issues.card) / 100,
+      netGiftVoucher: netGiftVoucher / 100,
+      voucherIssueCash: issues.cash / 100,
+      voucherIssueCard: issues.card / 100,
+      voucherIssueCount: issues.count,
+      productGrossRevenue: productGross / 100,
+      productNetRevenue: productNet / 100,
+      avgReceiptAmount: activeSalesCount > 0 ? Math.round(productNet / activeSalesCount) / 100 : 0,
+      grossItemsSold, returnedItemsCount, netItemsSold: Math.max(0, grossItemsSold - returnedItemsCount),
     })
   } catch (error: any) {
     res.status(error instanceof GiftVoucherError ? 400 : 500).json({ error: error.message })
@@ -265,6 +247,7 @@ salesRouter.get('/', async (req, res) => {
   try {
     const where = buildSalesWhere(req.query)
     const limit = req.query.limit ? parseInt(req.query.limit as string) : 20
+    const payment = reportPaymentFilter(req.query.payment)
 
     const sales = await prisma.sale.findMany({
       where,
@@ -279,9 +262,10 @@ salesRouter.get('/', async (req, res) => {
         }
       },
       orderBy: { createdAt: 'desc' },
-      take: limit > 0 ? limit : 20
+      take: payment === 'ALL' ? (limit > 0 ? limit : 20) : undefined
     })
-    res.json(sales.map(formatSale))
+    const formatted = sales.map(formatSale).filter(sale => matchesReportPayment(sale, payment))
+    res.json(formatted.slice(0, limit > 0 ? limit : 20))
   } catch (error: any) {
     res.status(error instanceof GiftVoucherError ? 400 : 500).json({ error: error.message })
   }

@@ -18,6 +18,7 @@ import {
   Loader2,
   Gift,
 } from 'lucide-react'
+import { matchesReportPayment, saleCollections } from '../../../../shared/salesReporting'
 import { usePosStore } from '../../store/usePosStore'
 import { ReturnModal } from '../Customer/ReturnModal'
 import { printReceipt, normalizeSaleToReceiptData } from '../../utils/printReceipt'
@@ -36,6 +37,8 @@ export const SalesHistoryView: React.FC = () => {
   // Filter States
   const [searchTerm, setSearchTerm] = useState('')
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const fetchRevision = useRef(0)
+  const [reportError, setReportError] = useState('')
   const [paymentFilter, setPaymentFilter] = useState<'ALL' | 'CASH' | 'CARD'>('ALL')
   const [startDate, setStartDate] = useState<string>('')
   const [endDate, setEndDate] = useState<string>('')
@@ -50,6 +53,10 @@ export const SalesHistoryView: React.FC = () => {
     netCash: number
     netCard: number
     netGiftVoucher?: number
+    voucherIssueCash: number
+    voucherIssueCard: number
+    voucherIssueCount: number
+    productNetRevenue: number
     avgReceiptAmount: number
     grossItemsSold?: number
     returnedItemsCount?: number
@@ -64,7 +71,10 @@ export const SalesHistoryView: React.FC = () => {
   }
 
   const fetchSales = async (overrideSearch?: string, customLimit?: number) => {
+    const revision = ++fetchRevision.current
     setIsLoading(true)
+    setServerStats(null)
+    setReportError('')
     try {
       const term = overrideSearch !== undefined ? overrideSearch : searchTerm
       const cleanTerm = cleanBarcodeSearch(term)
@@ -73,7 +83,7 @@ export const SalesHistoryView: React.FC = () => {
       let salesQuery = `/api/sales?limit=${takeLimit}`
       let statsQuery = '/api/sales/stats?'
 
-      const queryParts: string[] = []
+      const queryParts: string[] = [`payment=${paymentFilter}`]
       if (startDate) queryParts.push(`startDate=${encodeURIComponent(startDate)}`)
       if (endDate) queryParts.push(`endDate=${encodeURIComponent(endDate)}`)
 
@@ -99,14 +109,19 @@ export const SalesHistoryView: React.FC = () => {
         statsRes.json()
       ])
 
+      if (revision !== fetchRevision.current) return
+      if (!salesRes.ok || !statsRes.ok) throw new Error(statsData.error || salesData.error || 'Rapor hesaplanamadı.')
       setSales(Array.isArray(salesData) ? salesData : [])
       if (statsData && !statsData.error) {
         setServerStats(statsData)
       }
-    } catch (err) {
+    } catch (err: any) {
+      if (revision !== fetchRevision.current) return
+      setServerStats(null)
+      setReportError(err.message || 'Rapor verilerine ulaşılamadı.')
       console.error('Error fetching sales history:', err)
     } finally {
-      setIsLoading(false)
+      if (revision === fetchRevision.current) setIsLoading(false)
     }
   }
 
@@ -187,7 +202,7 @@ export const SalesHistoryView: React.FC = () => {
       clearTimeout(timer)
       window.removeEventListener('keydown', handleGlobalKeyDown)
     }
-  }, [isReturnModalOpen])
+  }, [isReturnModalOpen, paymentFilter, startDate, endDate, displayLimit])
 
   useEffect(() => {
     fetchSales()
@@ -203,7 +218,7 @@ export const SalesHistoryView: React.FC = () => {
       window.removeEventListener('pos-data-updated', handleDataUpdate)
       window.removeEventListener('focus', handleDataUpdate)
     }
-  }, [startDate, endDate])
+  }, [startDate, endDate, paymentFilter])
 
   // Helper date functions for quick presets
   const formatDateTimeLocal = (d: Date) => {
@@ -250,16 +265,7 @@ export const SalesHistoryView: React.FC = () => {
   const filteredSales = sales.filter((sale) => {
     const saleTime = new Date(sale.createdAt).getTime()
 
-    let matchesPayment = true
-    if (paymentFilter === 'CASH') {
-      const isCash = (sale.paymentType?.cash || 0) > 0 && (sale.paymentType?.card || 0) === 0
-      const isLegacyCash = typeof sale.paymentType === 'string' && sale.paymentType === 'CASH'
-      matchesPayment = isCash || isLegacyCash
-    } else if (paymentFilter === 'CARD') {
-      const isCard = (sale.paymentType?.card || 0) > 0 && (sale.paymentType?.cash || 0) === 0
-      const isLegacyCard = typeof sale.paymentType === 'string' && sale.paymentType === 'CARD'
-      matchesPayment = isCard || isLegacyCard
-    }
+    const matchesPayment = matchesReportPayment(sale, paymentFilter)
 
     if (!searchTerm.trim()) {
       if (startDate && saleTime < new Date(startDate).getTime()) return false
@@ -326,103 +332,18 @@ export const SalesHistoryView: React.FC = () => {
     return matchesSearch && matchesPayment
   })
 
-  // Helper to extract net finances for a sale (Kasadan düşülmüş net rakamlar)
-  const getSaleMetrics = (s: any) => {
-    const isFullyReturned = s.status === 'RETURNED'
-    const total = Number(s.totalAmount) || 0
-    let refund = Number(s.refundAmount)
-    if (isNaN(refund)) {
-      if (isFullyReturned) {
-        refund = total
-      } else {
-        const itemRefund = (s.items || []).reduce((sum: number, it: any) => {
-          return sum + (Number(it.returnedQuantity) || 0) * (Number(it.unitPrice) || 0)
-        }, 0)
-        refund = Math.min(total, itemRefund)
-      }
-    }
-    const net = isFullyReturned ? 0 : (s.netAmount !== undefined ? Number(s.netAmount) : Math.max(0, total - refund))
-
-    let netCash = s.paymentType?.netCash !== undefined ? Number(s.paymentType.netCash) : undefined
-    let netCard = s.paymentType?.netCard !== undefined ? Number(s.paymentType.netCard) : undefined
-
-    if (netCash === undefined || netCard === undefined) {
-      const origCash = Number(s.paymentType?.cash) || 0
-      const origCard = Number(s.paymentType?.card) || 0
-      if (isFullyReturned) {
-        netCash = 0
-        netCard = 0
-      } else if (origCash > 0 && origCard === 0) {
-        netCash = Math.max(0, origCash - refund)
-        netCard = 0
-      } else if (origCard > 0 && origCash === 0) {
-        netCard = Math.max(0, origCard - refund)
-        netCash = 0
-      } else {
-        const totalPay = origCash + origCard || 1
-        netCash = Math.max(0, origCash - (refund * (origCash / totalPay)))
-        netCard = Math.max(0, origCard - (refund * (origCard / totalPay)))
-      }
-    }
-
-    return { total, refund, net, netCash: netCash || 0, netCard: netCard || 0 }
-  }
-
-  // Calculate Net Revenue KPIs based on filtered set (KASADAN DÜŞÜLMÜŞ GERÇEK RAKAMLAR)
-  const localGrossRevenue = filteredSales.reduce((sum, s) => sum + (Number(s.totalAmount) || 0), 0)
-  const localTotalRefund = filteredSales.reduce((sum, s) => sum + getSaleMetrics(s).refund, 0)
-  const localNetRevenue = filteredSales.reduce((sum, s) => sum + getSaleMetrics(s).net, 0)
-  const localNetCash = filteredSales.reduce((sum, s) => sum + getSaleMetrics(s).netCash, 0)
-  const localNetCard = filteredSales.reduce((sum, s) => sum + getSaleMetrics(s).netCard, 0)
-  const localRefundedSalesCount = filteredSales.filter(
-    (s) => s.status === 'RETURNED' || s.status === 'PARTIAL_RETURN' || getSaleMetrics(s).refund > 0
-  ).length
-  const localActiveSalesCount = filteredSales.filter((s) => s.status !== 'RETURNED').length
-  const localAvgReceiptAmount = localActiveSalesCount > 0 ? localNetRevenue / localActiveSalesCount : 0
-
-  // Ürün Satış Adetleri (Net, Brüt ve İade Düşülmüş)
-  const localGrossItemsSold = filteredSales.reduce((sum, s) => {
-    return sum + (s.items || []).reduce((iSum: number, it: any) => iSum + (Number(it.quantity) || 0), 0)
-  }, 0)
-  const localReturnedItemsCount = filteredSales.reduce((sum, s) => {
-    const isFullyReturned = s.status === 'RETURNED'
-    return sum + (s.items || []).reduce((iSum: number, it: any) => {
-      const qty = Number(it.quantity) || 0
-      const retQty = isFullyReturned ? qty : (Number(it.returnedQuantity) || 0)
-      return iSum + retQty
-    }, 0)
-  }, 0)
-  const localNetItemsSold = Math.max(0, localGrossItemsSold - localReturnedItemsCount)
-
-  // Dönem cirolarını ve satış adetlerini tam ve doğru göstermek için: Sunucudan gelen toplu istatistikleri (serverStats) kullanır.
-  // Bu sayede ekranda son 20 fiş listelense dahi günlük/aylık ciro ve toplam satılan ürün adedi eksiksiz hesaplanır.
-  const isAllPayment = paymentFilter === 'ALL'
-  const isFilteredLocally = !isAllPayment || !!searchTerm.trim()
-
-  const netItemsSold = !isFilteredLocally && serverStats?.netItemsSold !== undefined
-    ? serverStats.netItemsSold
-    : localNetItemsSold
-  const grossItemsSold = !isFilteredLocally && serverStats?.grossItemsSold !== undefined
-    ? serverStats.grossItemsSold
-    : localGrossItemsSold
-  const returnedItemsCount = !isFilteredLocally && serverStats?.returnedItemsCount !== undefined
-    ? serverStats.returnedItemsCount
-    : localReturnedItemsCount
-
-  const filteredGrossRevenue = isAllPayment && serverStats ? serverStats.grossRevenue : localGrossRevenue
-  const filteredTotalRefund = isAllPayment && serverStats ? serverStats.totalRefund : localTotalRefund
-  const filteredNetRevenue = isAllPayment && serverStats
-    ? serverStats.netRevenue
-    : paymentFilter === 'CASH' && serverStats
-    ? serverStats.netCash
-    : paymentFilter === 'CARD' && serverStats
-    ? serverStats.netCard
-    : localNetRevenue
-  const filteredNetCash = serverStats ? serverStats.netCash : localNetCash
-  const filteredNetCard = serverStats ? serverStats.netCard : localNetCard
-  const refundedSalesCount = isAllPayment && serverStats ? serverStats.refundedCount : localRefundedSalesCount
-  const activeSalesCount = isAllPayment && serverStats ? serverStats.activeSalesCount : localActiveSalesCount
-  const avgReceiptAmount = isAllPayment && serverStats ? serverStats.avgReceiptAmount : localAvgReceiptAmount
+  // All KPI totals come from the complete filtered dataset, never the limited receipt list.
+  const netItemsSold = serverStats?.netItemsSold || 0
+  const grossItemsSold = serverStats?.grossItemsSold || 0
+  const returnedItemsCount = serverStats?.returnedItemsCount || 0
+  const filteredGrossRevenue = serverStats?.grossRevenue || 0
+  const filteredTotalRefund = serverStats?.totalRefund || 0
+  const filteredNetRevenue = serverStats?.netRevenue || 0
+  const filteredNetCash = serverStats?.netCash || 0
+  const filteredNetCard = serverStats?.netCard || 0
+  const refundedSalesCount = serverStats?.refundedCount || 0
+  const activeSalesCount = serverStats?.activeSalesCount || 0
+  const selectedCollection = selectedSale ? saleCollections(selectedSale) : null
 
   const handlePrintReceipt = async (sale: any, isGift = false) => {
     if (!sale) return
@@ -637,7 +558,11 @@ export const SalesHistoryView: React.FC = () => {
           </div>
         </div>
 
-        <p className="text-xs text-purple-800 bg-purple-50 rounded-lg p-2">Hediye çekiyle ödenen net ürün satışı: {(paymentFilter === 'ALL' && serverStats ? (serverStats.netGiftVoucher || 0) : filteredSales.reduce((sum, sale) => sum + (Number(sale.paymentType?.netGiftVoucher) || 0), 0)).toFixed(2)} TL. Çek oluşturma tahsilatları navbar’daki hediye simgesinden ayrıca izlenir.</p>
+        {reportError && <p role="alert" className="p-3 bg-rose-50 text-rose-800 rounded-lg text-sm">Rapor hesaplanamadı: {reportError}. Güncel toplamlar gösterilemiyor.</p>}
+        {serverStats && <div className="text-xs text-purple-800 bg-purple-50 rounded-lg p-3 space-y-1">
+          <p>Bu filtrede çek oluşturma tahsilatı: <strong>{(serverStats.voucherIssueCash + serverStats.voucherIssueCard).toFixed(2)} TL</strong> ({serverStats.voucherIssueCount} çek; nakit {serverStats.voucherIssueCash.toFixed(2)} TL / kart {serverStats.voucherIssueCard.toFixed(2)} TL). Kasa cirosuna dahildir.</p>
+          <p>Alışverişlerde kullanılan net çek bakiyesi: {(serverStats.netGiftVoucher || 0).toFixed(2)} TL. Yeniden tahsilat sayılmaz. Ücretsiz mağaza çekleri tahsilata dahil edilmez.</p>
+        </div>}
         {/* TOP DYNAMIC KPI CARDS (Net Ciro, Satılan Ürün Adedi, Net Nakit Kasa, Net Kart, Toplam İadeler) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
           {/* Net Dönem Cirosu */}
@@ -648,13 +573,13 @@ export const SalesHistoryView: React.FC = () => {
                 <span>Net Kasa Cirosu</span>
               </span>
               <div className="text-xl font-bold text-slate-900">
-                {filteredNetRevenue.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
+                {serverStats ? filteredNetRevenue.toLocaleString('tr-TR', { minimumFractionDigits: 2 }) : '—'} ₺
               </div>
               <span className="text-[11px] text-slate-500 font-medium block">
-                Brüt: {filteredGrossRevenue.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
+                Brüt: {serverStats ? filteredGrossRevenue.toLocaleString('tr-TR', { minimumFractionDigits: 2 }) : '—'} ₺
                 {filteredTotalRefund > 0 && (
                   <span className="text-amber-700 font-semibold ml-1">
-                    (-{filteredTotalRefund.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺ İade)
+                    (-{serverStats ? filteredTotalRefund.toLocaleString('tr-TR', { minimumFractionDigits: 2 }) : '—'} ₺ İade)
                   </span>
                 )}
               </span>
@@ -672,7 +597,7 @@ export const SalesHistoryView: React.FC = () => {
                 <span>Satılan Ürün Adedi</span>
               </span>
               <div className="text-xl font-bold text-slate-900">
-                {netItemsSold.toLocaleString('tr-TR')} Adet
+                {serverStats ? netItemsSold.toLocaleString('tr-TR') : '—'} Adet
               </div>
               <span className="text-[11px] text-slate-500 font-medium block">
                 Brüt: {grossItemsSold.toLocaleString('tr-TR')} Adet
@@ -696,7 +621,7 @@ export const SalesHistoryView: React.FC = () => {
                 <span>Net Nakit Kasa</span>
               </span>
               <div className="text-xl font-bold text-slate-900">
-                {filteredNetCash.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
+                {serverStats ? filteredNetCash.toLocaleString('tr-TR', { minimumFractionDigits: 2 }) : '—'} ₺
               </div>
               <span className="text-[11px] text-slate-500 font-medium block">
                 Kasada Bulunması Gereken Net Nakit
@@ -715,7 +640,7 @@ export const SalesHistoryView: React.FC = () => {
                 <span>Net Kart Tahsilat</span>
               </span>
               <div className="text-xl font-bold text-slate-900">
-                {filteredNetCard.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
+                {serverStats ? filteredNetCard.toLocaleString('tr-TR', { minimumFractionDigits: 2 }) : '—'} ₺
               </div>
               <span className="text-[11px] text-slate-500 font-medium block">
                 POS Cihazı Net Tahsilatı
@@ -734,11 +659,11 @@ export const SalesHistoryView: React.FC = () => {
                 <span>Toplam İadeler</span>
               </span>
               <div className="text-xl font-bold text-slate-900">
-                {filteredTotalRefund.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
+                {serverStats ? filteredTotalRefund.toLocaleString('tr-TR', { minimumFractionDigits: 2 }) : '—'} ₺
               </div>
               <span className="text-[11px] text-slate-500 font-medium block">
                 {refundedSalesCount > 0
-                  ? `${refundedSalesCount} Fiş İadesi Kasadan Düşüldü`
+                  ? `${refundedSalesCount} Fişte İade İşlemi`
                   : 'Dönemde İade Bulunmuyor'}
               </span>
             </div>
@@ -832,7 +757,7 @@ export const SalesHistoryView: React.FC = () => {
                   <th className="px-4 py-3">Kasiyer</th>
                   <th className="px-4 py-3">Ödeme Tipi</th>
                   <th className="px-4 py-3">Kalem Sayısı</th>
-                  <th className="px-4 py-3">Toplam Tutar</th>
+                  <th className="px-4 py-3">Ürün Fiş Tutarı</th>
                   <th className="px-4 py-3 text-right">İşlemler</th>
                 </tr>
               </thead>
@@ -1053,23 +978,16 @@ export const SalesHistoryView: React.FC = () => {
                     <span>Kasadan Yapılan İade:</span>
                     <span>
                       -
-                      {(selectedSale.refundAmount !== undefined
-                        ? selectedSale.refundAmount
-                        : selectedSale.totalAmount
-                      ).toFixed(2)}{' '}
+                      {(((selectedCollection?.refundCash || 0) + (selectedCollection?.refundCard || 0)) / 100).toFixed(2)}{' '}
                       ₺
                     </span>
                   </div>
                 )}
+                {selectedSale.paymentType?.refundGiftVoucher > 0 && <div className="flex justify-between text-purple-800"><span>Çeke geri yüklenen:</span><span>{selectedSale.paymentType.refundGiftVoucher.toFixed(2)} ₺</span></div>}
                 <div className="flex justify-between text-xs font-bold text-slate-900 pt-1.5 border-t border-slate-200">
                   <span>NET KASA GELİRİ:</span>
                   <span className="text-emerald-700 font-bold text-sm">
-                    {(selectedSale.netAmount !== undefined
-                      ? selectedSale.netAmount
-                      : selectedSale.status === 'RETURNED'
-                      ? 0
-                      : Math.max(0, selectedSale.totalAmount - (selectedSale.refundAmount || 0))
-                    ).toFixed(2)}{' '}
+                    {(((selectedCollection?.netCash || 0) + (selectedCollection?.netCard || 0)) / 100).toFixed(2)}{' '}
                     ₺
                   </span>
                 </div>
