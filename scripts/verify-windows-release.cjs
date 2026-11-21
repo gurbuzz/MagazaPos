@@ -18,6 +18,7 @@ for (const file of manifest.files) {
   assert.equal(data.length, file.size)
   assert.equal(crypto.createHash('sha512').update(data).digest('base64'), file.sha512)
   assert.ok(fs.existsSync(`${fullPath}.blockmap`))
+  assert.equal(file.isAdminRightsRequired, true, 'Per-machine updates must request Windows elevation')
 }
 const archive = 'release/win-unpacked/resources/app.asar'
 const entries = asar.listPackage(archive).map(entry => entry.replace(/\\/g, '/'))
@@ -32,4 +33,6 @@ assert.equal(config.provider, 'github')
 assert.equal(config.owner, 'gurbuzz')
 assert.equal(config.repo, 'MagazaPos')
 assert.ok(fs.existsSync('release/win-unpacked/resources/app.asar.unpacked/node_modules/.prisma/client/query_engine-windows.dll.node'))
-console.log(`Windows ${version}: installer hash, blockmap, updater dependency, provider and Prisma engine verified.`)
+const elevationHelper = fs.readFileSync('release/win-unpacked/resources/elevate.exe')
+assert.equal(elevationHelper.subarray(0, 2).toString('ascii'), 'MZ', 'Windows elevation helper must be packaged as a valid executable')
+console.log(`Windows ${version}: installer hash, blockmap, updater dependency, elevation helper, provider and Prisma engine verified.`)

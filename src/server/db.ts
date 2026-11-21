@@ -4,6 +4,7 @@ import fs from 'fs'
 import { getUserDataDir } from './utils/paths'
 import { logDebug } from './utils/logger'
 import { ensureGiftVoucherSchema } from './services/giftVouchers'
+import { ensureSalesReturnsSchema } from './services/salesReturns'
 
 // Windows dosya yollarını SQLite URI formatına dönüştürür (ters eğik çizgi '\\' yerine '/')
 // Windows'ta 'file:C:\\...' kullanımı SQLite Error Code 14 (SQLITE_CANTOPEN) hatasına yol açar!
@@ -519,6 +520,8 @@ export async function ensureDatabaseSchema(allowSeed: boolean = true) {
       logDebug('DB_INIT', 'Database schema created successfully!')
       console.log('[DB] Tablolar basariyla olusturuldu.')
     }
+
+    await ensureSalesReturnsSchema(prisma, getActiveDbPath())
 
     // 2. Kolon migrasyonu kontrolü: ProductVariant tablosunda discountPrice var mı?
     try {

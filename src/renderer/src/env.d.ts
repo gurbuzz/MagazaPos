@@ -26,6 +26,7 @@ declare global {
       getUpdateStatus: () => Promise<import('../../shared/appUpdates').AppUpdateStatus>
       downloadUpdate: () => Promise<import('../../shared/appUpdates').AppUpdateResult>
       installUpdate: () => Promise<import('../../shared/appUpdates').AppUpdateResult>
+      openUpdateLogs: () => Promise<import('../../shared/appUpdates').AppUpdateResult>
       onUpdateStatus: (callback: (status: import('../../shared/appUpdates').AppUpdateStatus) => void) => () => void
       toggleFullscreen: () => Promise<boolean>
       isFullscreen: () => Promise<boolean>

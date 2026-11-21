@@ -9,6 +9,8 @@ import type { ProgressInfo, UpdateDownloadedEvent, UpdateInfo } from 'electron-u
 import { getBackupsDir } from '../server/utils/databaseBackup'
 import { getLocalIpAddress } from '../server/utils/network'
 import { updateErrorStatus, type AppUpdateStatus } from '../shared/appUpdates'
+import { getLogFilePath, logDebug } from '../server/utils/logger'
+import { consumeInstallationAttempt, createUpdateInstallation, recordInstallationAttempt, validateDownloadedInstaller, type DownloadedInstaller } from './updateInstallation'
 
 // MağazaPOS Main Electron Process & Express Server Entry
 app.setName('MagazaPOS')
@@ -52,59 +54,115 @@ let isCustomerDisplayBusy = false
 autoUpdater.autoDownload = false
 autoUpdater.autoInstallOnAppQuit = false
 let updateDownloaded = false
+let downloadedInstaller: DownloadedInstaller | null = null
+let updateOperation: 'check' | 'download' | 'install' = 'check'
 let updateBusy = false
 let lastUpdateStatus: AppUpdateStatus = { state: 'idle', currentVersion: app.getVersion() }
 const updateStatus = (status: AppUpdateStatus) => {
-  lastUpdateStatus = { ...status, currentVersion: app.getVersion() }
+  const restartRequired = status.restartRequired || lastUpdateStatus.restartRequired
+  lastUpdateStatus = { ...status, restartRequired, version: status.version ?? lastUpdateStatus.version, currentVersion: app.getVersion() }
+  if (restartRequired) lastUpdateStatus.state = 'error'
+  if (status.state === 'available') updateDownloaded = false
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('update-status', lastUpdateStatus)
 }
-autoUpdater.on('update-available', (info: UpdateInfo) => updateStatus({ state: 'available', version: info.version }))
-autoUpdater.on('update-not-available', (info: UpdateInfo) => updateStatus({ state: 'current', version: info.version }))
-autoUpdater.on('download-progress', (progress: ProgressInfo) => updateStatus({ state: 'downloading', percent: Math.round(progress.percent) }))
-autoUpdater.on('update-downloaded', (info: UpdateDownloadedEvent) => { updateDownloaded = true; updateStatus({ state: 'downloaded', version: info.version }) })
-autoUpdater.on('error', (err: Error) => updateStatus(updateErrorStatus(err)))
-
-ipcMain.handle('update-status', () => lastUpdateStatus)
-
-ipcMain.handle('update-check', async () => {
-  if (!app.isPackaged || process.platform !== 'win32') return { success: false, error: 'Güncelleme yalnızca kurulu Windows uygulamasında kullanılabilir.' }
-  if (updateBusy) return { success: false, error: 'Bir güncelleme işlemi devam ediyor.' }
-  if (updateDownloaded) { updateStatus({ state: 'downloaded', version: lastUpdateStatus.version }); return { success: true } }
-  updateBusy = true
-  try { updateStatus({ state: 'checking' }); await autoUpdater.checkForUpdates(); return { success: true } }
-  catch (err: unknown) { updateStatus(updateErrorStatus(err)); return { success: false, error: lastUpdateStatus.message, status: lastUpdateStatus } }
-  finally { updateBusy = false }
-})
-ipcMain.handle('update-download', async () => {
-  if (!app.isPackaged || updateBusy) return { success: false, error: 'Güncelleme şu anda indirilemiyor.' }
-  updateBusy = true
-  try { updateStatus({ state: 'downloading', percent: 0, version: lastUpdateStatus.version }); await autoUpdater.downloadUpdate(); return { success: true } }
-  catch (err: any) { return { success: false, error: err.message } }
-  finally { updateBusy = false }
-})
-ipcMain.handle('update-install', async () => {
-  if (!app.isPackaged || !updateDownloaded || updateBusy) return { success: false, error: 'Kuruluma hazır bir güncelleme yok.' }
-  updateBusy = true
-  try {
-    await beginUpdateMaintenance()
+const updateAttemptFile = path.join(app.getPath('userData'), 'update-install-attempt.json')
+try {
+  const attempt = consumeInstallationAttempt(updateAttemptFile)
+  if (attempt) {
+    const installed = autoUpdater.currentVersion.compare(attempt.version) >= 0
+    logDebug('UPDATE_RESULT', installed ? 'Önceki güncelleme tamamlandı.' : 'Önceki güncelleme tamamlanmadı.', { ...attempt, currentVersion: app.getVersion() })
+    if (!installed) updateStatus({ state: 'error', version: attempt.version, backupPath: attempt.backupPath, message: `Önceki ${attempt.version} kurulumu tamamlanmamış; çalışan sürüm ${app.getVersion()}. Windows izinlerini ve Güncelleme Günlüğünü kontrol edin. Güncelleme öncesi yedek korunuyor.` })
+  }
+} catch (error) { logDebug('UPDATE_RESULT', 'Önceki kurulumun sonucu okunamadı.', error) }
+// Persist updater messages: a packaged Windows app has no visible terminal.
+autoUpdater.logger = {
+  info: (...messages: any[]) => logDebug('UPDATER', messages.map(String).join(' ')),
+  warn: (...messages: any[]) => logDebug('UPDATER_WARN', messages.map(String).join(' ')),
+  error: (...messages: any[]) => logDebug('UPDATER_ERROR', messages.map(String).join(' ')),
+}
+const updateInstallation = createUpdateInstallation({
+  validate: async () => {
+    if (!downloadedInstaller) throw new Error('İndirilen kurulum bilgisi bulunamadı. Güncellemeyi yeniden kontrol edip indirin.')
+    await validateDownloadedInstaller(downloadedInstaller, process.resourcesPath)
+  },
+  beginMaintenance: beginUpdateMaintenance,
+  backup: async () => {
     const dbPath = getActiveDbPath()
     if (!fs.existsSync(dbPath)) throw new Error('Aktif veritabanı bulunamadı.')
-    const backupPath = path.join(getBackupsDir(), `guncelleme_${Date.now()}.db`)
+    const backupPath = path.join(getBackupsDir(), 'guncelleme_' + Date.now() + '.db')
     const safePath = backupPath.replace(/\\/g, '/').replace(/'/g, "''")
-    await prisma.$executeRawUnsafe(`VACUUM INTO '${safePath}'`)
+    await prisma.$executeRawUnsafe("VACUUM INTO '" + safePath + "'")
     const backup = new PrismaClient({ datasources: { db: { url: toSqliteUrl(backupPath) } } })
     try {
       const result: any[] = await backup.$queryRawUnsafe('PRAGMA integrity_check;')
       if (result.length !== 1 || Object.values(result[0])[0] !== 'ok') throw new Error('Veritabanı yedeği doğrulanamadı.')
     } finally { await backup.$disconnect() }
-    await prisma.$disconnect()
+    return backupPath
+  },
+  disconnect: () => prisma.$disconnect(),
+  reconnect: () => prisma.$connect(),
+  endMaintenance: endUpdateMaintenance,
+  launch: () => {
+    recordInstallationAttempt(updateAttemptFile, {
+      fromVersion: app.getVersion(), version: downloadedInstaller!.version,
+      backupPath: lastUpdateStatus.backupPath!, startedAt: new Date().toISOString(),
+    })
     autoUpdater.quitAndInstall(false, true)
-    return { success: true }
-  } catch (err: any) {
-    endUpdateMaintenance()
-    updateBusy = false
-    return { success: false, error: `Güncelleme başlatılamadı: ${err.message}` }
-  }
+  },
+  status: updateStatus,
+  log: (message, error) => logDebug('UPDATE_INSTALL', message, error),
+})
+autoUpdater.on('update-available', (info: UpdateInfo) => updateStatus({ state: 'available', version: info.version }))
+autoUpdater.on('update-not-available', (info: UpdateInfo) => updateStatus({ state: 'current', version: info.version }))
+autoUpdater.on('download-progress', (progress: ProgressInfo) => updateStatus({ state: 'downloading', percent: Math.round(progress.percent) }))
+autoUpdater.on('update-downloaded', (info: UpdateDownloadedEvent) => {
+  const file = info.files?.find(file => /\.exe$/i.test(file.url))
+  downloadedInstaller = { file: info.downloadedFile, sha512: file?.sha512 || info.sha512, size: file?.size, version: info.version }
+  updateDownloaded = true
+  updateStatus({ state: 'downloaded', version: info.version })
+  logDebug('UPDATER', 'Güncelleme indirildi: ' + info.version + ' → ' + info.downloadedFile)
+})
+autoUpdater.on('error', (err: Error) => {
+  logDebug('UPDATER_ERROR', 'Güncelleme hatası', err)
+  const recovery = updateInstallation.handleError(err)
+  if (recovery) void recovery.then(() => { updateBusy = false })
+  else updateStatus(updateErrorStatus(err, updateOperation))
+})
+
+ipcMain.handle('update-status', () => lastUpdateStatus)
+
+ipcMain.handle('update-check', async () => {
+  if (lastUpdateStatus.restartRequired) return { success: false, error: lastUpdateStatus.message, status: lastUpdateStatus }
+  if (!app.isPackaged || process.platform !== 'win32') return { success: false, error: 'Güncelleme yalnızca kurulu Windows uygulamasında kullanılabilir.' }
+  if (updateBusy) return { success: false, error: 'Bir güncelleme işlemi devam ediyor.' }
+  if (updateDownloaded) { updateStatus({ state: 'downloaded', version: lastUpdateStatus.version }); return { success: true } }
+  updateBusy = true
+  try { updateOperation = 'check'; updateStatus({ state: 'checking' }); await autoUpdater.checkForUpdates(); return { success: true } }
+  catch (err: unknown) { updateStatus(updateErrorStatus(err)); return { success: false, error: lastUpdateStatus.message, status: lastUpdateStatus } }
+  finally { updateBusy = false }
+})
+ipcMain.handle('update-download', async () => {
+  if (lastUpdateStatus.restartRequired) return { success: false, error: lastUpdateStatus.message, status: lastUpdateStatus }
+  if (!app.isPackaged || process.platform !== 'win32' || updateBusy) return { success: false, error: 'Güncelleme şu anda indirilemiyor.' }
+  updateBusy = true
+  try { updateOperation = 'download'; updateStatus({ state: 'downloading', percent: 0, version: lastUpdateStatus.version }); await autoUpdater.downloadUpdate(); return { success: true } }
+  catch (err: unknown) { updateStatus(updateErrorStatus(err, 'download')); return { success: false, error: lastUpdateStatus.message, status: lastUpdateStatus } }
+  finally { updateBusy = false }
+})
+ipcMain.handle('update-install', async () => {
+  if (lastUpdateStatus.restartRequired) return { success: false, error: lastUpdateStatus.message, status: lastUpdateStatus }
+  if (!app.isPackaged || process.platform !== 'win32' || !updateDownloaded || updateBusy) return { success: false, error: 'Kuruluma hazır bir güncelleme yok.' }
+  updateBusy = true
+  updateOperation = 'install'
+  const result = await updateInstallation.install(downloadedInstaller?.version)
+  if (!result.success) updateBusy = false
+  return result
+})
+
+ipcMain.handle('update-open-logs', async () => {
+  logDebug('UPDATER', 'Güncelleme günlüğü kullanıcı tarafından açıldı.')
+  const error = await shell.openPath(getLogFilePath())
+  return error ? { success: false, error } : { success: true }
 })
 
 function getAllCustomerWindows(): BrowserWindow[] {
@@ -774,7 +832,8 @@ app.on('window-all-closed', function () {
   app.quit()
 })
 
-app.on('before-quit', async () => {
+app.on('before-quit', async (event) => {
+  if (updateInstallation.consumeCancelledQuit()) { event.preventDefault(); return }
   try {
     if (prisma) {
       await prisma.$disconnect().catch(() => {})

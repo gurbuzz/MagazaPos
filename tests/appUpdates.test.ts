@@ -22,3 +22,14 @@ test('network and access failures never report that the application is current',
     assert.ok(status.message)
   }
 })
+
+test('Windows install failures are distinguished from download failures', () => {
+  for (const code of ['EACCES', 'EPERM']) {
+    const status = updateErrorStatus(Object.assign(new Error('installer denied'), { code }), 'install')
+    assert.equal(status.state, 'downloaded')
+    assert.match(status.message!, /yönetici izni/)
+  }
+  assert.match(updateErrorStatus(new Error('package unavailable'), 'install').message!, /Kurulum başlatılamadı/)
+  assert.match(updateErrorStatus(new Error('network unavailable'), 'download').message!, /indirilemedi/)
+  assert.match(updateErrorStatus(new Error('The operation was canceled by the user: 1223'), 'install').message!, /yönetici izni/)
+})

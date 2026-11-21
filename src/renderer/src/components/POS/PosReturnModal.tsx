@@ -14,6 +14,7 @@ import {
   Sparkles,
 } from 'lucide-react'
 import { notifyDataChanged } from '../../utils/events'
+import { returnQuote } from '../../../../shared/saleAmounts'
 
 interface PosReturnModalProps {
   isOpen: boolean
@@ -33,7 +34,7 @@ export const PosReturnModal: React.FC<PosReturnModalProps> = ({ isOpen, onClose 
   const [refundMethod, setRefundMethod] = useState<'CASH' | 'CARD'>('CASH')
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
 
-  const hasGiftVoucher = Boolean(foundSale?.paymentType?.giftVoucher)
+  const hasGiftVoucher = Boolean(foundSale?.paymentType?.giftVoucher || foundSale?.paymentType?.funding?.some((part: any) => part.kind === 'VOUCHER'))
 
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -198,11 +199,8 @@ export const PosReturnModal: React.FC<PosReturnModalProps> = ({ isOpen, onClose 
   }
 
   // Toplam iade hesaplaması
-  const totalRefund =
-    foundSale?.items?.reduce((sum: number, item: any) => {
-      const qty = returnItems[item.id] || 0
-      return sum + qty * item.unitPrice
-    }, 0) || 0
+  const totalRefund = foundSale ? returnQuote(foundSale, Object.entries(returnItems)
+    .filter(([, qty]) => qty > 0).map(([saleItemId, returnQuantity]) => ({ saleItemId, returnQuantity }))) : 0
 
   const totalReturnCount = Object.values(returnItems).reduce((sum, q) => sum + q, 0)
 
@@ -247,9 +245,9 @@ export const PosReturnModal: React.FC<PosReturnModalProps> = ({ isOpen, onClose 
         throw new Error(err.error || 'İade işlemi kaydedilemedi.')
       }
 
-      setSuccessMsg(
-        `✅ İade başarıyla tamamlandı! ${totalReturnCount} adet ürün stoğa geri alındı ve ${totalRefund.toFixed(2)} ₺ kasadan düşüldü.`
-      )
+      const result = await res.json()
+      const returned = result.lastReturn
+      setSuccessMsg(`✅ ${totalReturnCount} adet ürün stoğa alındı. İade: ${(returned.cash + returned.card).toFixed(2)} ₺ nakit/kart${returned.voucher > 0 ? `, ${returned.voucher.toFixed(2)} ₺ çeke geri yükleme` : ''}.`)
       notifyDataChanged()
 
       setTimeout(() => {
@@ -588,7 +586,7 @@ export const PosReturnModal: React.FC<PosReturnModalProps> = ({ isOpen, onClose 
                     />
                   </div>
 
-                  {hasGiftVoucher && <p className="text-xs bg-purple-50 text-purple-800 p-3 rounded-lg">Çekle ödenen pay aynı çeke geri yüklenir. Nakit/kart payı ilk ödemedeki oranlarda iade edilir; çek tutarı nakit olarak ödenmez.</p>}
+                  {hasGiftVoucher && <p className="text-xs bg-purple-50 text-purple-800 p-3 rounded-lg">Çekle ödenen pay ilgili çeklere geri yüklenir. Nakit/kart payı ilk ödemedeki oranlarda iade edilir; çek tutarı nakit olarak ödenmez.</p>}
 {/* Summary Card */}
                   <div className="flex items-center justify-between bg-amber-50/80 p-3 rounded-lg border border-amber-200">
                     <div className="flex items-center space-x-2">

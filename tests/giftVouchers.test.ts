@@ -18,7 +18,7 @@ async function main() {
   let server: import('node:http').Server | undefined
   try {
     // Generate only SQL for the OLD schema. Never connect to a store database.
-    const schema = fs.readFileSync('prisma/schema.prisma', 'utf8').split('// Added by a backed-up, additive migration')[0]
+    const schema = fs.readFileSync('prisma/schema.prisma', 'utf8').split('// Added by a backed-up, additive migration')[0].replace(/^\s*returns\s+SaleReturn\[\].*$/m, '')
     const schemaPath = path.join(dir, 'legacy.prisma')
     fs.writeFileSync(schemaPath, schema)
     const sql = execFileSync(process.execPath, ['node_modules/prisma/build/index.js', 'migrate', 'diff', '--from-empty', '--to-schema-datamodel', schemaPath, '--script'], { encoding: 'utf8' })
@@ -265,8 +265,10 @@ async function main() {
     assert.equal(sourceReport[0].refundAmount, 0, 'Exchange does not create a cash refund')
     const newReturn = await post('/sales/' + multiExchange.data.id + '/return', { items: [{ saleItemId: multiExchange.data.items[0].id, returnQuantity: 1 }] })
     assert.equal(newReturn.status, 200)
-    assert.equal(newReturn.data.paymentType.refundCash, 40, 'Returning the replacement refunds only the newly collected difference')
-    assert.equal((await stats()).netRevenue, beforeExchangeRevenue)
+    assert.equal(newReturn.data.paymentType.refundCash, 240, 'Replacement returns include the original cash payment and the difference')
+    assert.equal(newReturn.data.paymentType.refundCard, 160, 'The original card funding must also be refunded')
+    assert.equal(newReturn.data.refundAmount, 400)
+    assert.equal((await stats()).netRevenue, beforeExchangeRevenue - 360)
     const legacyItem = await runtimeDb.saleItem.findFirstOrThrow({ where: { saleId: 'old-sale' } })
     const legacyExchange = await post('/sales', {
       items: [{ variantId: 'variant', quantity: 1, unitPrice: 250, totalPrice: 250 }],

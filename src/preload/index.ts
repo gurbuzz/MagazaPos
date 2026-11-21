@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('electron', {
   getUpdateStatus: () => ipcRenderer.invoke('update-status'),
   downloadUpdate: () => ipcRenderer.invoke('update-download'),
   installUpdate: () => ipcRenderer.invoke('update-install'),
+  openUpdateLogs: () => ipcRenderer.invoke('update-open-logs'),
   onUpdateStatus: (callback: (status: any) => void) => {
     const handler = (_: any, status: any) => callback(status)
     ipcRenderer.on('update-status', handler)

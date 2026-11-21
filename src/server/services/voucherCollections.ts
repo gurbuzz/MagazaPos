@@ -1,7 +1,7 @@
 import { Prisma, PrismaClient } from '@prisma/client'
 import { PaymentFilter } from '../../shared/salesReporting'
 
-export async function voucherCollections(db: PrismaClient, options: { payment: PaymentFilter; start?: Date; end?: Date; search?: unknown }) {
+export async function voucherCollections(db: PrismaClient | Prisma.TransactionClient, options: { payment: PaymentFilter; start?: Date; end?: Date; search?: unknown }) {
   // ISO text dates are compared as instants, including caller timezone offsets.
   const conditions = [Prisma.sql`paymentMethod IN ('CASH', 'CARD')`]
   if (options.payment !== 'ALL') conditions.push(Prisma.sql`paymentMethod = ${options.payment}`)

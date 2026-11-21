@@ -5,103 +5,13 @@ import { GiftVoucherError, moneyCents, redeemVoucher, refundVoucher } from '../s
 import { matchesReportPayment, reportPaymentFilter, saleCollections } from '../../shared/salesReporting'
 import { voucherCollections } from '../services/voucherCollections'
 import { exchangeCredit, exchangeLines } from '../../shared/exchanges'
+import { formatSale, returnQuote, salePayment, toCents } from '../../shared/saleAmounts'
+import { consumeFunding, type Funding } from '../services/saleFunding'
+import { randomUUID } from 'crypto'
+
+export { formatSale } from '../../shared/saleAmounts'
 
 export const salesRouter = Router()
-
-function parseDecimal(val: any): number {
-  if (typeof val === 'number') return isNaN(val) ? 0 : val
-  if (!val) return 0
-  const clean = String(val).replace(/\s/g, '').replace(',', '.')
-  const num = parseFloat(clean)
-  return isNaN(num) ? 0 : num
-}
-
-export function formatSale(s: any) {
-  let pay = s.paymentType
-  if (typeof pay === 'string') {
-    try {
-      pay = JSON.parse(pay)
-    } catch (e) {
-      if (pay === 'CASH') pay = { cash: s.totalAmount || 0, card: 0 }
-      else if (pay === 'CARD') pay = { cash: 0, card: s.totalAmount || 0 }
-      else pay = { note: pay }
-    }
-  }
-
-  const items = s.items?.map((item: any) => {
-    let attrs = item.variant?.attributes
-    if (typeof attrs === 'string') {
-      try { attrs = JSON.parse(attrs) } catch (e) { attrs = {} }
-    }
-    return {
-      ...item,
-      variant: item.variant ? { ...item.variant, attributes: attrs } : undefined,
-    }
-  })
-
-  // Calculate item-based refund
-  const itemsSubtotal = (items || []).reduce(
-    (sum: number, it: any) => sum + (Number(it.quantity) || 0) * (Number(it.unitPrice) || 0),
-    0
-  )
-  const totalAmountNum = Number(s.totalAmount) || 0
-  const discountFactor = itemsSubtotal > 0 ? Math.min(1, totalAmountNum / itemsSubtotal) : 1
-
-  let calculatedRefund = (items || []).reduce((sum: number, it: any) => {
-    const retQty = Math.max(0, (Number(it.returnedQuantity) || 0) - (Number(pay?.exchangedItems?.[it.id]) || 0))
-    return sum + retQty * (Number(it.unitPrice) || 0) * discountFactor
-  }, 0)
-  calculatedRefund = Math.round(calculatedRefund * 100) / 100
-
-  const isFullyReturned = s.status === 'RETURNED' && !Object.keys(pay?.exchangedItems || {}).length
-
-  const refundAmount = isFullyReturned ? totalAmountNum : Math.min(totalAmountNum, calculatedRefund)
-  const netAmount = isFullyReturned ? 0 : Math.max(0, Math.round((totalAmountNum - refundAmount) * 100) / 100)
-
-  // Payment breakdown & refund deductions
-  const origCash = Number(pay?.cash) || 0
-  const origCard = Number(pay?.card) || 0
-
-  let refundCash = Number(pay?.refundCash) || 0
-  let refundCard = Number(pay?.refundCard) || 0
-
-  // If refund occurred but refundCash/refundCard was not explicitly logged, derive from original payment method:
-  if (refundAmount > 0 && refundCash === 0 && refundCard === 0 && !pay?.giftVoucher) {
-    if (origCash > 0 && origCard === 0) {
-      refundCash = refundAmount
-    } else if (origCard > 0 && origCash === 0) {
-      refundCard = refundAmount
-    } else if (origCash + origCard > 0) {
-      const cashRatio = origCash / (origCash + origCard)
-      refundCash = Math.round(refundAmount * cashRatio * 100) / 100
-      refundCard = Math.round((refundAmount - refundCash) * 100) / 100
-    }
-  }
-
-  const netCash = Math.max(0, Math.round((origCash - refundCash) * 100) / 100)
-  const netCard = Math.max(0, Math.round((origCard - refundCard) * 100) / 100)
-
-  const updatedPaymentType = {
-    ...pay,
-    cash: origCash,
-    card: origCard,
-    refundCash,
-    refundCard,
-    refundTotal: refundAmount,
-    netCash,
-    netCard,
-    netGiftVoucher: Math.max(0, (Number(pay?.giftVoucher?.amount) || 0) - (Number(pay?.refundGiftVoucher) || 0))
-  }
-
-  return {
-    ...s,
-    paymentType: updatedPaymentType,
-    items,
-    refundAmount,
-    netAmount
-  }
-}
-
 
 function buildSalesWhere(query: any): any {
   const { startDate, endDate, search } = query
@@ -143,16 +53,6 @@ function buildSalesWhere(query: any): any {
 
     const textFilter = pureNoStars || cleanQuery
 
-    const hasSpecificReceiptQuery =
-      receiptQueries.some(
-        (q) => q.toUpperCase().includes('REC') || (numericOnly.length >= 6 && q === numericOnly)
-      )
-
-    // Direct receipt lookup should not be blocked by date filter if the user scanned a specific receipt
-    if (hasSpecificReceiptQuery && where.createdAt) {
-      delete where.createdAt
-    }
-
     where.OR = [
       ...receiptQueries.map((q) => ({ receiptNo: { contains: q } })),
       { cashierName: { contains: textFilter } },
@@ -189,54 +89,63 @@ function buildSalesWhere(query: any): any {
 salesRouter.get('/stats', async (req, res) => {
   try {
     const where = buildSalesWhere(req.query)
+    const searchWhere = buildSalesWhere({ search: req.query.search })
     const payment = reportPaymentFilter(req.query.payment)
-    const sales = await prisma.sale.findMany({
-      where,
-      select: { id: true, totalAmount: true, paymentType: true, status: true,
-        items: { select: { id: true, quantity: true, unitPrice: true, returnedQuantity: true } } },
-    })
-    const issues = await voucherCollections(prisma, {
-      payment, start: where.createdAt?.gte, end: where.createdAt?.lte, search: req.query.search,
-    })
+    const [sales, returns, issues] = await prisma.$transaction(async tx => Promise.all([
+      tx.sale.findMany({ where, include: { items: true } }),
+      tx.saleReturn.findMany({ where: { createdAt: where.createdAt, sale: searchWhere }, include: { sale: true } }),
+      voucherCollections(tx, { payment, start: where.createdAt?.gte, end: where.createdAt?.lte, search: req.query.search }),
+    ]))
     let grossCash = 0, grossCard = 0, refundCash = 0, refundCard = 0
-    let netGiftVoucher = 0, productGross = 0, productNet = 0
-    let refundedCount = 0, activeSalesCount = 0, totalCount = 0
-    let grossItemsSold = 0, returnedItemsCount = 0
+    let netGiftVoucher = 0, productGross = 0, productRefund = 0
+    let activeSalesCount = 0, totalCount = 0, grossItemsSold = 0, returnedItemsCount = 0, exchangedItemsCount = 0
+    let legacyReviewCount = 0
+    const refunded = new Set<string>()
     for (const sale of sales) {
-      const formatted = formatSale(sale)
-      if (!matchesReportPayment(formatted, payment)) continue
+      const collection = saleCollections(sale)
+      if ((payment === 'CASH' && !collection.cash) || (payment === 'CARD' && !collection.card)) continue
       totalCount++
       if (sale.status === 'CANCELLED') continue
-      const collection = saleCollections(formatted)
-      if (payment !== 'CARD') { grossCash += collection.cash; refundCash += collection.refundCash }
-      if (payment !== 'CASH') { grossCard += collection.card; refundCard += collection.refundCard }
-      netGiftVoucher += Math.round(formatted.paymentType.netGiftVoucher * 100)
-      productGross += Math.round(Number(formatted.totalAmount) * 100)
-      productNet += Math.round(Number(formatted.netAmount) * 100)
-      if (formatted.refundAmount > 0) refundedCount++
-      if (formatted.status !== 'RETURNED') activeSalesCount++
-      for (const item of sale.items) {
-        grossItemsSold += item.quantity
-        returnedItemsCount += formatted.status === 'RETURNED' ? item.quantity : item.returnedQuantity
+      if (payment !== 'CARD') grossCash += collection.cash
+      if (payment !== 'CASH') grossCard += collection.card
+      netGiftVoucher += toCents(salePayment(sale).giftVoucher?.amount)
+      productGross += toCents(sale.totalAmount)
+      if (sale.totalAmount > 0) activeSalesCount++
+      grossItemsSold += sale.items.reduce((sum, item) => sum + item.quantity, 0)
+    }
+    for (const event of returns) {
+      if (event.sale.status === 'CANCELLED') continue
+      const hasPayment = payment === 'ALL' || (payment === 'CASH' ? event.cashCents > 0 : event.cardCents > 0)
+      if (event.source === 'EXCHANGE') {
+        if (payment === 'ALL' || matchesReportPayment(event.sale, payment)) {
+          exchangedItemsCount += JSON.parse(event.items).reduce((sum: number, item: any) => sum + item.returnQuantity, 0)
+          if (event.needsReview) legacyReviewCount++
+        }
+        continue
       }
+      if (!hasPayment) continue
+      if (payment !== 'CARD') refundCash += event.cashCents
+      if (payment !== 'CASH') refundCard += event.cardCents
+      netGiftVoucher -= event.voucherCents
+      productRefund += event.amountCents
+      refunded.add(event.saleId)
+      returnedItemsCount += JSON.parse(event.items).reduce((sum: number, item: any) => sum + item.returnQuantity, 0)
+      if (event.needsReview) legacyReviewCount++
     }
     const grossRevenue = grossCash + grossCard + issues.cash + issues.card
     const totalRefund = refundCash + refundCard
     res.json({
-      totalCount, activeSalesCount, refundedCount,
-      grossRevenue: grossRevenue / 100,
-      totalRefund: totalRefund / 100,
+      totalCount, activeSalesCount, refundedCount: refunded.size, legacyReviewCount,
+      grossRevenue: grossRevenue / 100, totalRefund: totalRefund / 100,
       netRevenue: (grossRevenue - totalRefund) / 100,
       netCash: (grossCash - refundCash + issues.cash) / 100,
       netCard: (grossCard - refundCard + issues.card) / 100,
       netGiftVoucher: netGiftVoucher / 100,
-      voucherIssueCash: issues.cash / 100,
-      voucherIssueCard: issues.card / 100,
-      voucherIssueCount: issues.count,
-      productGrossRevenue: productGross / 100,
-      productNetRevenue: productNet / 100,
-      avgReceiptAmount: activeSalesCount > 0 ? Math.round(productNet / activeSalesCount) / 100 : 0,
-      grossItemsSold, returnedItemsCount, netItemsSold: Math.max(0, grossItemsSold - returnedItemsCount),
+      voucherIssueCash: issues.cash / 100, voucherIssueCard: issues.card / 100, voucherIssueCount: issues.count,
+      productGrossRevenue: productGross / 100, productNetRevenue: (productGross - productRefund) / 100,
+      avgReceiptAmount: activeSalesCount > 0 ? Math.round((productGross - productRefund) / activeSalesCount) / 100 : 0,
+      grossItemsSold, returnedItemsCount, exchangedItemsCount,
+      netItemsSold: grossItemsSold - returnedItemsCount - exchangedItemsCount,
     })
   } catch (error: any) {
     res.status(error instanceof GiftVoucherError ? 400 : 500).json({ error: error.message })
@@ -276,12 +185,36 @@ salesRouter.get('/', async (req, res) => {
 salesRouter.post('/', async (req, res) => {
   try {
     let { items, totalAmount, discountAmount, paymentType, cashierName, customerId, receiptPrefix, exchange } = req.body
-    if (typeof paymentType === 'string' && paymentType.trim().startsWith('{')) paymentType = JSON.parse(paymentType)
-
-    if (!items || items.length === 0) {
+    if (!Array.isArray(items) || items.length === 0 || items.length > 1000) {
       res.status(400).json({ error: 'Sepette ürün bulunmamaktadır.' })
       return
     }
+    totalAmount = moneyCents(totalAmount) / 100
+    discountAmount = moneyCents(discountAmount ?? 0) / 100
+    const surcharge = moneyCents(req.body.surchargeAmount ?? 0) / 100
+    items = items.map((item: any) => {
+      if (!item || typeof item.variantId !== 'string' || !Number.isSafeInteger(item.quantity) || item.quantity < 1 || item.quantity > 100000) throw new GiftVoucherError('Ürün veya adet geçersiz.')
+      const unit = moneyCents(item.unitPrice), line = moneyCents(item.totalPrice)
+      if (line !== unit * item.quantity) throw new GiftVoucherError('Ürün satır tutarı adet ve birim fiyatla eşleşmiyor.')
+      return { variantId: item.variantId, quantity: item.quantity, unitPrice: unit / 100, totalPrice: line / 100 }
+    })
+    if (req.body.surchargeAmount !== undefined) {
+      const subtotal = items.reduce((sum: number, item: any) => sum + toCents(item.totalPrice), 0)
+      if (subtotal - toCents(discountAmount) + toCents(surcharge) !== toCents(totalAmount)) throw new GiftVoucherError('Ürün, indirim ve fiyat farkı toplamı satış tutarıyla eşleşmiyor.')
+    }
+    if (typeof paymentType === 'string') {
+      if (paymentType === 'CASH' || paymentType === 'CARD') paymentType = paymentType === 'CARD' ? { cash: 0, card: totalAmount } : { cash: totalAmount, card: 0 }
+      else { try { paymentType = JSON.parse(paymentType) } catch { throw new GiftVoucherError('Ödeme bilgisi geçersiz.') } }
+    }
+    if (paymentType === undefined) paymentType = { cash: totalAmount, card: 0 }
+    if (!paymentType || typeof paymentType !== 'object' || Array.isArray(paymentType)) throw new GiftVoucherError('Ödeme bilgisi geçersiz.')
+    const voucherInput = paymentType.giftVoucher
+    paymentType = {
+      cash: moneyCents(paymentType.cash ?? 0) / 100, card: moneyCents(paymentType.card ?? 0) / 100,
+      ...(typeof paymentType.note === 'string' ? { note: paymentType.note.slice(0, 200) } : {}),
+      ...(voucherInput ? { giftVoucher: { code: voucherInput.code, amount: moneyCents(voucherInput.amount) / 100, requestId: voucherInput.requestId } } : {}),
+    }
+    if (toCents(paymentType.cash) + toCents(paymentType.card) + toCents(paymentType.giftVoucher?.amount) !== toCents(totalAmount)) throw new GiftVoucherError('Nakit, kart ve çek toplamı satış tutarına eşit olmalıdır.')
 
     const prefix = typeof receiptPrefix === 'string' && receiptPrefix.trim() ? receiptPrefix.trim().replace(/[-_]+$/, '') : 'FIS'
 
@@ -305,6 +238,7 @@ salesRouter.post('/', async (req, res) => {
 
     // Transaction to create sale, items, update stock and log movements atomically
     const result = await prisma.$transaction(async (tx) => {
+      let inheritedFunding: Funding[] = []
       const requestVoucher = typeof paymentType === 'object' ? paymentType?.giftVoucher : null
       if (requestVoucher) {
         if (!/^[a-zA-Z0-9-]{16,80}$/.test(requestVoucher.requestId || '')) throw new GiftVoucherError('Çek ödeme işlem kimliği geçersiz.')
@@ -319,20 +253,20 @@ salesRouter.post('/', async (req, res) => {
           return existing
         }
       }
+      const transactionAt = new Date()
       if (exchange) {
         const original = await tx.sale.findUnique({ where: { id: exchange.saleId }, include: { items: true } })
         if (!original) throw new Error('Değiştirilecek fiş bulunamadı.')
         const selectedLines = exchangeLines(exchange)
         const credit = exchangeCredit(original, selectedLines)
-        let originalPay: any = {}
-        try { originalPay = JSON.parse(original.paymentType) } catch {
-          originalPay = original.paymentType === 'CARD' ? { cash: 0, card: original.totalAmount } : { cash: original.totalAmount, card: 0 }
-        }
-        if (Math.round(Number(exchange.credit) * 100) !== Math.round(credit * 100) || parseDecimal(discountAmount) < credit) {
+        const consumed = await consumeFunding(tx, original, toCents(credit))
+        const originalPay = consumed.payment
+        inheritedFunding = consumed.funding
+        if (Math.round(Number(exchange.credit) * 100) !== Math.round(credit * 100) || discountAmount < credit) {
           throw new Error('Değişim bedeli değişti; fişi yeniden seçin.')
         }
-        const newSubtotal = items.reduce((sum: number, item: any) => sum + parseDecimal(item.totalPrice), 0)
-        if (newSubtotal < parseDecimal(discountAmount) || Math.round((newSubtotal - parseDecimal(discountAmount)) * 100) > Math.round(parseDecimal(totalAmount) * 100)) {
+        const newSubtotal = items.reduce((sum: number, item: any) => sum + item.totalPrice, 0)
+        if (newSubtotal + surcharge < discountAmount || Math.round((newSubtotal - discountAmount + surcharge) * 100) > Math.round(totalAmount * 100)) {
           throw new Error('Değişim tutarı veya tahsilat geçersiz.')
         }
         originalPay.exchangedItems = originalPay.exchangedItems || {}
@@ -345,13 +279,17 @@ salesRouter.post('/', async (req, res) => {
         }
         const allHandled = original.items.every(item => item.returnedQuantity + (selectedLines.find(line => line.itemId === item.id)?.quantity || 0) >= item.quantity)
         await tx.sale.update({ where: { id: original.id }, data: { status: allHandled ? 'EXCHANGED' : 'PARTIAL_EXCHANGE', paymentType: JSON.stringify(originalPay) } })
+        await tx.saleReturn.create({ data: {
+          id: randomUUID(), saleId: original.id, createdAt: transactionAt, cashCents: 0, cardCents: 0, voucherCents: 0, amountCents: 0,
+          source: 'EXCHANGE', items: JSON.stringify(selectedLines.map(line => ({ saleItemId: line.itemId, returnQuantity: line.quantity }))),
+        } })
         if (typeof paymentType === 'object' && paymentType) {
           paymentType.exchange = { receiptNo: original.receiptNo, saleId: original.id, items: selectedLines, ...(selectedLines.length === 1 ? { itemId: selectedLines[0].itemId } : {}), credit }
         }
       }
       // Voucher amounts and balance changes are verified in the sale transaction.
-      let safePayment: any = typeof paymentType === 'string' ? paymentType : { ...(paymentType || { cash: parseDecimal(totalAmount) }) }
-      const voucherPayment = typeof safePayment === 'object' ? safePayment.giftVoucher : null
+      let safePayment: any = { ...paymentType }
+      const voucherPayment = safePayment.giftVoucher
       if (voucherPayment) {
         const voucherCents = moneyCents(voucherPayment.amount)
         const cashCents = moneyCents(safePayment.cash || 0)
@@ -361,22 +299,31 @@ salesRouter.post('/', async (req, res) => {
         safePayment = { cash: cashCents / 100, card: cardCents / 100, ...(safePayment.exchange ? { exchange: safePayment.exchange } : {}), giftVoucher: { code: voucherPayment.code, amount: voucherCents / 100 } }
       }
       // 1. Create Sale record
-      const parsedTotal = parseDecimal(totalAmount)
-      const parsedDiscount = parseDecimal(discountAmount)
+      const saleId = randomUUID()
+      safePayment.funding = [...inheritedFunding,
+        ...(toCents(safePayment.cash) ? [{ kind: 'CASH', cents: toCents(safePayment.cash) }] : []),
+        ...(toCents(safePayment.card) ? [{ kind: 'CARD', cents: toCents(safePayment.card) }] : []),
+        ...(voucherPayment ? [{ kind: 'VOUCHER', cents: toCents(voucherPayment.amount), code: voucherPayment.code, saleId }] : []),
+      ]
+      safePayment.fundingUsed = safePayment.funding.map(() => 0)
+      const parsedTotal = totalAmount
+      const parsedDiscount = discountAmount
       const sale = await tx.sale.create({
         data: {
+          id: saleId,
+          createdAt: transactionAt,
           receiptNo,
           customerId: customerId || null,
           totalAmount: parsedTotal,
           discountAmount: parsedDiscount,
-          paymentType: typeof safePayment === 'string' ? safePayment : JSON.stringify(safePayment),
+          paymentType: JSON.stringify(safePayment),
           cashierName: cashierName || 'Kasiyer 1',
           items: {
             create: items.map((item: any) => ({
               variantId: item.variantId,
-              quantity: parseInt(item.quantity) || 1,
-              unitPrice: parseDecimal(item.unitPrice),
-              totalPrice: parseDecimal(item.totalPrice)
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              totalPrice: item.totalPrice
             }))
           }
         },
@@ -399,7 +346,7 @@ salesRouter.post('/', async (req, res) => {
       }
       // 2. Update stock quantities & record movements
       for (const item of items) {
-        const qty = Math.max(1, parseInt(item.quantity) || 1)
+        const qty = item.quantity
         await tx.productVariant.update({
           where: { id: item.variantId },
           data: {
@@ -461,6 +408,7 @@ salesRouter.post('/:id/return', async (req, res) => {
     if (new Set(items.map((item: any) => item.saleItemId)).size !== items.length) {
       res.status(400).json({ error: 'Aynı ürün birden fazla kez seçilemez.' }); return
     }
+    if (req.body.refundMethod !== undefined && !['CASH', 'CARD', 'ORIGINAL'].includes(req.body.refundMethod)) throw new GiftVoucherError('İade ödeme yöntemi geçersiz.')
     // Validate return items
     for (const returnItem of items) {
       const existingItem = sale.items?.find((i: any) => i.id === returnItem.saleItemId)
@@ -468,8 +416,8 @@ salesRouter.post('/:id/return', async (req, res) => {
         res.status(400).json({ error: `Fişte ${returnItem.saleItemId} ID'li ürün bulunamadı.` })
         return
       }
-      const qtyToReturn = parseInt(returnItem.returnQuantity)
-      if (isNaN(qtyToReturn) || qtyToReturn <= 0) {
+      const qtyToReturn = returnItem.returnQuantity
+      if (!Number.isSafeInteger(qtyToReturn) || qtyToReturn <= 0) {
         res.status(400).json({ error: 'İade miktarı pozitif bir sayı olmalıdır.' })
         return
       }
@@ -538,78 +486,31 @@ salesRouter.post('/:id/return', async (req, res) => {
       try { hasExchanges = Object.keys(JSON.parse(sale.paymentType)?.exchangedItems || {}).length > 0 } catch {}
       const newStatus = allFullyReturned ? (hasExchanges ? 'EXCHANGED' : 'RETURNED') : 'PARTIAL_RETURN'
 
-      // Calculate refund amount for items returned in this transaction
-      const itemsSubtotal = (sale.items || []).reduce(
-        (sum: number, it: any) => sum + (Number(it.quantity) || 0) * (Number(it.unitPrice) || 0),
-        0
-      )
-      const totalAmountNum = Number(sale.totalAmount) || 0
-      const discountFactor = itemsSubtotal > 0 ? Math.min(1, totalAmountNum / itemsSubtotal) : 1
-
-      let currentBatchRefund = 0
-      for (const returnItem of items) {
-        const existingItem = sale.items?.find((i: any) => i.id === returnItem.saleItemId)!
-        const qtyToReturn = parseInt(returnItem.returnQuantity)
-        currentBatchRefund += qtyToReturn * (Number(existingItem.unitPrice) || 0) * discountFactor
+      const refundCents = toCents(returnQuote(sale, items))
+      const consumed = await consumeFunding(tx, sale, refundCents)
+      const currentPay = consumed.payment
+      let cash = 0, card = 0, voucher = 0
+      for (const part of consumed.funding) {
+        if (part.kind === 'VOUCHER') {
+          await refundVoucher(tx, part.code!, part.cents, part.saleId!)
+          voucher += part.cents
+        } else if (part.kind === 'CASH') cash += part.cents
+        else card += part.cents
       }
-      currentBatchRefund = Math.round(currentBatchRefund * 100) / 100
-
-      // Update paymentType JSON with refund deductions
-      let currentPay: any = {}
-      try {
-        currentPay = typeof sale.paymentType === 'string' ? JSON.parse(sale.paymentType) : (sale.paymentType || {})
-      } catch (e) {
-        currentPay = { cash: totalAmountNum, card: 0 }
-      }
-
-      const origCash = Number(currentPay.cash) || 0
-      const origCard = Number(currentPay.card) || 0
-      let prevRefundCash = Number(currentPay.refundCash) || 0
-      let prevRefundCard = Number(currentPay.refundCard) || 0
-
-      let addCash = 0
-      let addCard = 0
-
-      if (req.body.refundMethod === 'CASH') {
-        addCash = currentBatchRefund
-      } else if (req.body.refundMethod === 'CARD') {
-        addCard = currentBatchRefund
-      } else {
-        // 'ORIGINAL' or undefined: follow original payment proportions
-        if (origCash > 0 && origCard === 0) {
-          addCash = currentBatchRefund
-        } else if (origCard > 0 && origCash === 0) {
-          addCard = currentBatchRefund
-        } else if (origCash + origCard > 0) {
-          const cashRatio = origCash / (origCash + origCard)
-          addCash = Math.round(currentBatchRefund * cashRatio * 100) / 100
-          addCard = Math.round((currentBatchRefund - addCash) * 100) / 100
-        } else {
-          addCash = currentBatchRefund
-        }
-      }
-
-      if (currentPay.giftVoucher) {
-        const usedCents = moneyCents(currentPay.giftVoucher.amount)
-        const previousGiftCents = moneyCents(currentPay.refundGiftVoucher || 0)
-        const cumulativeRefund = Math.min(totalAmountNum, formatSale({ ...sale, items: freshSaleItems, status: newStatus }).refundAmount)
-        const targetGiftCents = Math.min(usedCents, Math.round(usedCents * (totalAmountNum > 0 ? cumulativeRefund / totalAmountNum : 0)))
-        const giftReturnCents = Math.max(0, targetGiftCents - previousGiftCents)
-        await refundVoucher(tx, currentPay.giftVoucher.code, giftReturnCents, id)
-        currentPay.refundGiftVoucher = targetGiftCents / 100
-        const externalTargetCents = Math.max(0, Math.round(cumulativeRefund * 100) - targetGiftCents)
-        const externalTotalCents = Math.round((origCash + origCard) * 100)
-        const cashTarget = externalTotalCents ? Math.round(externalTargetCents * Math.round(origCash * 100) / externalTotalCents) / 100 : 0
-        addCash = Math.max(0, cashTarget - prevRefundCash)
-        addCard = Math.max(0, externalTargetCents / 100 - cashTarget - prevRefundCard)
-      }
-      const newRefundCash = Math.min(origCash, Math.round((prevRefundCash + addCash) * 100) / 100)
-      const newRefundCard = Math.min(origCard, Math.round((prevRefundCard + addCard) * 100) / 100)
-      const newRefundTotal = Math.min(totalAmountNum, Math.round((newRefundCash + newRefundCard + (Number(currentPay.refundGiftVoucher) || 0)) * 100) / 100)
-
-      currentPay.refundCash = newRefundCash
-      currentPay.refundCard = newRefundCard
-      currentPay.refundTotal = newRefundTotal
+      // Explicit payout channels describe the actual outflow, even if that
+      // channel collected less on the original receipt. Negative net cash is valid.
+      const hasVoucherFunding = currentPay.funding.some((part: Funding) => part.kind === 'VOUCHER')
+      if (!hasVoucherFunding && req.body.refundMethod === 'CASH') { cash += card; card = 0 }
+      if (!hasVoucherFunding && req.body.refundMethod === 'CARD') { card += cash; cash = 0 }
+      currentPay.refundCash = (toCents(currentPay.refundCash) + cash) / 100
+      currentPay.refundCard = (toCents(currentPay.refundCard) + card) / 100
+      currentPay.refundGiftVoucher = (toCents(currentPay.refundGiftVoucher) + voucher) / 100
+      currentPay.refundTotal = currentPay.refundCash + currentPay.refundCard + currentPay.refundGiftVoucher
+      currentPay.refundVersion = 2
+      const event = await tx.saleReturn.create({ data: {
+        id: randomUUID(), saleId: id, cashCents: cash, cardCents: card,
+        voucherCents: voucher, amountCents: refundCents, items: JSON.stringify(items),
+      } })
 
       const finalSale = await (tx.sale as any).update({
         where: { id },
@@ -627,7 +528,7 @@ salesRouter.post('/:id/return', async (req, res) => {
         }
       })
 
-      return finalSale
+      return { ...finalSale, lastReturn: { id: event.id, amount: refundCents / 100, cash: cash / 100, card: card / 100, voucher: voucher / 100 } }
     })
 
     res.json(formatSale(updatedSale))

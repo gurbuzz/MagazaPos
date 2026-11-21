@@ -18,7 +18,7 @@ import {
   Loader2,
   Gift,
 } from 'lucide-react'
-import { matchesReportPayment, saleCollections } from '../../../../shared/salesReporting'
+import { matchesReportPayment, reportDateIso, saleCollections } from '../../../../shared/salesReporting'
 import { usePosStore } from '../../store/usePosStore'
 import { ReturnModal } from '../Customer/ReturnModal'
 import { printReceipt, normalizeSaleToReceiptData } from '../../utils/printReceipt'
@@ -60,6 +60,8 @@ export const SalesHistoryView: React.FC = () => {
     avgReceiptAmount: number
     grossItemsSold?: number
     returnedItemsCount?: number
+    exchangedItemsCount?: number
+    legacyReviewCount?: number
     netItemsSold?: number
   } | null>(null)
 
@@ -84,8 +86,8 @@ export const SalesHistoryView: React.FC = () => {
       let statsQuery = '/api/sales/stats?'
 
       const queryParts: string[] = [`payment=${paymentFilter}`]
-      if (startDate) queryParts.push(`startDate=${encodeURIComponent(startDate)}`)
-      if (endDate) queryParts.push(`endDate=${encodeURIComponent(endDate)}`)
+      if (startDate) queryParts.push(`startDate=${encodeURIComponent(reportDateIso(startDate))}`)
+      if (endDate) queryParts.push(`endDate=${encodeURIComponent(reportDateIso(endDate, true))}`)
 
       if (cleanTerm) {
         queryParts.push(`search=${encodeURIComponent(cleanTerm)}`)
@@ -269,7 +271,7 @@ export const SalesHistoryView: React.FC = () => {
 
     if (!searchTerm.trim()) {
       if (startDate && saleTime < new Date(startDate).getTime()) return false
-      if (endDate && saleTime > new Date(endDate).getTime()) return false
+      if (endDate && saleTime > new Date(reportDateIso(endDate, true)).getTime()) return false
       return matchesPayment
     }
 
@@ -295,7 +297,7 @@ export const SalesHistoryView: React.FC = () => {
 
     if (!isDirectReceiptSearch) {
       if (startDate && saleTime < new Date(startDate).getTime()) return false
-      if (endDate && saleTime > new Date(endDate).getTime()) return false
+      if (endDate && saleTime > new Date(reportDateIso(endDate, true)).getTime()) return false
     }
 
     // Kasiyer Eşleşmesi
@@ -336,6 +338,7 @@ export const SalesHistoryView: React.FC = () => {
   const netItemsSold = serverStats?.netItemsSold || 0
   const grossItemsSold = serverStats?.grossItemsSold || 0
   const returnedItemsCount = serverStats?.returnedItemsCount || 0
+  const exchangedItemsCount = serverStats?.exchangedItemsCount || 0
   const filteredGrossRevenue = serverStats?.grossRevenue || 0
   const filteredTotalRefund = serverStats?.totalRefund || 0
   const filteredNetRevenue = serverStats?.netRevenue || 0
@@ -559,6 +562,8 @@ export const SalesHistoryView: React.FC = () => {
         </div>
 
         {reportError && <p role="alert" className="p-3 bg-rose-50 text-rose-800 rounded-lg text-sm">Rapor hesaplanamadı: {reportError}. Güncel toplamlar gösterilemiyor.</p>}
+        {!!serverStats?.legacyReviewCount && <p role="alert" className="p-3 bg-amber-50 text-amber-900 rounded-lg text-sm">Bu dönemde {serverStats.legacyReviewCount} eski iade kaydının tutarı veya tarihi kontrol gerektiriyor. Eski değişim kayıtları da bu sayıya dahildir; kayıtlı tutarlar korunmuştur.</p>}
+        <p className="text-xs text-slate-600">Tahsilat ve iadeler işlem gününe yansır. Aşağıdaki fiş listesi satış tarihine göre filtrelenir.</p>
         {serverStats && <div className="text-xs text-purple-800 bg-purple-50 rounded-lg p-3 space-y-1">
           <p>Bu filtrede çek oluşturma tahsilatı: <strong>{(serverStats.voucherIssueCash + serverStats.voucherIssueCard).toFixed(2)} TL</strong> ({serverStats.voucherIssueCount} çek; nakit {serverStats.voucherIssueCash.toFixed(2)} TL / kart {serverStats.voucherIssueCard.toFixed(2)} TL). Kasa cirosuna dahildir.</p>
           <p>Alışverişlerde kullanılan net çek bakiyesi: {(serverStats.netGiftVoucher || 0).toFixed(2)} TL. Yeniden tahsilat sayılmaz. Ücretsiz mağaza çekleri tahsilata dahil edilmez.</p>
@@ -606,6 +611,7 @@ export const SalesHistoryView: React.FC = () => {
                     (-{returnedItemsCount} İade)
                   </span>
                 )}
+                {exchangedItemsCount > 0 && <span className="text-indigo-700 font-semibold ml-1">(-{exchangedItemsCount} Değişim)</span>}
               </span>
             </div>
             <div className="w-10 h-10 rounded-xl bg-indigo-50/80 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-2xs">
@@ -792,10 +798,11 @@ export const SalesHistoryView: React.FC = () => {
                         {(sale.status === 'EXCHANGED' || sale.status === 'PARTIAL_EXCHANGE') && (
                           <span className="block text-indigo-700 font-semibold">{sale.status === 'EXCHANGED' ? 'Değişim yapıldı' : 'Kısmi değişim'}</span>
                         )}
-                        {sale.status === 'RETURNED' ? (
+                        {sale.status === 'RETURNED' && Math.round(sale.refundAmount * 100) < Math.round((sale.receiptAmount ?? sale.totalAmount) * 100) && <span className="block text-amber-800 font-semibold">İade ödeme kaydı kontrol edilmeli</span>}
+                        {sale.status === 'RETURNED' && Math.round(sale.refundAmount * 100) === Math.round((sale.receiptAmount ?? sale.totalAmount) * 100) ? (
                           <div className="space-y-0.5">
                             <span className="line-through text-slate-400 text-[11px] block">
-                              {sale.totalAmount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
+                              {(sale.receiptAmount ?? sale.totalAmount).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
                             </span>
                             <span className="font-bold text-rose-600 flex items-center space-x-1">
                               <span>0,00 ₺</span>

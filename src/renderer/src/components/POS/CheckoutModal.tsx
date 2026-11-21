@@ -202,6 +202,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
         exchange,
         totalAmount: total,
         discountAmount: discountAmount + (exchange?.credit || 0),
+        surchargeAmount,
         cashierName,
         customerId: selectedCustomer ? selectedCustomer.id : null,
         receiptPrefix: receiptPrefix || 'FIS',

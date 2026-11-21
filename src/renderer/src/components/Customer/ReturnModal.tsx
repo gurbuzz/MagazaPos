@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { X, RotateCcw, AlertTriangle, Check, PackageCheck, ShoppingBag, User, Banknote, CreditCard } from 'lucide-react'
 import { notifyDataChanged } from '../../utils/events'
+import { returnQuote } from '../../../../shared/saleAmounts'
 
 interface ReturnModalProps {
   isOpen: boolean
@@ -50,7 +51,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({ isOpen, onClose, sale,
 
   if (!isOpen || !sale) return null
 
-  const hasGiftVoucher = Boolean(sale?.paymentType?.giftVoucher)
+  const hasGiftVoucher = Boolean(sale?.paymentType?.giftVoucher || sale?.paymentType?.funding?.some((part: any) => part.kind === 'VOUCHER'))
 
   const handleQtyChange = (saleItemId: string, maxAvailable: number, val: number) => {
     const validVal = Math.max(0, Math.min(maxAvailable, val))
@@ -61,11 +62,8 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({ isOpen, onClose, sale,
   }
 
   // Calculate total refund sum
-  const totalRefund =
-    sale.items?.reduce((sum: number, item: any) => {
-      const qty = returnItems[item.id] || 0
-      return sum + qty * item.unitPrice
-    }, 0) || 0
+  const totalRefund = returnQuote(sale, Object.entries(returnItems)
+    .filter(([, qty]) => qty > 0).map(([saleItemId, returnQuantity]) => ({ saleItemId, returnQuantity })))
 
   const totalReturnCount = Object.values(returnItems).reduce((sum, q) => sum + q, 0)
 
@@ -249,7 +247,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({ isOpen, onClose, sale,
             })}
           </div>
 
-          {hasGiftVoucher && <p className="text-xs bg-purple-50 text-purple-800 p-3 rounded-lg">Çekle ödenen pay aynı çeke geri yüklenir. Nakit/kart payı ilk ödemedeki oranlarda iade edilir; çek tutarı nakit olarak ödenmez.</p>}
+          {hasGiftVoucher && <p className="text-xs bg-purple-50 text-purple-800 p-3 rounded-lg">Çekle ödenen pay ilgili çeklere geri yüklenir. Nakit/kart payı ilk ödemedeki oranlarda iade edilir; çek tutarı nakit olarak ödenmez.</p>}
 {/* Refund Method Selector (Kasadan Para Çıkışı) */}
           <div>
             <label className="block text-[11px] font-semibold text-slate-700 mb-1.5 uppercase">
@@ -309,7 +307,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({ isOpen, onClose, sale,
                     Stoğa İade: {totalReturnCount} Adet Ürün
                   </span>
                   <span className="text-[10px] text-amber-800">
-                    {hasGiftVoucher ? 'İade, çek / nakit / kart paylarına göre yapılacak.' : <>Kasadan {refundMethod === 'CASH' ? 'nakit para düşülecek' : 'kart iadesi düşülecek'}.</>}
+                    {hasGiftVoucher ? 'İade, çek / nakit / kart paylarına göre yapılacak.' : refundMethod === 'ORIGINAL' ? 'İlk ödemenin nakit/kart dağılımına göre iade edilecek.' : <>Kasadan {refundMethod === 'CASH' ? 'nakit para düşülecek' : 'kart iadesi düşülecek'}.</>}
                   </span>
                 </div>
               </div>

@@ -57,6 +57,7 @@ model Sale {
   cashierName    String     @default("Kasiyer 1")
   status         String     @default("COMPLETED") // COMPLETED, CANCELLED, RETURNED
   items          SaleItem[]
+  returns        SaleReturn[]
   createdAt      DateTime   @default(now())
 }
 
@@ -119,4 +120,21 @@ model GiftVoucherMovement {
   createdAt   String
   @@index([saleId])
   @@index([voucherId])
+}
+
+// Added without changing existing sales; monetary refunds belong to their own date.
+model SaleReturn {
+  id            String   @id
+  saleId        String
+  sale          Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
+  cashCents     Int
+  cardCents     Int
+  voucherCents  Int
+  amountCents   Int
+  items         String
+  source        String   @default("RECORDED")
+  needsReview   Boolean  @default(false)
+  @@index([createdAt])
+  @@index([saleId])
 }

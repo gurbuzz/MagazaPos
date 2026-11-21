@@ -1,14 +1,20 @@
-Çoklu ürün değişimi ve mobil barkod okuma iyileştirmeleri.
+1.0.5 — Güncelleme kurulumu, ciro, iade ve değişim düzeltmeleri.
 
-- Değişim fişinde birden fazla ürün ve adet birlikte seçilebilir. Tümünü Seç ile kalan değiştirilebilir adetler alınabilir.
-- Seçilen ürünler kasada değişim bölümünde görünür; toplam ödenmiş bedelleri mahsup edilir. Yeni alınacak ürünler kasaya ayrıca eklenir.
-- Kaynak ürünlerin stoğa dönüşü ve yeni satış aynı işlemde tamamlanır. İşlem başarısızsa stok hareketleri geri alınır; daha önce işlenen adetler tekrar kullanılamaz.
-- Mobil stok sorgulamada fotoğraflar farklı yön, boyut ve merkez bölgeleriyle yeniden taranır. Barkod okuyucu uygulamaya dahil edilmiştir; okuyucunun yüklenmesi için dış internet bağlantısı gerekmez.
-- Destekleyen telefonlarda daha yüksek kamera çözünürlüğü ve sürekli odaklama istenir. Kamera/fotoğraf geçişindeki çakışmalar giderildi. Fiziksel bulanıklık veya parlama her fotoğrafta giderilemeyebilir.
-- Mobil sayfa ve barkod okuyucu dosyaları derleme sonrasında kurulum paketine kopyalanıp doğrulanır.
+- İadeler kendi işlem gününde cirodan düşülür; geçmiş satış gününün tahsilatı değişmez.
+- Nakit/kart iadelerinde seçilen çıkış yöntemi korunur. Parçalı ödemeler, indirimler, fiyat artırımları ve ayrı ayrı iadelerde kalan kuruşlar doğru hesaplanır.
+- Değişim cirodan iade gibi düşülmez; raporda değişim ve iade adetleri ayrı gösterilir. Değişimle alınan ürün iade edildiğinde toplam ödenen değer esas alınır; çek payları ilgili çeklere geri yüklenir.
+- İade ekranında gösterilen bedel ile kaydedilen iade aynı hesabı kullanır. Gün sonunun son dakikasındaki satışlar rapora dahil edilir.
+- Ödeme toplamıyla uyuşmayan satışlar kaydedilmez.
+- Müşteri ekranının sürekli açık bağlantısı güncelleme kurulumunu engellemez. Paket doğrulama, yedekleme ve Windows kurulumu ayrı aşamalar olarak gösterilir; kurulum başlatılamazsa kasa yeniden kullanılabilir hale gelir. Güncelleme Günlüğünü Aç ile hata ayrıntılarına erişilebilir.
+- Windows yönetici izin yardımcısı kurulum paketine açıkça dahil edilir ve yayımlama öncesinde doğrulanır.
 
-Bu sürüm için veritabanı şema değişikliği yoktur. Güncelleme kurulmadan önce mevcut veritabanı yedeklenip doğrulanır.
+İadeler için ayrı tarihli hareket tablosu eklenir. Eski veritabanı ilk açılışta bu tabloya geçirilmeden önce doğrulanmış yedek alınır. Mevcut satış ve ödeme alanları değiştirilmez; eski iadelerin bilinen tutarları korunur. Tarihi veya tutarı kesinleştirilemeyen kayıtlar raporda kontrol gerektiren kayıtlar olarak belirtilir. Geçmişte yanlışlıkla para iadesi yazılan değişim kayıtları bu güncellemeyle otomatik düzeltilmez; ayrıca incelenmelidir.
 
-Ayarlar → Güncelleme → Güncellemeleri Kontrol Et yoluyla indirilebilir. Açık satışı tamamladıktan sonra Yedekle ve Kur seçilir. Windows yönetici izni isteyebilir.
+Manuel kurulum:
 
-Otomatik güncelleme desteği olmayan eski kurulumlarda aşağıdaki Setup EXE dosyasını indirip mevcut kurulumun üzerine kurun. Kullanıcı verileri klasörünü silmeyin.
+1. Uygulamadan güncel veritabanı yedeği alın ve açık işlemleri tamamlayın.
+2. MagazaPOS'u kapatın. Bu sürümdeki MagazaPOS-Setup-1.0.5.exe dosyasını indirip mevcut kurulumun üzerine kurun. Windows yönetici izni isteyebilir. Kullanıcı verileri klasörünü silmeyin.
+3. Uygulamayı açıp Ayarlar bölümünde kurulu sürümün 1.0.5 olduğunu doğrulayın.
+4. Ayrıca hazırlanmış bir düzeltilmiş DB yedeği kullanılacaksa uygulama güncellendikten sonra Ayarlar → Veritabanı & Yedek bölümünden geri yükleyin. Yedekten sonra yeni satış/iade yapıldıysa eski yedeği yüklemeyin.
+
+Uygulama içinden güncelleme için Ayarlar → Güncelleme → Güncellemeleri Kontrol Et yolunu kullanabilirsiniz. Açık satışı tamamladıktan sonra Yedekle ve Kur seçilir.

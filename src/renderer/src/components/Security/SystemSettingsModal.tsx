@@ -98,6 +98,19 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
       setUpdateStatus(previous => ({ currentVersion: previous.currentVersion, state: action === 'installUpdate' ? 'downloaded' : 'error', message: error instanceof Error ? error.message : 'Güncelleme işlemi tamamlanamadı.' }))
     }
   }
+  const installationProgress = {
+    validation: 'İndirilen kurulum paketi doğrulanıyor...',
+    maintenance: 'Devam eden işlemlerin tamamlanması bekleniyor...',
+    backup: 'Veritabanı yedeği alınıp doğrulanıyor...',
+    closing: 'Veritabanı güvenle kapatılıyor...',
+    installer: 'Windows kurulumu başlatılıyor. Yönetici izin penceresini kontrol edin.',
+  }
+  const openUpdateLogs = async () => {
+    try {
+      const result = await window.electron?.openUpdateLogs()
+      if (result && !result.success) setUpdateStatus(previous => ({ ...previous, message: result.error || 'Günlük açılamadı.' }))
+    } catch (error) { setUpdateStatus(previous => ({ ...previous, message: error instanceof Error ? error.message : 'Günlük açılamadı.' })) }
+  }
 
   const [formStoreName, setFormStoreName] = useState(storeName)
   const [formStoreAddress, setFormStoreAddress] = useState(storeAddress)
@@ -770,12 +783,14 @@ export const SystemSettingsModal: React.FC<SystemSettingsModalProps> = ({ isOpen
               <h4 className="font-bold">Uygulama Güncellemesi</h4>
               <p>GitHub üzerinde yayınlanmış sürümleri kontrol edin. Kurulumdan önce veritabanı yedeklenir.</p>
               <p>Kurulu sürüm: <strong>{updateStatus.currentVersion || '—'}</strong></p>
-              <p className="text-slate-600">{updateStatus.state === 'checking' ? 'Güncellemeler kontrol ediliyor...' : updateStatus.state === 'available' ? `Yeni sürüm: ${updateStatus.version}` : updateStatus.state === 'current' ? `Kurulu sürümden daha yeni bir paket bulunamadı. Yayımlanan sürüm: ${updateStatus.version}.` : updateStatus.state === 'unpublished' ? 'Yayımlanmış güncelleme paketi bulunamadı.' : updateStatus.state === 'error' ? 'Güncelleme işlemi tamamlanamadı.' : updateStatus.state === 'downloading' ? `İndiriliyor: %${updateStatus.percent || 0}` : updateStatus.state === 'downloaded' ? `Sürüm ${updateStatus.version || ''} kuruluma hazır.` : updateStatus.state === 'installing' ? 'Yedek alınıyor ve kurulum başlatılıyor...' : 'Kontrol etmek için düğmeye basın.'}</p>
+              <p className="text-slate-600">{updateStatus.state === 'checking' ? 'Güncellemeler kontrol ediliyor...' : updateStatus.state === 'available' ? `Yeni sürüm: ${updateStatus.version}` : updateStatus.state === 'current' ? `Kurulu sürümden daha yeni bir paket bulunamadı. Yayımlanan sürüm: ${updateStatus.version}.` : updateStatus.state === 'unpublished' ? 'Yayımlanmış güncelleme paketi bulunamadı.' : updateStatus.state === 'error' ? 'Güncelleme işlemi tamamlanamadı.' : updateStatus.state === 'downloading' ? `İndiriliyor: %${updateStatus.percent || 0}` : updateStatus.state === 'downloaded' ? `Sürüm ${updateStatus.version || ''} kuruluma hazır.` : updateStatus.state === 'installing' ? installationProgress[updateStatus.stage || 'backup'] : 'Kontrol etmek için düğmeye basın.'}</p>
               {updateStatus.message && <p className="text-rose-700">{updateStatus.message}</p>}
+              {updateStatus.backupPath && <p className="text-xs text-emerald-800 break-all">Güncelleme öncesi doğrulanmış yedek: {updateStatus.backupPath}</p>}
               <div className="flex gap-2">
-                <button type="button" disabled={['checking', 'downloading', 'installing'].includes(updateStatus.state)} onClick={() => runUpdateAction('checkUpdates')} className="px-3 py-2 bg-blue-700 text-white rounded disabled:opacity-50">Güncellemeleri Kontrol Et</button>
+                <button type="button" disabled={updateStatus.restartRequired || ['checking', 'downloading', 'installing'].includes(updateStatus.state)} onClick={() => runUpdateAction('checkUpdates')} className="px-3 py-2 bg-blue-700 text-white rounded disabled:opacity-50">Güncellemeleri Kontrol Et</button>
                 {updateStatus.state === 'available' && <button type="button" onClick={() => runUpdateAction('downloadUpdate')} className="px-3 py-2 bg-indigo-700 text-white rounded">Güncellemeyi İndir</button>}
                 {updateStatus.state === 'downloaded' && <button type="button" onClick={() => runUpdateAction('installUpdate')} className="px-3 py-2 bg-emerald-700 text-white rounded">Yedekle ve Kur</button>}
+                {window.electron && <button type="button" onClick={openUpdateLogs} className="px-3 py-2 bg-slate-100 text-slate-800 rounded border">Güncelleme Günlüğünü Aç</button>}
               </div>
             </div>
           )}

@@ -606,10 +606,11 @@ export const CustomerView: React.FC = () => {
                           <div className="flex items-center space-x-3">
                             <div className="text-right">
                               <span className="text-[10px] text-slate-400 block font-medium">Toplam</span>
-                              {isFullyReturned ? (
+                              {isFullyReturned && Math.round(sale.refundAmount * 100) < Math.round((sale.receiptAmount ?? sale.totalAmount) * 100) && <span className="text-[10px] text-amber-800 block">İade ödeme kaydı kontrol edilmeli</span>}
+                              {isFullyReturned && Math.round(sale.refundAmount * 100) === Math.round((sale.receiptAmount ?? sale.totalAmount) * 100) ? (
                                 <div>
                                   <span className="line-through text-slate-400 text-xs block">
-                                    {(Number(sale.totalAmount) || 0).toFixed(2)} ₺
+                                    {(Number(sale.receiptAmount ?? sale.totalAmount) || 0).toFixed(2)} ₺
                                   </span>
                                   <span className="font-bold text-xs text-rose-600">0,00 ₺ (İade Edildi)</span>
                                 </div>
