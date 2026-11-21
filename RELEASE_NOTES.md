@@ -1,4 +1,8 @@
-1.0.5 — Güncelleme kurulumu, ciro, iade ve değişim düzeltmeleri.
+1.0.6 — Güvenli yedek geri yükleme, ciro, iade ve değişim düzeltmeleri.
+
+- Yedek geri yüklemeden önce mevcut veritabanının güvenlik yedeği alınır; bütünlüğü ve kayıt ilişkileri doğrulanır. Güvenlik yedeği alınamazsa veya doğrulanamazsa mevcut veritabanı değiştirilmeden işlem durdurulur.
+- Dosya yükleme sırasında hata oluşursa doğrulanmış güvenlik yedeğine geri dönülür. Hatalı PIN, geçersiz dosya, yedekleme hatası ve yarım kalan dosya değişimi otomatik testlerle kontrol edilir.
+- Yedek geri yüklemek için satışları veya veritabanını önceden sıfırlamak gerekmez.
 
 - İadeler kendi işlem gününde cirodan düşülür; geçmiş satış gününün tahsilatı değişmez.
 - Nakit/kart iadelerinde seçilen çıkış yöntemi korunur. Parçalı ödemeler, indirimler, fiyat artırımları ve ayrı ayrı iadelerde kalan kuruşlar doğru hesaplanır.
@@ -13,8 +17,8 @@
 Manuel kurulum:
 
 1. Uygulamadan güncel veritabanı yedeği alın ve açık işlemleri tamamlayın.
-2. MagazaPOS'u kapatın. Bu sürümdeki MagazaPOS-Setup-1.0.5.exe dosyasını indirip mevcut kurulumun üzerine kurun. Windows yönetici izni isteyebilir. Kullanıcı verileri klasörünü silmeyin.
-3. Uygulamayı açıp Ayarlar bölümünde kurulu sürümün 1.0.5 olduğunu doğrulayın.
+2. MagazaPOS'u kapatın. Bu sürümdeki MagazaPOS-Setup-1.0.6.exe dosyasını indirip mevcut kurulumun üzerine kurun. Windows yönetici izni isteyebilir. Kullanıcı verileri klasörünü silmeyin.
+3. Uygulamayı açıp Ayarlar bölümünde kurulu sürümün 1.0.6 olduğunu doğrulayın.
 4. Ayrıca hazırlanmış bir düzeltilmiş DB yedeği kullanılacaksa uygulama güncellendikten sonra Ayarlar → Veritabanı & Yedek bölümünden geri yükleyin. Yedekten sonra yeni satış/iade yapıldıysa eski yedeği yüklemeyin.
 
 Uygulama içinden güncelleme için Ayarlar → Güncelleme → Güncellemeleri Kontrol Et yolunu kullanabilirsiniz. Açık satışı tamamladıktan sonra Yedekle ve Kur seçilir.

@@ -1,6 +1,6 @@
 {
   "name": "magazapos",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "author": "MagazaPOS",
   "description": "POS ve Stok Yönetimi Sistemi (Giyim Mağazaları)",
   "main": "dist-electron/main/index.js",
@@ -12,6 +12,7 @@
     "test:api": "npx tsx scripts/test_system.ts",
     "test:gift-vouchers": "node --import tsx tests/giftVouchers.test.ts",
     "test:sales": "node --import tsx --test tests/saleAmounts.test.ts tests/salesReporting.test.ts",
+    "test:restore": "node --import tsx --test tests/databaseRestore.test.ts",
     "test:updates": "node --import tsx --test tests/appUpdates.test.ts tests/updateMaintenance.test.ts tests/updateInstallation.test.ts",
     "package:win": "node scripts/copy-public.js && npx prisma generate && npx tsc --skipLibCheck && npx vite build && node scripts/copy-public.js && npx electron-builder --win nsis",
     "db:migrate": "npx prisma migrate dev",

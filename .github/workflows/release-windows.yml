@@ -8,7 +8,7 @@ on:
       tag:
         description: 'Yayımlanacak mevcut sürüm etiketi (ör. v1.0.1)'
         required: true
-        default: 'v1.0.5'
+        default: 'v1.0.6'
 
 permissions:
   contents: write
@@ -38,6 +38,7 @@ jobs:
       - run: npm run test:updates
       - run: node --import tsx tests/exchanges.test.ts
       - run: npm run test:sales
+      - run: npm run test:restore
       - run: npm run test:gift-vouchers
   release:
     needs: validate

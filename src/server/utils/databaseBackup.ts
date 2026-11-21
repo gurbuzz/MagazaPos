@@ -273,10 +273,23 @@ export async function restoreDatabase(uploadedBuffer: Buffer): Promise<RestoreRe
 
   const stagingPath = validation.stagingPath
   let safetyBackupPath: string | null = null
+  let replacementStarted = false
 
   try {
     // 2. Create emergency safety backup of current live database
     safetyBackupPath = await createAutoSafetyBackup('safety_before_restore')
+    if (!safetyBackupPath || !fs.existsSync(safetyBackupPath)) {
+      throw new Error('Güvenlik yedeği alınamadı. Mevcut veritabanı değiştirilmedi.')
+    }
+    const safetyClient = new PrismaClient({ datasources: { db: { url: toSqliteUrl(safetyBackupPath) } } })
+    try {
+      const integrity = await safetyClient.$queryRawUnsafe<{ integrity_check: string }[]>('PRAGMA integrity_check;')
+      if (integrity.length !== 1 || integrity[0].integrity_check !== 'ok') {
+        throw new Error('Güvenlik yedeğinin bütünlüğü doğrulanamadı. Mevcut veritabanı değiştirilmedi.')
+      }
+      const foreignKeys = await safetyClient.$queryRawUnsafe<unknown[]>('PRAGMA foreign_key_check;')
+      if (foreignKeys.length) throw new Error('Güvenlik yedeğindeki kayıt ilişkileri doğrulanamadı. Mevcut veritabanı değiştirilmedi.')
+    } finally { await safetyClient.$disconnect() }
     console.log(`[Restore] Güvenlik yedeği alındı: ${safetyBackupPath}`)
 
     // 3. Flush live DB WAL checkpoint
@@ -298,6 +311,7 @@ export async function restoreDatabase(uploadedBuffer: Buffer): Promise<RestoreRe
     await new Promise((resolve) => setTimeout(resolve, 100))
 
     // 6. Clean companion WAL & SHM files of target DB to prevent corruption
+    replacementStarted = true
     for (const suffix of ['-wal', '-shm']) {
       const comp = activeDbPath + suffix
       if (fs.existsSync(comp)) {
@@ -339,12 +353,18 @@ export async function restoreDatabase(uploadedBuffer: Buffer): Promise<RestoreRe
       details: stats,
     }
   } catch (restoreErr: any) {
-    console.error('[Restore] HATA OLUŞTU! Otomatik geri alma (ROLLBACK) başlatılıyor...', restoreErr)
+    console.error('[Restore] Geri yükleme tamamlanamadı:', restoreErr)
 
     // Clean up staging file if exists
     try {
       if (fs.existsSync(stagingPath)) fs.unlinkSync(stagingPath)
     } catch {}
+
+    // Validation/backup failures must never copy an unverified backup over the
+    // still intact live database or disconnect its working connection.
+    if (!replacementStarted) {
+      throw new Error(`Geri yükleme başlatılmadı; mevcut veritabanı korundu: ${restoreErr.message}`)
+    }
 
     // AUTOMATIC ROLLBACK: Restore from safety backup
     let rollbackSuccess = false
